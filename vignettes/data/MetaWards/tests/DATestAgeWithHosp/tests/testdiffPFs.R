@@ -95,7 +95,7 @@ for(j in 1:length(npart)) {
         a_dis = 0.05, b_dis = 0.05, saveAll = NA)
     
     ## collapse to data frame and plot
-    runs[[j]] <- tibble(MD = runs_md, MDt100 = runs_mdt100, newMD = runs_md1, MD1t20 = runs_md1t20) %>%
+    runs[[j]] <- tibble(MD = runs_md, MDt100 = runs_mdt100, newMD = runs_md1, newMDt20 = runs_md1t20) %>%
         cbind(select(pars, id)) %>%
         pivot_longer(!id, names_to = "Type")
 }
