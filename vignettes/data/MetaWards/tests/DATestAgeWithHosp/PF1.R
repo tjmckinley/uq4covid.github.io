@@ -88,7 +88,7 @@ PF1 <- function(pars, C, data, u, ndays, npart = 10, MD = TRUE, a1 = 0.01, a2 = 
         
         ## extract observations
         if(PF) {
-            data <- select(data, t, (starts_with("DI") | starts_with("DH")) & ends_with("obs")) %>%
+            data <- select(data, t, (starts_with("DI") | starts_with("H") | starts_with("DH")) & ends_with("obs")) %>%
                 {rbind(rep(0, ncol(.)), .)} %>%
                 mutate(across(!t, ~. - lag(.))) %>%
                 slice(-1) %>%
@@ -122,8 +122,8 @@ PF1 <- function(pars, C, data, u, ndays, npart = 10, MD = TRUE, a1 = 0.01, a2 = 
                         for(j in 1:length(DHinc)) {
                             temp <- dtskellam(-DHinc[j]:(u[[i]][10, j] - DHinc[j]), a_dis + b_dis * DHinc[j], a_dis + b_dis * DHinc[j], -DHinc[j], u[[i]][10, j] - DHinc[j], log = TRUE)
                             tempcounts <- DHinc[j] + (-DHinc[j]:(u[[i]][10, j] - DHinc[j]))
-                            obsDiffs <- obsInc[length(DHinc) + j] - tempcounts
-                            temp <- temp + dtskellam(obsDiffs, a1 + b * tempcounts, a2 + b * tempcounts, LB = -tempcounts, UB = obsInc[length(DHinc) + j], log = TRUE)
+                            obsDiffs <- obsInc[length(DHinc) * 2 + j] - tempcounts
+                            temp <- temp + dtskellam(obsDiffs, a1 + b * tempcounts, a2 + b * tempcounts, LB = -tempcounts, UB = obsInc[length(DHinc) * 2 + j], log = TRUE)
                             tempnorm <- log_sum_exp(temp)
                             temp <- temp - tempnorm
                             tempind <- which(rmultinom(1, 1, exp(temp)) == 1)
@@ -144,13 +144,40 @@ PF1 <- function(pars, C, data, u, ndays, npart = 10, MD = TRUE, a1 = 0.01, a2 = 
                     disSims[[i]][11, ] <- u[[i]][11, ] + RHinc
                     cu[[i]][11, ] <- cu[[i]][11, ] + RHinc
                     
-                    ## H
-                    disSims[[i]][10, ] <- disSims[[i]][10, ] + rtskellam(ncol(disSims[[i]]), 
-                         a_dis + b_dis * disSims[[i]][10, ], 
-                         a_dis + b_dis * disSims[[i]][10, ],
-                         -disSims[[i]][10, ] + u[[i]][10, ] - DHinc - RHinc,
-                         u[[i]][6, ] - disSims[[i]][10, ] + u[[i]][10, ] - DHinc - RHinc)
-                    Hinc <- disSims[[i]][10, ] - u[[i]][10, ] + DHinc + RHinc
+                    if(PF) {
+                        ## H
+                        Hinc <- rep(NA, length(DHinc))
+                        for(j in 1:length(DHinc)) {
+                            temp <- dtskellam((-disSims[[i]][10, j] + u[[i]][10, j] - DHinc[j] - RHinc[j]):(u[[i]][6, j] - disSims[[i]][10, j] + u[[i]][10, j] - DHinc[j] - RHinc[j]), 
+                                a_dis + b_dis * disSims[[i]][10, j], 
+                                a_dis + b_dis * disSims[[i]][10, j], 
+                                -disSims[[i]][10, j] + u[[i]][10, j] - DHinc[j] - RHinc[j], 
+                                u[[i]][6, j] - disSims[[i]][10, j] + u[[i]][10, j] - DHinc[j] - RHinc[j], 
+                                log = TRUE)
+                            ## possible H counts
+                            tempcounts <- (u[[i]][10, j] - DHinc[j] - RHinc[j]):(u[[i]][6, j] + u[[i]][10, j] - DHinc[j] - RHinc[j])
+                            ## corresponding H incidence
+                            tempcounts <- tempcounts - u[[i]][10, j] + DHinc[j] + RHinc[j]
+                            obsDiffs <- obsInc[length(DHinc) + j] - tempcounts
+                            temp <- temp + dtskellam(obsDiffs, a1 + b * tempcounts, a2 + b * tempcounts, LB = -tempcounts, UB = obsInc[length(DHinc) + j], log = TRUE)
+                            tempnorm <- log_sum_exp(temp)
+                            temp <- temp - tempnorm
+                            tempind <- which(rmultinom(1, 1, exp(temp)) == 1)
+                            ## save incidence
+                            Hinc[j] <- tempcounts[tempind]
+                            ## save count
+                            disSims[[i]][10, j] <- tempcounts[tempind] + u[[i]][10, j] - DHinc[j] - RHinc[j]
+                            weights[i] <- weights[i] + tempnorm
+                        }
+                    } else {
+                        ## H
+                        disSims[[i]][10, ] <- disSims[[i]][10, ] + rtskellam(ncol(disSims[[i]]), 
+                            a_dis + b_dis * disSims[[i]][10, ], 
+                            a_dis + b_dis * disSims[[i]][10, ],
+                            -disSims[[i]][10, ] + u[[i]][10, ] - DHinc - RHinc,
+                            u[[i]][6, ] - disSims[[i]][10, ] + u[[i]][10, ] - DHinc - RHinc)
+                        Hinc <- disSims[[i]][10, ] - u[[i]][10, ] + DHinc + RHinc
+                    }
                     cu[[i]][10, ] <- cu[[i]][10, ] + Hinc
                     
                     ## DI given H (MD on incidence)
@@ -171,8 +198,6 @@ PF1 <- function(pars, C, data, u, ndays, npart = 10, MD = TRUE, a1 = 0.01, a2 = 
                         ## DI given H (MD on incidence)
                         DIinc <- disSims[[i]][7, ] - u[[i]][7, ]
                         DIinc <- DIinc + rtskellam(ncol(disSims[[i]]), a_dis + b_dis * DIinc, a_dis + b_dis * DIinc, -DIinc, u[[i]][6, ] - Hinc - DIinc)
-                        disSims[[i]][7, ] <- u[[i]][7, ] + DIinc
-                        cu[[i]][7, ] <- cu[[i]][7, ] + DIinc
                     }
                     disSims[[i]][7, ] <- u[[i]][7, ] + DIinc
                     cu[[i]][7, ] <- cu[[i]][7, ] + DIinc            
@@ -287,8 +312,8 @@ PF1 <- function(pars, C, data, u, ndays, npart = 10, MD = TRUE, a1 = 0.01, a2 = 
                     
                     if(PF) {
                         ## calculate log observation error weights
-                        obsDiffs <- obsInc - c(DIinc, DHinc)
-                        weights[i] <- sum(dtskellam(obsDiffs, a1 + b * c(DIinc, DHinc), a2 + b * c(DIinc, DHinc), LB = -c(DIinc, DHinc), UB = obsInc, log = TRUE))
+                        obsDiffs <- obsInc - c(DIinc, Hinc, DHinc)
+                        weights[i] <- sum(dtskellam(obsDiffs, a1 + b * c(DIinc, Hinc, DHinc), a2 + b * c(DIinc, Hinc, DHinc), LB = -c(DIinc, Hinc, DHinc), UB = obsInc, log = TRUE))
                     }
                 }
                 # ## check counts

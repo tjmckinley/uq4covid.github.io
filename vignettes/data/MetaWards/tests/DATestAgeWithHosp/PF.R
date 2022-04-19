@@ -88,7 +88,7 @@ PF <- function(pars, C, data, u, ndays, npart = 10, MD = TRUE, a1 = 0.01, a2 = 0
         
         ## extract observations
         if(PF) {
-            data <- select(data, t, (starts_with("DI") | starts_with("DH")) & ends_with("obs")) %>%
+            data <- select(data, t, (starts_with("DI") | starts_with("H") | starts_with("DH")) & ends_with("obs")) %>%
                 {rbind(rep(0, ncol(.)), .)} %>%
                 mutate(across(!t, ~. - lag(.))) %>%
                 slice(-1) %>%
@@ -252,9 +252,9 @@ PF <- function(pars, C, data, u, ndays, npart = 10, MD = TRUE, a1 = 0.01, a2 = 0
                 if(PF) {
                     ## calculate log observation error weights
                     obsInc <- data[t, -1]
-                    obsDiffs <- obsInc - c(DIinc, DHinc)
+                    obsDiffs <- obsInc - c(DIinc, Hinc, DHinc)
                     weights[i] <- weights[i] + 
-                        sum(dtskellam(obsDiffs, a1 + b * c(DIinc, DHinc), a2 + b * c(DIinc, DHinc), LB = -c(DIinc, DHinc), UB = obsInc, log = TRUE))
+                        sum(dtskellam(obsDiffs, a1 + b * c(DIinc, Hinc, DHinc), a2 + b * c(DIinc, Hinc, DHinc), LB = -c(DIinc, Hinc, DHinc), UB = obsInc, log = TRUE))
                 }
                 # ## check counts
                 # checkCounts(disSims[[i]], cu[[i]], N)

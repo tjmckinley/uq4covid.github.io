@@ -60,11 +60,12 @@ for(k in 6) {
     sims_nomd <- map(runs_nomd$particles[[1]], ~map(., ~as.vector(t(.)))) %>%
         map(~do.call("rbind", .)) %>%
         map(as_tibble) %>%
+        map(~mutate(., rep = 1:n())) %>%
         bind_rows(.id = "t") %>%
         mutate(t = as.numeric(t))
     stageNms <- map(c("S", "E", "A", "RA", "P", "Ione", "DI", "Itwo", "RI", "H", "RH", "DH"), ~paste0(., 1:8)) %>%
         reduce(c)
-    colnames(sims_nomd) <- c("t", stageNms)
+    colnames(sims_nomd) <- c("t", stageNms, "rep")
     
     ## repeat but adding some model discrepancy
     runs_md <- PF(pars[k, ], C = contact, data = data, u = u, ndays = 50, npart = 100, MD = TRUE, a_dis = 0.5, b_dis = 0.5, saveAll = TRUE)
@@ -73,15 +74,32 @@ for(k in 6) {
     sims_md <- map(runs_md$particles[[1]], ~map(., ~as.vector(t(.)))) %>%
         map(~do.call("rbind", .)) %>%
         map(as_tibble) %>%
+        map(~mutate(., rep = 1:n())) %>%
         bind_rows(.id = "t") %>%
         mutate(t = as.numeric(t))
     stageNms <- map(c("S", "E", "A", "RA", "P", "Ione", "DI", "Itwo", "RI", "H", "RH", "DH"), ~paste0(., 1:8)) %>%
         reduce(c)
-    colnames(sims_md) <- c("t", stageNms)
+    colnames(sims_md) <- c("t", stageNms, "rep")
     
     ## plot both together
     p <- mutate(sims_nomd, type = "No MD") %>%
         rbind(mutate(sims_md, type = "MD")) %>%
+        group_by(type, rep) %>%
+        mutate(across(starts_with("DH"), ~ . - lag(., default = 0), .names = "{.col}inc")) %>%
+        mutate(across(starts_with("RH"), ~ . - lag(., default = 0), .names = "{.col}inc")) %>%
+        mutate(across(starts_with("H"), ~ . - lag(., default = 0), .names = "{.col}cum")) %>%
+        mutate(H1cum = H1cum + DH1inc + RH1inc) %>%
+        mutate(H2cum = H2cum + DH2inc + RH2inc) %>%
+        mutate(H3cum = H3cum + DH3inc + RH3inc) %>%
+        mutate(H4cum = H4cum + DH4inc + RH4inc) %>%
+        mutate(H5cum = H5cum + DH5inc + RH5inc) %>%
+        mutate(H6cum = H6cum + DH6inc + RH6inc) %>%
+        mutate(H7cum = H7cum + DH7inc + RH7inc) %>%
+        mutate(H8cum = H8cum + DH8inc + RH8inc) %>%
+        mutate(across(ends_with("cum"), cumsum)) %>%
+        ungroup() %>%
+        select(!ends_with("inc")) %>%
+        select(!rep) %>%
         pivot_longer(!c(t, type), names_to = "var", values_to = "n") %>%
         group_by(t, var, type) %>%
         summarise(

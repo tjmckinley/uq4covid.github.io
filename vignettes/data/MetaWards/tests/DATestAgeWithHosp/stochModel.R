@@ -106,7 +106,21 @@ skelNoise <- function(count, a1, a2, b1, b2) {
     ## return cumulative counts
     cumsum(inc)
 }
-medRep <- mutate(medRep, across(starts_with("DI"), skelNoise, a1 = a1, a2 = a2, b1 = b, b2 = b, .names = "{.col}obs")) %>%
+medRep <- mutate(medRep, across(starts_with("RH"), ~. - lag(., default = 0), .names = "{.col}inc")) %>%
+    mutate(across(starts_with("DH"), ~. - lag(., default = 0), .names = "{.col}inc")) %>%
+    mutate(across(starts_with("H"), ~. - lag(., default = 0), .names = "{.col}inc")) %>%
+    mutate(H1cum = H1inc + DH1inc + RH1inc) %>%
+    mutate(H2cum = H2inc + DH2inc + RH2inc) %>%
+    mutate(H3cum = H3inc + DH3inc + RH3inc) %>%
+    mutate(H4cum = H4inc + DH4inc + RH4inc) %>%
+    mutate(H5cum = H5inc + DH5inc + RH5inc) %>%
+    mutate(H6cum = H6inc + DH6inc + RH6inc) %>%
+    mutate(H7cum = H7inc + DH7inc + RH7inc) %>%
+    mutate(H8cum = H8inc + DH8inc + RH8inc) %>%
+    mutate(across(starts_with("H") & ends_with("cum"), cumsum)) %>%
+    select(!ends_with("inc")) %>%
+    mutate(across(starts_with("DI"), skelNoise, a1 = a1, a2 = a2, b1 = b, b2 = b, .names = "{.col}obs")) %>%
+    mutate(across(ends_with("cum"), skelNoise, a1 = a1, a2 = a2, b1 = b, b2 = b, .names = "{.col}obs")) %>%
     mutate(across(starts_with("DH"), skelNoise, a1 = a1, a2 = a2, b1 = b, b2 = b, .names = "{.col}obs"))
 
 ## plot replicates
