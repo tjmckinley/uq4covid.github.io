@@ -54,7 +54,7 @@ for(k in 6) {
     ## run model with no model discrepancy and throw out sims corresponding to true parameters
     ## if you want to save out some runs, you can only run for a single design point at a time
     ## due to parallelisation - I could fix, but not right now
-    runs_nomd <- PF1(pars[k, ], C = contact, data = data, u = u, ndays = 50, npart = 100, MD = FALSE, saveAll = TRUE)
+    runs_nomd <- PF1(pars[k, ], C = contact, data = data, u = u, ndays = 50, npart = 100, MD = FALSE, saveAll = TRUE, ncores = 1)
     
     ## plot particle estimates of states (unweighted)
     sims_nomd <- map(runs_nomd$particles[[1]], ~map(., ~as.vector(t(.)))) %>%
@@ -68,7 +68,7 @@ for(k in 6) {
     colnames(sims_nomd) <- c("t", stageNms, "rep")
     
     ## repeat but adding some model discrepancy
-    runs_md <- PF1(pars[k, ], C = contact, data = data, u = u, ndays = 50, npart = 100, MD = TRUE, a_dis = 0.5, b_dis = 0.5, saveAll = TRUE)
+    runs_md <- PF1(pars[k, ], C = contact, data = data, u = u, ndays = 50, npart = 100, MD = TRUE, saveAll = TRUE, ncores = 1)
     
     ## plot particle estimates of states (unweighted)
     sims_md <- map(runs_md$particles[[1]], ~map(., ~as.vector(t(.)))) %>%
