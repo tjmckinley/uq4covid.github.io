@@ -20,7 +20,7 @@ dir.create("outputs")
 sourceCpp("PF.cpp")
 source("PF.R")
 
-## source Skellam function for obsrvation error
+## source Skellam function for observation error
 source("trSkellam.R")
 
 ## read in parameters, remove guff and reorder
@@ -34,7 +34,7 @@ contact <- read_csv("inputs/POLYMOD_matrix.csv", col_names = FALSE) %>%
     as.matrix()
 
 ## extract parameters for simulation   
-pars <- select(slice(pars, 150), !output)
+pars <- select(slice(pars, 6), !output)
 
 ## solution to round numbers preserving sum
 ## adapted from:
