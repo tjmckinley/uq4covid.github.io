@@ -50,6 +50,7 @@ PF1 <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, MD = TRUE, a1 = 
     ## generate number of cohorts
     ncohorts <- tapply(u1_moves[, 1], u1_moves[, 1], length)
     ncohorts <- c(0, cumsum(ncohorts))
+    names(ncohorts) <- NULL
     
     print("Reminder to write code to not hard-code sizes of objects and data")
     
@@ -73,6 +74,9 @@ PF1 <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, MD = TRUE, a1 = 
         
         ## set pars
         pars <- unlist(pars[k, ])
+    
+        ## do garbage collection (seems to solve allocation issue)
+        gc()
         
         ## run particle filter
         ll <- PF1_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
