@@ -998,11 +998,12 @@ List PF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             }
         }
     }
+    
     for(i = 0; i < npart; i++) {
         u1[i] = u1_comb;
         u1_new[i] = u1_comb;
     }
-    
+        
     // set up weight vector
     arma::vec weights (npart);
     arma::ivec inds(npart);
@@ -1618,12 +1619,12 @@ double bessel_i_ex_new(double x, double alpha, double expo, double *bi)
     alpha -= (double)(nb-1);
     I_bessel_new(&x, &alpha, &nb, &ize, bi, &ncalc);
     if(ncalc != nb) {/* error input */
-	if(ncalc < 0)
-	    Rprintf("bessel_i(%g): ncalc (=%d) != nb (=%d); alpha=%g. Arg. out of range?\n",
-			     x, ncalc, nb, alpha);
-	else
-	    Rprintf("bessel_i(%g,nu=%g): precision lost in result\n",
-			     x, alpha+(double)nb-1);
+	    if(ncalc < 0) {
+	        Rprintf("bessel_i(%g): ncalc (=%d) != nb (=%d); alpha=%g. Arg. out of range?\n",
+			         x, ncalc, nb, alpha);
+	    }
+//	    Rprintf("bessel_i(%g,nu=%g): precision lost in result\n",
+//			     x, alpha+(double)nb-1);
     }
     x = bi[nb-1];
     return x;
@@ -2052,12 +2053,13 @@ double bessel_k_ex_new(double x, double alpha, double expo, double *bk)
     alpha -= (double)(nb-1);
     K_bessel_new(&x, &alpha, &nb, &ize, bk, &ncalc);
     if(ncalc != nb) {/* error input */
-      if(ncalc < 0)
-	Rprintf("bessel_k(%g): ncalc (=%d) != nb (=%d); alpha=%g. Arg. out of range?\n",
-			 x, ncalc, nb, alpha);
-      else
-	Rprintf("bessel_k(%g,nu=%g): precision lost in result\n",
-			 x, alpha+(double)nb-1);
+        if(ncalc < 0) {
+            Rprintf("bessel_k(%g): ncalc (=%d) != nb (=%d); alpha=%g. Arg. out of range?\n",
+            x, ncalc, nb, alpha);
+        }
+//      else
+//        Rprintf("bessel_k(%g,nu=%g): precision lost in result\n",
+//		 x, alpha+(double)nb-1);
     }
     x = bk[nb-1];
     return x;
