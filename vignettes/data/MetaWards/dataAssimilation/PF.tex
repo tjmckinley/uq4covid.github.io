@@ -1,0 +1,265 @@
+\documentclass[a4paper]{article}
+\usepackage{amsmath, bm, xcolor, tikz, algpseudocode, algorithm, natbib, mathtools}
+\usetikzlibrary{arrows, positioning, backgrounds, fit}
+
+% formatting
+\usepackage[margin=1in]{geometry}
+\setlength{\parskip}{\baselineskip}
+\setlength{\parindent}{0pt}
+
+\title{Particle filtering}
+\author{TJ McKinley}
+\date{}
+
+% custom commands for brevity
+\newcommand{\btheta}{\bm{\theta}}
+\newcommand{\bx}{\bm{x}}
+\newcommand{\bX}{\bm{X}}
+\newcommand{\by}{\bm{y}}
+\newcommand{\bz}{\bm{z}}
+\newcommand{\bp}{\bm{p}}
+\newcommand{\br}{\bm{r}}
+\newcommand{\bY}{\bm{Y}}
+\newcommand{\bZ}{\bm{Z}}
+\newcommand{\bU}{\bm{U}}
+\newcommand{\bD}{\bm{D}}
+\newcommand{\gap}[1][1]{\vspace{#1\baselineskip}}
+\newcommand{\srm}[1]{\mbox{\scriptsize #1}}
+
+\bibliographystyle{asa}
+
+\begin{document}
+
+\maketitle
+
+Here we assume we have a time-series of observed counts, $z_{1:T}$, and we wish to estimate the likelihood (removing the parameter dependence for brevity):
+\begin{equation}\label{eq:likelihood}
+    \pi\left(z_{1:T}\right) = \pi\left(z_1\right)\prod_{t = 2}^T \pi\left(z_t \mid z_{1:(t - 1)}\right),
+\end{equation}
+where $\pi\left(\cdot\right)$ denotes a probability density\footnote{we use the terms ``density'' and ``mass'' functions interchangeably here} function. The key computational challenge is that the probabilities $\pi\left(z_t \mid z_{1:(t - 1)}\right)$ depend on hidden states, following a hidden Markov structure. In our case we have the joint density function for the observations and hidden states following:
+\begin{equation}\label{eq:model}
+    \pi\left(z_{1:t}, y_{1:t}, x_{1:t}\right) = \pi\left(x_1\right)\pi\left(y_1 \mid x_1\right)\pi\left(z_1 \mid y_1\right) \prod_{t = 2}^T \pi\left(z_t \mid y_t\right)\pi\left(y_t \mid x_t\right)\pi\left(x_t \mid y_{t - 1}\right).
+\end{equation}
+Here $\pi\left(x_t \mid y_{t - 1}\right)$ denotes the density function for the output of the \textbf{simulator}, given states $y_{t - 1}$ at time $t - 1$; $\pi\left(y_t \mid x_t\right)$ is the density function for the \textbf{model discrepancy} process; and $\pi\left(z_t \mid y_t\right)$ is the density function for the \textbf{observation} process, given the adjusted states after model discrepancy is added. Initial conditions are given through some process $\pi\left(z_1, y_1, x_1\right)$.
+
+The general idea is that at some time $t$ we first define the \textbf{prediction density}:
+\begin{equation}
+    \pi\left(y_t, x_t \mid z_{1:(t - 1)}\right) = \int_{y_{t - 1}} \int_{x_{t - 1}} \pi\left(y_t, x_t \mid y_{t - 1}, x_{t - 1}\right)\pi\left(y_{t - 1}, x_{t - 1} \mid z_{1:(t - 1)}\right) \mathrm{d}x_{t - 1} \mathrm{d}y_{t - 1}
+\end{equation}
+and then the \textbf{filtering density}:
+\begin{align}
+    \pi\left(y_t, x_t \mid z_{1:t}\right) &= \frac{\pi\left(z_{1:t}, y_t, x_t\right)}{\pi\left(z_{1:t}\right)}\nonumber\\
+    &= \frac{\pi\left(z_t \mid y_t, x_t, z_{1:(t - 1)}\right)\pi\left(y_t, x_t \mid z_{1:(t - 1)}\right)\pi\left(z_{1:(t - 1)}\right)}{\pi\left(z_t \mid z_{1:(t - 1)}\right)\pi\left(z_{1:(t - 1)}\right)}\nonumber\\
+    &= \frac{\pi\left(z_t \mid y_t, x_t\right)\pi\left(y_t, x_t \mid z_{1:(t - 1)}\right)}{\pi\left(z_t \mid z_{1:(t - 1)}\right)}.\label{eq:filt}
+\end{align}
+The simplification of the final line is due to the observations $z_t$ being conditionally independent of each other given the hidden states $x_t$, $y_t$.
+
+Particle filtering operates by approximating the random variables $\left(y_{t - 1}, x_{t - 1} \mid z_{1:(t - 1)}\right)$ by a finite set of $M$ particles: $\left(y^1_{t - 1}, x^1_{t - 1}\right), \dots, \left(y^M_{t - 1}, x^M_{t - 1}\right)$, each with discrete probability mass $\pi^1_{t - 1}, \dots, \pi^M_{t - 1}$ such that $\sum_{j = 1}^M \pi^j_{t - 1} = 1$. Thus the \textbf{prediction density} is approximated as:
+\begin{equation}\label{eq:emppred}
+    \hat{\pi}\left(y_t, x_t \mid z_{1:(t - 1)}\right) = \sum_{j = 1}^M \pi\left(y_t, x_t \mid y^j_{t - 1}, x^j_{t - 1}\right) \pi^j_{t - 1}.
+\end{equation}
+The equation (\ref{eq:emppred}) is known as the \textbf{empirical prediction density}. Using the recursive formula (\ref{eq:filt}), the \textbf{empirical filtering density} can be approximated as:
+\begin{equation}
+    \hat{\pi}\left(y_t, x_t \mid z_{1:t}\right) \propto \pi\left(z_t \mid y_t, x_t\right)\sum_{j = 1}^M \pi\left(y_t, x_t \mid y^j_{t - 1}, x^j_{t - 1}\right) \pi^j_{t - 1}.\label{eq:empfilt}
+\end{equation}
+See e.g. \cite{pitt_shephard:1999, doucetetal:2001} for more details. Since the weights $\pi^j_t$ are not analytically tractable, sequential Monte Carlo is used to estimate the empirical prediction and filtering distributions recursively. The basic idea is that we draw a set of initial particles $\left(y^1_0, x^1_0\right), \dots, \left(y^M_0, x^M_0\right)$ from the prior, and then associate each particle with a weight $\pi^j_0 = \frac{1}{M}$ for $j = 1, \dots, M$. 
+
+At some time $t > 0$, $j = 1, \dots, M$ samples from the empirical filtering density (\ref{eq:empfilt}) can be obtained by sampling an index $k$ with probability $\pi^k_{t - 1}$, and then simulating $\left(y^j_t, x^j_t \mid y^k_{t - 1}, x^k_{t - 1}\right) \sim \pi\left(y_t, x_t \mid y^k_{t - 1}, x^k_{t - 1}\right)$, where
+\begin{equation}
+    \pi\left(y_t, x_t \mid y^k_{t - 1}, x^k_{t - 1}\right) = \pi\left(y_t \mid x_t\right)\pi\left(x_t \mid y^k_{t - 1}\right),
+\end{equation}
+from the model (\ref{eq:model}). An \textbf{unnormalised weight} can then be calculated as:
+\begin{equation}\label{eq:weights}
+    w^j_t = \pi\left(z_t \mid y^j_t\right).
+\end{equation}
+Then normalised weights can be generated as:
+\begin{equation}
+    \pi^j_t = \frac{w^j_t}{\sum_{k = 1}^M w^k_t}.
+\end{equation}
+The empirical filtering densities can be shown to be \textbf{asymptotically unbiased} as $M \to \infty$. 
+
+\section{Likelihood estimation}
+
+From an inference perspective, we can generate an estimate of the likelihood (\ref{eq:likelihood}) as:
+\begin{equation}
+    \hat{\pi}\left(z_{1:T}\right) = \prod_{t = 1}^T \hat{\pi}\left(z_t \mid A_{t - 1}\right),
+\end{equation}
+where $A_{t - 1} = \left(y^{1:M}_{t - 1}, x^{1:M}_{t - 1}, \pi^{1:M}_{t - 1}\right)$ is the swarm of particles at time $t - 1$. Here
+\begin{equation}
+    \hat{\pi}\left(z_t \mid A_{t - 1}\right) = \frac{1}{M} \sum_{j = 1}^M w^j_t,
+\end{equation}
+with weights defined as in (\ref{eq:weights}). Furthermore, the estimator $\hat{\pi}\left(z_{1:T}\right)$ is \textbf{unbiased} for any $M$ (\textbf{proof not shown}, but I have it if you are interested, or see e.g. \citealp{pittetal:2012} for a proof of an even more flexible particle filter that we leverage below).
+
+Following \cite{pittetal:2012}, as far as I can tell a sufficient condition for unbiasedness of the likelihood estimate is that
+\begin{align*}
+    E\left[\hat{\pi}\left(z_t \mid A_{t - 1}\right)\right] &= \sum_{j = 1}^M \pi\left(z_t \mid y^j_{t - 1}, x^j_{t - 1}\right)\pi^j_{t - 1}.
+\end{align*}
+Given weights defined in (\ref{eq:weights}) we have:
+\begin{align*}
+    E\left[\hat{\pi}\left(z_t \mid A_{t - 1}\right)\right] &= E\left[\frac{1}{M} \sum_{j = 1}^M w^j_t \right]\\
+    &= \frac{1}{M}\sum_{j = 1}^M E\left[w^j_t\right] \qquad \mbox{from linearity of expectations}\\
+    &= \frac{1}{M}\sum_{j = 1}^M \sum_{k = 1}^M \pi^k_{t - 1} \int_{y_t} \int_{x_t} \pi\left(z_t \mid y_t\right)\pi\left(y_t \mid x_t\right)\pi\left(x_t \mid y^k_{t - 1}\right)\mathrm{d}x_t\mathrm{d}y_t\\
+    &= \frac{1}{M}\sum_{j = 1}^M \sum_{k = 1}^M \pi\left(z_t \mid y^k_{t - 1}, x^k_{t - 1}\right)\pi^k_{t - 1}\\
+    &= \sum_{k = 1}^M \pi\left(z_t \mid y^k_{t - 1}, x^k_{t - 1}\right)\pi^k_{t - 1}.
+\end{align*}
+
+\section{Auxiliary Particle Filter (1)}
+
+Instead of the weights above, we can try to reduce the variance of the estimator $\hat{\pi}\left(z_t \mid A_{t - 1}\right)$ by using importance sampling, rather than standard Monte Carlo sampling. If we consider sampling an index $k$ with probability $\pi_t^k$, and then simulating $\left(y^j_t, x^j_t \mid y^k_{t - 1}, x^k_{t - 1}\right) \sim q\left(y_t, x_t \mid y^k_{t - 1}, x^k_{t - 1}, z_t\right)$ where $q(\cdot)$ denotes an \textit{importance distribution} given by:
+\begin{align}
+    q\left(y_t, x_t \mid y^k_{t - 1}, x^k_{t - 1}, z_t\right) &= q\left(y_t \mid x_t, z_t\right)\pi\left(x_t \mid y^k_{t - 1}\right) \nonumber \\
+    &= \frac{\pi\left(z_t \mid y_t\right)\pi\left(y_t \mid x_t\right)}{\pi\left(z_t \mid x_t\right)}\pi\left(x_t \mid y^k_{t - 1}\right),
+\end{align}
+from the model (\ref{eq:model}). An \textbf{unnormalised weight} can then be calculated as:
+\begin{align}\label{eq:impweights}
+    w^j_t &= \frac{\pi\left(z_t \mid y^j_t\right)\pi\left(y^j_t \mid x^j_t\right)\pi\left(x^j_t \mid y^k_{t - 1}\right)}{q\left(y^j_t, x^j_t \mid y^k_{t - 1}, x^k_{t - 1}, z_t\right)}\nonumber\\
+    &= \frac{\pi\left(z_t \mid y^j_t\right)\pi\left(y^j_t \mid x^j_t\right)\pi\left(x^j_t \mid y^k_{t - 1}\right)}{\frac{\pi\left(z_t \mid y^j_t\right)\pi\left(y^j_t \mid x^j_t\right)}{\pi\left(z_t \mid x^j_t\right)}\pi\left(x^j_t \mid y^k_{t - 1}\right)}\nonumber\\
+    &= \pi\left(z_t \mid x^j_t\right).
+\end{align}
+Note that the weights (\ref{eq:impweights}) should have a lower variance than the weights (\ref{eq:weights}) due to the fact that the former use the next observation $z_t$ to inform the simulation of the hidden state $y_t$. This is a variation on an \textbf{auxiliary particle filter} \citep{pitt_shephard:1999}. Another variation would be to use $z_t$ to also inform the choice of \textit{index} in the re-sampling e.g. sample $k \sim q\left(k \mid z_t\right)$ [I have this coded up also for the age-structured model].
+
+This maintains the sufficient condition for unbiasedness of the marginal likelihood estimate, since
+\begin{align*}
+    E\left[\hat{\pi}\left(z_t \mid A_{t - 1}\right)\right] &= E\left[\frac{1}{M} \sum_{j = 1}^M w^j_t \right]\\
+    &= \frac{1}{M}\sum_{j = 1}^M E\left[w^j_t\right] \qquad \mbox{from linearity of expectations}\\
+    &= \frac{1}{M}\sum_{j = 1}^M\sum_{k = 1}^M \pi^k_{t - 1} \int_{y_t} \int_{x_t} \frac{\pi\left(z_t \mid y_t\right)\pi\left(y_t \mid x_t\right)\pi\left(x_t \mid y^k_{t - 1}, x^k_{t - 1}\right)}{q\left(y_t, x_t \mid y^k_{t - 1}, x^k_{t - 1}, z_t\right)}q\left(y_t, x_t \mid y^k_{t - 1}, x^k_{t - 1}, z_t\right)\mathrm{d}x_t\mathrm{d}y_t\\
+    &= \frac{1}{M}\sum_{j = 1}^M\sum_{k = 1}^M \pi^k_{t - 1} \int_{y_t} \int_{x_t} \pi\left(z_t \mid y_t\right)\pi\left(y_t \mid x_t\right)\pi\left(x_t \mid y^k_{t - 1}, x^k_{t - 1}\right)\mathrm{d}x_t\mathrm{d}y_t\\
+    &= \frac{1}{M}\sum_{j = 1}^M\sum_{k = 1}^M \pi\left(z_t \mid y^k_{t - 1}, x^k_{t - 1}\right)\pi^k_{t - 1}\\
+    &= \sum_{k = 1}^M \pi\left(z_t \mid y^k_{t - 1}, x^k_{t - 1}\right)\pi^k_{t - 1}.
+\end{align*}
+
+\section{Auxiliary Particle Filter (3)}
+
+Now let's consider building an importance distribution where all of the unknowns are conditioned on the data. In this case consider a distribution of the form:
+\begin{equation}\label{eq:apf3}
+    q\left(y_t, x_t, k \mid z_t, A_{t - 1}\right) \propto \pi\left(z_t \mid y_t\right)\pi\left(y_t \mid x_t\right)\pi\left(x_t \mid y^k_{t - 1}\right)\pi^k_{t - 1},
+\end{equation}
+where $A_{t - 1}$ corresponds to the swarm of particles at time $t - 1$.
+
+We can then sample from this conditionally, by considering that:
+\begin{equation}\label{eq:qcond}
+    q\left(y_t, x_t, k \mid z_t, A_{t - 1}\right) = q\left(y_t \mid x_t, k, z_t, A_{t - 1}\right)q\left(x_t \mid k, z_t, A_{t - 1}\right)q\left(k \mid z_t, A_{t - 1}\right),
+\end{equation}
+where
+\begin{align}
+    q\left(k \mid z_t, A_{t - 1}\right) &\propto \pi^k_{t - 1} \sum_{x_t} \pi\left(x_t \mid y^k_{t - 1}\right) \sum_{y_t} \pi\left(z_t \mid y_t\right)\pi\left(y_t \mid x_t\right),\label{eq:sumxy}\\
+    q\left(x_t \mid k, z_t, A_{t - 1}\right) &\propto \pi\left(x_t \mid y^k_{t - 1}\right) \sum_{y_t} \pi\left(z_t \mid y_t\right)\pi\left(y_t \mid x_t\right)\quad\mbox{and} \label{eq:sumy}\\
+    q\left(y_t \mid x_t, k, z_t, A_{t - 1}\right) &\propto \pi\left(z_t \mid y_t\right)\pi\left(y_t \mid x_t\right).
+\end{align}
+These are derived by marginalising out the relevant components in (\ref{eq:apf3}). In this case all unknowns, $k$, $x_t$ and $y_t$ have finite (discrete) sample spaces, and hence the corresponding normalising constants can be calculated explicitly, and sampling can be done via inverse transform sampling.
+
+Hence for $j = 1, \dots, M$ we can:
+\begin{enumerate}
+    \item Set \textit{first-stage weights}:
+    $$
+        w^j_{t - 1 \mid t} = \pi^j_{t - 1} q\left(z_t \mid y^j_{t - 1}\right) \qquad \mbox{and} \qquad \pi^j_{t - 1 \mid t} = \frac{w^j_{t - 1 \mid t}}{\sum_{l = 1}^M w^l_{t - 1 \mid t}}
+    $$ 
+    for $j = 1, \dots, M$, where
+    $$
+        q\left(z_t \mid y^j_{t - 1}\right) = \sum_{x_t} \pi\left(x_t \mid y^j_{t - 1}\right)\sum_{y_t} \pi\left(z_t \mid y_t\right)\pi\left(y_t \mid x_t\right).
+    $$
+    \item Sample $k^j \sim q\left(k \mid z_t, A_{t - 1}\right)$ where $q\left(k \mid z_t, A_{t - 1}\right) = \pi^k_{t - 1 \mid t}$.
+    \item Sample $x^j_t \sim q\left(x_t \mid k^j, z_t, A_{t - 1}\right)$.
+    \item Sample $y^j_t \sim q\left(y_t, \mid x^j_t, k^j, z_t, A_{t - 1}\right)$.
+    \item Calculate the \textit{second-stage weights}:
+    $$
+        w^j_t = \frac{\pi\left(z_t \mid y^j_t\right)\pi\left(y^j_t \mid x^j_t\right)\pi\left(x^j_t \mid y^{k^j}_{t - 1}\right)}{q\left(z_t \mid y^{k^j}_{t - 1}\right)q\left(y^j_t \mid x^j_t, k^j, z_t, A_{t - 1}\right)q\left(x^j_t \mid k^j, z_t, A_{t - 1}\right)} \qquad \mbox{and} \qquad \pi^j_t = \frac{w^j_t}{\sum_{l = 1}^M w^l_t}
+    $$ 
+    for $j = 1, \dots, M$.
+    \item Calculate the likelihood contribution:
+    $$
+        \hat{\pi}\left(z_t \mid A_{t - 1}\right) = \left[\frac{1}{M}\sum_{j = 1}^M w^j_t\right]\left[\sum_{j = 1}^M w^j_{t - 1 \mid t}\right].
+    $$
+\end{enumerate}
+
+\subsection{Conditional sampling}
+
+\textcolor{red}{Flag to change all scalars to vectors above (see below).}
+
+We need to consider how to calculate and sample from the densities above efficiently. Let's first consider:
+\begin{align}
+    \pi\left(\bx_t \mid \by^j_{t - 1}\right) &= \pi\left(D^{X^\prime}_{Ht}, R^{X^\prime}_{Ht} \mid H^{Yj}_{t - 1}\right)\pi\left(H^{X^\prime}_t, I^{X^\prime}_{2t}, D^{X^\prime}_{It} \mid I^{Yj}_{1(t - 1)}\right)\pi\left(R^{X^\prime}_{It} \mid I^{Yj}_{2(t - 1)}\right)\pi\left(I^{X^\prime}_{1t} \mid P^{Yj}_{t - 1}\right)\nonumber\\
+    & \qquad \qquad \qquad \times \pi\left(P^{X^\prime}_t, A^{X^\prime}_t \mid E^{Yj}_{t - 1}\right)\pi\left(R^{X^\prime}_{At} \mid A^{Yj}_{t - 1} \right)\nonumber\\
+    & \qquad \qquad \qquad \qquad \qquad \qquad \times \pi\left(E^{X^\prime}_t \mid S^{Yj}_{t - 1}, A^{Yj}_{t - 1}, P^{Yj}_{t - 1}, I^{Yj}_{1(t - 1)}, I^{Yj}_{2(t - 1)}\right).
+\end{align}
+Similarly, the conditional model discrepancy distribution is \textcolor{red}{Need js or remove js above}:
+\begin{align}
+    \pi\left(\by_t \mid \bx^j_t\right) &= \pi\left(D^{Y^\prime}_{Ht} \mid D^{X^\prime}_{Ht}, H^Y_{t - 1}\right)\pi\left(D^{Y^\prime}_{It} \mid D^{X^\prime}_{It}, I^Y_{1(t - 1)}\right)\pi\left(R^{Y^\prime}_{Ht} \mid R^{X^\prime}_{Ht}, D^{Y^\prime}_{Ht}, H^Y_{t - 1}\right)\nonumber\\
+    & \qquad \times \pi\left(H^Y_t \mid H^X_t, H^Y_{t - 1}, D^{Y^\prime}_{Ht}, R^{Y^\prime}_{Ht}, D^{Y^\prime}_{It}, I^Y_{1(t - 1)}\right) \pi\left(R^{Y^\prime}_{It} \mid R^{X^\prime}_{It}, I^Y_{2(t - 1)}\right)\nonumber\\
+    &\qquad \qquad \times \pi\left(I^Y_{2t} \mid I^X_{2t}, I^Y_{2(t - 1)}, R^{Y^\prime}_{It}, D^{Y^\prime}_{It}, H^{Y^\prime}_t, I^Y_{1(t - 1)}\right)\pi\left(I^Y_{1t} \mid I^X_{1t}, I^Y_{1(t - 1)}, I^{Y^\prime}_{2t}, D^{Y^\prime}_{It}, H^{Y^\prime}_t, P^Y_{t - 1}\right)\nonumber\\
+    &\qquad \qquad \qquad \times \pi\left(P^Y_t \mid P^X_t, P^Y_{t - 1}, I^{Y^\prime}_{1t}, E^Y_{t - 1}\right)\pi\left(R^{Y^\prime}_{At} \mid R^{X^\prime}_{At}, A^Y_{t - 1}\right)\pi\left(A^Y_t \mid A^X_t, A^Y_{t - 1}, R^{Y^\prime}_{At}, E^Y_{t - 1}\right)\nonumber\\
+    & \qquad \qquad \qquad \qquad \times \pi\left(E^Y_t \mid E^X_t, E^Y_{t - 1}, P^{Y^\prime}_t, A^{Y^\prime}_t, S^Y_{t - 1}\right).\label{eq:mdlike}
+\end{align}
+If we first consider the sum in (\ref{eq:sumy}) we have that:
+\begin{align}
+    \sum_{\by_t} \pi\left(\bz_t \mid \by_t\right)\pi\left(\by_t \mid \bx_t\right) &= \sum_{D^{Y^\prime}_{Ht}}\sum_{D^{Y^\prime}_{It}}\dots\sum_{E^Y_t} \pi\left(D^{Z^\prime}_{Ht} \mid D^{Y^\prime}_{Ht}\right)\pi\left(D^{Z^\prime}_{It} \mid D^{Y^\prime}_{It}\right)\pi\left(\by_t \mid \bx^j_t\right)\label{eq:margy}
+\end{align}
+where $\pi\left(\by_t \mid \bx^j_t\right)$ is given in (\ref{eq:mdlike}). Due to the conditioning, many of the components of (\ref{eq:mdlike}) marginalise to one in (\ref{eq:margy}), leaving:
+\begin{align}
+    \sum_{\by_t} \pi\left(\bz_t \mid \by_t\right)\pi\left(\by_t \mid \bx_t\right) &= \sum_{D^{Y^\prime}_{Ht}}\sum_{D^{Y^\prime}_{It}} \pi\left(D^{Z^\prime}_{Ht} \mid D^{Y^\prime}_{Ht}\right)\pi\left(D^{Z^\prime}_{It} \mid D^{Y^\prime}_{It}\right) \nonumber\\
+    & \qquad \qquad \pi\left(D^{Y^\prime}_{Ht} \mid D^{X^\prime}_{Ht}, H^Y_{t - 1}\right)\pi\left(D^{Y^\prime}_{It} \mid D^{X^\prime}_{It}, I^Y_{1(t - 1)}\right).\label{eq:margy1}
+\end{align}
+Here we have a finite sample space over which to marginalise the remaining terms, since $D^{Y^\prime}_{Ht} = 0, \dots, H^Y_{t - 1}$ and $D^{Y^\prime}_{It} = 0, \dots, I^Y_{1(t - 1)}$.
+
+Now if we consider the nested sum in (\ref{eq:sumxy}):
+\begin{align}
+    \sum_{\bx_t} \pi\left(\bx_t \mid \by^k_{t - 1} \right)\sum_{\by_t} \pi\left(\bz_t \mid \by_t\right)\pi\left(\by_t \mid \bx_t\right).\label{eq:margxy}
+\end{align}
+From (\ref{eq:margy1}) we can see that the internal sum depends only on $D^{Y^\prime}_{Ht}$ and $D^{Y^\prime}_{It}$, and as such we can write (\ref{eq:margxy}) as:
+\begin{align}
+   & \sum_{D^{X^\prime}_{Ht}}\sum_{D^{X^\prime}_{It}}\dots\sum_{E^{X^\prime}_t} \pi\left(D^{X^\prime}_{Ht} \mid H^Y_{t - 1}\right)\pi\left(R^{X^\prime}_{Ht} \mid D^{X^\prime}_{Ht}, H^Y_{t - 1}\right)\pi\left(D^{X^\prime}_{It} \mid I^Y_{1(t - 1)}\right)\pi\left(H^{X^\prime}_t, I^{X^\prime}_{2t} \mid D^{X^\prime}_{It}, I^Y_{1(t - 1)}\right)\nonumber\\
+   & \qquad \qquad \times \pi\left(R^{X^\prime}_{It} \mid I^Y_{2(t - 1)}\right)\pi\left(I^{X^\prime}_{1t} \mid P^Y_{t - 1}\right) \pi\left(P^{X^\prime}_t, A^{X^\prime}_t \mid E^Y_{t - 1}\right)\pi\left(R^{X^\prime}_{At} \mid A^Y_{t - 1} \right)\nonumber\\
+    & \qquad \qquad \qquad \qquad \times \pi\left(E^{X^\prime}_t \mid S^Y_{t - 1}, A^Y_{t - 1}, P^Y_{t - 1}, I^Y_{1(t - 1)}, I^Y_{2(t - 1)}\right)\nonumber\\
+    & \qquad \qquad \qquad \qquad \qquad \qquad \times \sum_{D^{Y^\prime}_{Ht}}\sum_{D^{Y^\prime}_{It}} \pi\left(D^{Z^\prime}_{Ht} \mid D^{Y^\prime}_{Ht}\right)\pi\left(D^{Z^\prime}_{It} \mid D^{Y^\prime}_{It}\right) \nonumber\\
+    & \qquad \qquad \qquad \qquad \qquad \qquad \qquad \qquad \pi\left(D^{Y^\prime}_{Ht} \mid D^{X^\prime}_{Ht}, H^Y_{t - 1}\right)\pi\left(D^{Y^\prime}_{It} \mid D^{X^\prime}_{It}, I^Y_{1(t - 1)}\right) \nonumber\\
+    &= \sum_{D^{X^\prime}_{Ht}}\sum_{D^{X^\prime}_{It}} \pi\left(D^{X^\prime}_{Ht} \mid H^Y_{t - 1}\right)\pi\left(D^{X^\prime}_{It} \mid I^Y_{1(t - 1)}\right) \nonumber\\
+    & \qquad \qquad \times \sum_{D^{Y^\prime}_{Ht}}\sum_{D^{Y^\prime}_{It}} \pi\left(D^{Z^\prime}_{Ht} \mid D^{Y^\prime}_{Ht}\right)\pi\left(D^{Z^\prime}_{It} \mid D^{Y^\prime}_{It}\right) \pi\left(D^{Y^\prime}_{Ht} \mid D^{X^\prime}_{Ht}, H^Y_{t - 1}\right)\pi\left(D^{Y^\prime}_{It} \mid D^{X^\prime}_{It}, I^Y_{1(t - 1)}\right).
+\end{align}
+Similarly to (\ref{eq:margy1}), the limits are finite, such that $D^{X^\prime}_{Ht} = 0, \dots, H^Y_{t - 1}$ and $D^{X^\prime}_{It} = 0, \dots, I^Y_{1(t - 1)}$. The factorisation above uses the factorisation:
+\begin{equation}
+    \pi\left(D^{X^\prime}_{Ht}, R^{X^\prime}_{Ht} \mid H^Y_{t - 1}\right) = \pi\left(D^{X^\prime}_{Ht} \mid H^Y_{t - 1}\right)\pi\left(R^{X^\prime}_{Ht} \mid D^{X^\prime}_{Ht}, H^Y_{t - 1}\right).
+\end{equation}
+Since $\pi\left(D^{X^\prime}_{Ht}, R^{X^\prime}_{Ht} \mid H^Y_{t - 1}\right)$ is multinomial, both the marginal, $\pi\left(D^{X^\prime}_{Ht} \mid H^Y_{t - 1}\right)$, and conditional, $\pi\left(R^{X^\prime}_{Ht} \mid D^{X^\prime}_{Ht}, H^Y_{t - 1}\right)$, are binomial. Similarly for $\pi\left(D^{X^\prime}_{It} \mid I^Y_{1(t - 1)}\right)$.
+
+This allows us to sample a particle index $k \sim q\left(k \mid \bz_t, A_{t - 1}\right)$ as required in step 2 of the APF. In step 3, we then have to simulate $\bx^j_t \sim q\left(\bx_t \mid k^j, \bz_t, A_{t - 1}\right)$. This means we have to simulate from a distribution with p.m.f.
+\begin{equation}
+    q\left(\bx_t \mid k, \bz_t, A_{t - 1}\right) \propto \pi\left(\bx_t \mid \by^k_{t - 1} \right)\sum_{\by_t} \pi\left(\bz_t \mid \by_t\right)\pi\left(\by_t \mid \bx_t\right).\label{eq:qmarg}
+\end{equation}
+We note that it is possible to factorise the simulator likelihood such that
+\begin{align}
+     \pi\left(\bx_t \mid \by^k_{t - 1} \right) &= \pi\left(D^{X^\prime}_{Ht}, D^{X^\prime}_{It} \mid \by^k_{t - 1}\right)\pi\left(R^{X^\prime}_{Ht}, H^{X^\prime}_t, I^{X^\prime}_{2t}, R^{X^\prime}_{It}, I^{X^\prime}_{1t}, P^{X^\prime}_t, A^{X^\prime}_t, R^{X^\prime}_{At}, E^{X^\prime}_t \mid D^{X^\prime}_{Ht}, D^{X^\prime}_{It}, \by^k_{t - 1}\right),\label{eq:likefact}
+\end{align}
+and hence we can sample from
+\begin{equation}
+    q\left(\bx_t \mid k, \bz_t, A_{t - 1}\right) = q\left(D^{X^\prime}_{Ht}, D^{X^\prime}_{It} \mid \by^k_{t - 1}\right)q\left(R^{X^\prime}_{Ht}, H^{X^\prime}_t, I^{X^\prime}_{2t}, R^{X^\prime}_{It}, I^{X^\prime}_{1t}, P^{X^\prime}_t, A^{X^\prime}_t, R^{X^\prime}_{At}, E^{X^\prime}_t \mid D^{X^\prime}_{Ht}, D^{X^\prime}_{It}, \by^k_{t - 1}\right).
+\end{equation}
+where $q\left(D^{X^\prime}_{Ht}, D^{X^\prime}_{It} \mid \by^k_{t - 1}\right)$ is derived by marginalising out the unwanted terms in (\ref{eq:qmarg}) using the relationship in (\ref{eq:likefact}) to give
+\begin{align}
+     q\left(D^{X^\prime}_{Ht}, D^{X^\prime}_{It} \mid \by^k_{t - 1}\right) &\propto \pi\left(D^{X^\prime}_{Ht} \mid H^Y_{t - 1}\right)\pi\left(D^{X^\prime}_{It} \mid I^Y_{1(t - 1)}\right) \nonumber\\
+    & \qquad \qquad \times \sum_{D^{Y^\prime}_{Ht}}\sum_{D^{Y^\prime}_{It}} \pi\left(D^{Z^\prime}_{Ht} \mid D^{Y^\prime}_{Ht}\right)\pi\left(D^{Z^\prime}_{It} \mid D^{Y^\prime}_{It}\right) \pi\left(D^{Y^\prime}_{Ht} \mid D^{X^\prime}_{Ht}, H^Y_{t - 1}\right)\pi\left(D^{Y^\prime}_{It} \mid D^{X^\prime}_{It}, I^Y_{1(t - 1)}\right),
+\end{align}
+
+\subsection{Unbiasedness of likelihood estimator}
+
+This maintains the sufficient condition for unbiasedness of the marginal likelihood estimate, since
+\begin{align*}
+    E\left[\hat{\pi}\left(z_t \mid A_{t - 1}\right)\right] &= E\left[\left(\frac{1}{M}\sum_{j = 1}^M w^j_t\right)\left(\sum_{j = 1}^M w^j_{t - 1 \mid t}\right)\right]\\
+    &= \left(\sum_{j = 1}^M w^j_{t - 1 \mid t}\right)E\left[\frac{1}{M}\sum_{j = 1}^M w^j_t\right] \qquad \mbox{since $w^j_{t - 1 \mid t}$ known given $A_{t - 1}$}\\
+    &= \left(\sum_{j = 1}^M w^j_{t - 1 \mid t}\right)\left(\frac{1}{M}\sum_{j = 1}^M E\left[w^j_t\right]\right) \qquad \mbox{from linearity of expectations}\\
+    &= \frac{\left(\sum_{j = 1}^M w^j_{t - 1 \mid t}\right)}{M}\sum_{j = 1}^M \\
+    & \qquad \sum_{k = 1}^M\int_{y_t} \int_{x_t}  \frac{\pi\left(z_t \mid y_t\right)\pi\left(y_t \mid x_t\right)\pi\left(x_t \mid y^{k}_{t - 1}\right)}{q\left(z_t \mid y^{k}_{t - 1}\right)q\left(y_t \mid x_t, k, z_t, A_{t - 1}\right)q\left(x_t \mid k, z_t, A_{t - 1}\right)}q\left(y_t, x_t, k \mid z_t, A_{t - 1}\right)\mathrm{d}x_t\mathrm{d}y_t\\
+    &= \frac{\left(\sum_{j = 1}^M w^j_{t - 1 \mid t}\right)}{M}\sum_{j = 1}^M \\
+    & \qquad \sum_{k = 1}^M\int_{y_t} \int_{x_t}  \frac{\pi\left(z_t \mid y_t\right)\pi\left(y_t \mid x_t\right)\pi\left(x_t \mid y^{k}_{t - 1}\right)}{q\left(z_t \mid y^{k}_{t - 1}\right)}q\left(k \mid z_t, A_{t - 1}\right)\mathrm{d}x_t\mathrm{d}y_t \qquad \mbox{from (\ref{eq:qcond})}\\
+    &= \frac{\left(\sum_{j = 1}^M w^j_{t - 1 \mid t}\right)}{M}\sum_{j = 1}^M \\
+    & \qquad \sum_{k = 1}^M\int_{y_t} \int_{x_t}  \frac{\pi\left(z_t \mid y_t\right)\pi\left(y_t \mid x_t\right)\pi\left(x_t \mid y^{k}_{t - 1}\right)}{q\left(z_t \mid y^{k}_{t - 1}\right)}\left(\frac{w^k_{t - 1 \mid t}}{\sum_{j = 1}^M w^j_{t - 1 \mid t}}\right)\mathrm{d}x_t\mathrm{d}y_t\\
+    &= \frac{1}{M}\sum_{j = 1}^M \sum_{k = 1}^M\int_{y_t} \int_{x_t}  \frac{\pi\left(z_t \mid y_t\right)\pi\left(y_t \mid x_t\right)\pi\left(x_t \mid y^{k}_{t - 1}\right)}{q\left(z_t \mid y^{k}_{t - 1}\right)}\cdot\pi^k_{t - 1} q\left(z_t \mid y^{k}_{t - 1}\right)\mathrm{d}x_t\mathrm{d}y_t\\
+    &= \frac{1}{M}\sum_{j = 1}^M\sum_{k = 1}^M \pi^k_{t - 1} \int_{y_t} \int_{x_t} \pi\left(z_t \mid y_t\right)\pi\left(y_t \mid x_t\right)\pi\left(x_t \mid y^k_{t - 1}\right)\mathrm{d}x_t\mathrm{d}y_t\\
+    &= \frac{1}{M}\sum_{j = 1}^M\sum_{k = 1}^M \pi\left(z_t \mid y^k_{t - 1}\right)\pi^k_{t - 1}\\
+    &= \sum_{k = 1}^M \pi\left(z_t \mid y^k_{t - 1}\right)\pi^k_{t - 1}.
+\end{align*}
+
+
+
+\bibliography{/home/tj/Documents/ref}
+
+\end{document}
