@@ -109,6 +109,7 @@ PF1 <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, MD = TRUE, a1 = 
             return(list(particles = runs))
         }
     } else {
+        ll <- map(runs, "ll")
         ll <- do.call("c", runs)
         return(ll)
     }
