@@ -1542,7 +1542,15 @@ List PF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
         timer.step("");
         NumericVector res(timer);
         
-        Rprintf("t = %d / %d time = %.2f secs \n", t + 1, ndays, (res[timer_cnt] / 1e9) - prev_time);
+        // calculate ESS
+        double ESS = 0.0;
+        for(i = 0; i < npart; i++) {
+            ESS += pow(weights(i), 2.0);
+        }
+        ESS = 1.0 / ESS;
+        ESS = ESS / ((double) npart);
+        
+        Rprintf("t = %d / %d RESS = %.2f time = %.2f secs \n", t + 1, ndays, ESS, (res[timer_cnt] / 1e9) - prev_time);
         
         //reset timer and acceptance rate counter
         prev_time = res[timer_cnt] / 1e9;
