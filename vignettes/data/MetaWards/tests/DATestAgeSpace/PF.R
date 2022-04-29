@@ -44,10 +44,18 @@ PF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, MD = TRUE, a1 = 0
         data <- matrix(NA, 1, 1)
     }
     
+    ## check u1_moves are ordered
+    u1_moves <- u1_moves[sort.list(u1_moves[, 1]), ]
+    
+    ## generate number of cohorts
+    ncohorts <- tapply(u1_moves[, 1], u1_moves[, 1], length)
+    ncohorts <- c(0, cumsum(ncohorts))
+    names(ncohorts) <- NULL
+    
     print("Reminder to write code to not hard-code sizes of objects and data")
     
     ## run particle filter for each set of inputs
-    runs <- lapply(1:nrow(pars), function(k, pars, C, u1_moves, u1, npart, ndays, data, MD, a1, a2, b, a_dis, b_dis, saveAll, PF, ncores) {
+    runs <- lapply(1:nrow(pars), function(k, pars, C, u1_moves, ncohorts, u1, npart, ndays, data, MD, a1, a2, b, a_dis, b_dis, saveAll, PF, ncores) {
         
         if(PF == 1) {
             ## extract observations
@@ -66,12 +74,15 @@ PF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, MD = TRUE, a1 = 0
         
         ## set pars
         pars <- unlist(pars[k, ])
+    
+        ## do garbage collection (seems to solve allocation issue)
+        gc()
         
         ## run particle filter
-        ll <- PF_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, u1, ndays,
+        ll <- PF_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
             npart, MD, a1, a2, b, a_dis, b_dis, saveAll, PF, ncores)
         ll
-    }, pars = pars, C = C, u1_moves = u1_moves, u1 = u1, npart = npart, ndays = ndays, data = data, MD = MDint, 
+    }, pars = pars, C = C, u1_moves = u1_moves, ncohorts = ncohorts, u1 = u1, npart = npart, ndays = ndays, data = data, MD = MDint, 
        a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis, saveAll = saveAllint, PF = PFint, ncores = ncores)
     if(!is.na(saveAll)) {
         if(PF) {
@@ -98,6 +109,7 @@ PF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, MD = TRUE, a1 = 0
             return(list(particles = runs))
         }
     } else {
+        ll <- map(runs, "ll")
         ll <- do.call("c", runs)
         return(ll)
     }

@@ -105,52 +105,54 @@ for(k in 6) {
     mutate(var = gsub("two", "2", var))
     
 #    ## checks
-    plan(multisession, workers = 8)
-    map(runs_nomd$particles[[1]], ~{
-       out <- future_map(., ~{
-           out <- list()
-           for(i in 1:dim(.)[3]) {
-               temp <- t(.[, , i]) %>%
-                   as_tibble()
-               colnames(temp) <- c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "RI", "H", "RH", "DH")
-               temp <- mutate(temp, age = 1:nrow(temp))
-               out[[i]] <- temp
-           }
-           out
-       })
-       out <- transpose(out) %>%
-           future_map(~bind_rows(., .id = "t"))
-       ## now generate incidence counts
-       outcum <- future_map(out, ~{
-           group_by(., age) %>%
-               mutate(across(c(DI, RI, DH, RH, RA), ~. - lag(., default = 0))) %>%
-               mutate(H = H - lag(H, default = 0) + DH + RH) %>%
-               mutate(I2 = I2 - lag(I2, default = 0) + RI) %>%
-               mutate(I1 = I1 - lag(I1, default = 0) + I2 + DI + H) %>%
-               mutate(P = P - lag(P, default = 0) + I1) %>%
-               mutate(A = A - lag(A, default = 0) + RA) %>%
-               mutate(E = E - lag(E, default = 0) + A + P) %>%
-               mutate(across(E:DH, cumsum)) %>%
-               ungroup()
-       })
-       out <- future_map(out, ~{
-           group_by(., age) %>%
-               nest() %>%
-               pluck("data")
-       })
-       outcum <- future_map(outcum, ~{
-           group_by(., age) %>%
-               nest() %>%
-               pluck("data")
-       })
-       ## check counts
-       future_map2(out, outcum, function(u, cu) {
-           map2(u, cu, function(u, cu) {
-               checkCounts(u, cu, sum(u[1, -1]))
-           })
-       })
-    })
-    plan(multisession, workers = 1)
+#    plan(multisession, workers = 8)
+#    map(runs_nomd$particles[[1]], ~{
+#       out <- future_map(., ~{
+#           out <- list()
+#           for(i in 1:dim(.)[3]) {
+#               temp <- t(.[, , i]) %>%
+#                   as_tibble()
+#               colnames(temp) <- c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "RI", "H", "RH", "DH")
+#               temp <- mutate(temp, age = 1:nrow(temp))
+#               out[[i]] <- temp
+#           }
+#           out
+#       })
+#       out <- transpose(out) %>%
+#           future_map(~bind_rows(., .id = "t"))
+#       ## now generate incidence counts
+#       outcum <- future_map(out, ~{
+#           group_by(., age) %>%
+#               mutate(across(c(DI, RI, DH, RH, RA), ~. - lag(., default = 0))) %>%
+#               mutate(H = H - lag(H, default = 0) + DH + RH) %>%
+#               mutate(I2 = I2 - lag(I2, default = 0) + RI) %>%
+#               mutate(I1 = I1 - lag(I1, default = 0) + I2 + DI + H) %>%
+#               mutate(P = P - lag(P, default = 0) + I1) %>%
+#               mutate(A = A - lag(A, default = 0) + RA) %>%
+#               mutate(E = E - lag(E, default = 0) + A + P) %>%
+#               mutate(across(E:DH, cumsum)) %>%
+#               ungroup()
+#       })
+#       out <- future_map(out, ~{
+#           group_by(., age) %>%
+#               nest() %>%
+#               pluck("data")
+#       })
+#       outcum <- future_map(outcum, ~{
+#           group_by(., age) %>%
+#               nest() %>%
+#               pluck("data")
+#       })
+#       ## check counts
+#       future_map2(out, outcum, function(u, cu) {
+#           map2(u, cu, function(u, cu) {
+#               checkCounts(u, cu, sum(u[1, -1]))
+#           })
+#       })
+#    })
+#    plan(multisession, workers = 1)
+
+    gc()
     
     ## repeat but adding some model discrepancy
     runs_md <- PF(pars[k, ], C = contact, data = data, u1_moves = u1_moves,
@@ -174,53 +176,53 @@ for(k in 6) {
     mutate(var = gsub("one", "1", var)) %>%
     mutate(var = gsub("two", "2", var))
     
-    ## checks
-    plan(multisession, workers = 8)
-    map(runs_md$particles[[1]], ~{
-       out <- future_map(., ~{
-           out <- list()
-           for(i in 1:dim(.)[3]) {
-               temp <- t(.[, , i]) %>%
-                   as_tibble()
-               colnames(temp) <- c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "RI", "H", "RH", "DH")
-               temp <- mutate(temp, age = 1:nrow(temp))
-               out[[i]] <- temp
-           }
-           out
-       })
-       out <- transpose(out) %>%
-           future_map(~bind_rows(., .id = "t"))
-       ## now generate incidence counts
-       outcum <- future_map(out, ~{
-           group_by(., age) %>%
-               mutate(across(c(DI, RI, DH, RH, RA), ~. - lag(., default = 0))) %>%
-               mutate(H = H - lag(H, default = 0) + DH + RH) %>%
-               mutate(I2 = I2 - lag(I2, default = 0) + RI) %>%
-               mutate(I1 = I1 - lag(I1, default = 0) + I2 + DI + H) %>%
-               mutate(P = P - lag(P, default = 0) + I1) %>%
-               mutate(A = A - lag(A, default = 0) + RA) %>%
-               mutate(E = E - lag(E, default = 0) + A + P) %>%
-               mutate(across(E:DH, cumsum)) %>%
-               ungroup()
-       })
-       out <- future_map(out, ~{
-           group_by(., age) %>%
-               nest() %>%
-               pluck("data")
-       })
-       outcum <- future_map(outcum, ~{
-           group_by(., age) %>%
-               nest() %>%
-               pluck("data")
-       })
-       ## check counts
-       future_map2(out, outcum, function(u, cu) {
-           map2(u, cu, function(u, cu) {
-               checkCounts(u, cu, sum(u[1, -1]))
-           })
-       })
-    })
-    plan(multisession, workers = 1)
+#    ## checks
+#    plan(multisession, workers = 8)
+#    map(runs_md$particles[[1]], ~{
+#       out <- future_map(., ~{
+#           out <- list()
+#           for(i in 1:dim(.)[3]) {
+#               temp <- t(.[, , i]) %>%
+#                   as_tibble()
+#               colnames(temp) <- c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "RI", "H", "RH", "DH")
+#               temp <- mutate(temp, age = 1:nrow(temp))
+#               out[[i]] <- temp
+#           }
+#           out
+#       })
+#       out <- transpose(out) %>%
+#           future_map(~bind_rows(., .id = "t"))
+#       ## now generate incidence counts
+#       outcum <- future_map(out, ~{
+#           group_by(., age) %>%
+#               mutate(across(c(DI, RI, DH, RH, RA), ~. - lag(., default = 0))) %>%
+#               mutate(H = H - lag(H, default = 0) + DH + RH) %>%
+#               mutate(I2 = I2 - lag(I2, default = 0) + RI) %>%
+#               mutate(I1 = I1 - lag(I1, default = 0) + I2 + DI + H) %>%
+#               mutate(P = P - lag(P, default = 0) + I1) %>%
+#               mutate(A = A - lag(A, default = 0) + RA) %>%
+#               mutate(E = E - lag(E, default = 0) + A + P) %>%
+#               mutate(across(E:DH, cumsum)) %>%
+#               ungroup()
+#       })
+#       out <- future_map(out, ~{
+#           group_by(., age) %>%
+#               nest() %>%
+#               pluck("data")
+#       })
+#       outcum <- future_map(outcum, ~{
+#           group_by(., age) %>%
+#               nest() %>%
+#               pluck("data")
+#       })
+#       ## check counts
+#       future_map2(out, outcum, function(u, cu) {
+#           map2(u, cu, function(u, cu) {
+#               checkCounts(u, cu, sum(u[1, -1]))
+#           })
+#       })
+#    })
+#    plan(multisession, workers = 1)
     
     ## plot both together nationally
     p <- mutate(sims_nomd, type = "No MD") %>%
@@ -245,5 +247,5 @@ for(k in 6) {
             facet_grid(var ~ age, scales = "free") +
             xlab("Days") +
             ylab("Counts")
-    ggsave(paste0("sims_combined_", k, ".pdf"), p, width = 10, height = 10)
+    ggsave(paste0("sims_combined_", k, "_PF.pdf"), p, width = 10, height = 10)
 }
