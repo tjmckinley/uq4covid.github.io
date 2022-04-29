@@ -66,16 +66,11 @@ contact <- read_csv("../inputs/POLYMOD_matrix.csv", col_names = FALSE) %>%
 u1 <- readRDS("../outputs/u1.rds")
 u1_moves <- readRDS("../outputs/u1_moves.rds")
 
-### cut down for testing
-#u1 <- u1[, , (u1_moves[, 1] == 1 | u1_moves[, 1] == 2) & (u1_moves[, 2] == 1 | u1_moves[, 2] == 2)]
-#u1_moves <- u1_moves[(u1_moves[, 1] == 1 | u1_moves[, 1] == 2) & (u1_moves[, 2] == 1 | u1_moves[, 2] == 2), ]
-#data <- select(data, ends_with("_1") | ends_with("_2") | ends_with("_1obs") | ends_with("_2obs"), t)
-
 ## set seed for reproducibility
 set.seed(666)
 
 ## set up plot data
-plot_data <- pivot_longer(filter(data, t <= 50), !t, names_to = "var", values_to = "n") %>%
+plot_data <- pivot_longer(filter(data, t <= 100), !t, names_to = "var", values_to = "n") %>%
     mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
     mutate(LAD = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
     mutate(age = gsub('(.*)_[0-9]*', '\\1', age)) %>%
@@ -87,28 +82,28 @@ plot_data <- pivot_longer(filter(data, t <= 50), !t, names_to = "var", values_to
     mutate(var = gsub("two", "2", var)) %>%
     mutate(age = gsub("obs", "", age))
  
-for(k in 150) {
-#    ## run model with no model discrepancy
-#    runs_nomd <- PF1(pars[k, ], C = contact, data = data, u1_moves = u1_moves,
-#        u1 = u1, ndays = 50, npart = 10, MD = FALSE, saveAll = TRUE)
-#    
-#    ## plot particle estimates of states (unweighted)
-#    sims_nomd <- map(runs_nomd$particles[[1]], ~{
-#        map(., ~{
-#            x <- apply(., c(1, 2), sum)
-#            colnames(x) <- paste0("age", 1:ncol(x))
-#            as_tibble(x) %>%
-#            mutate(var = c("S", "E", "A", "RA", "P", "Ione", "DI", "Itwo", "RI", "H", "RH", "DH"))
-#        }) %>%
-#        bind_rows(.id = "particle")
-#    }) %>%
-#    bind_rows(.id = "t") %>%
-#    pivot_longer(!c(particle, t, var), names_to = "age", values_to = "n") %>%
-#    mutate(age = as.numeric(gsub("age", "", age))) %>%
-#    mutate(t = as.numeric(t) - 1) %>%
-#    mutate(var = gsub("one", "1", var)) %>%
-#    mutate(var = gsub("two", "2", var))
-#    
+for(k in 6) {
+    ## run model with no model discrepancy
+    runs_nomd <- PF1(pars[k, ], C = contact, data = data, u1_moves = u1_moves,
+        u1 = u1, ndays = 100, npart = 10, MD = FALSE, saveAll = TRUE)
+    
+    ## plot particle estimates of states (unweighted)
+    sims_nomd <- map(runs_nomd$particles[[1]], ~{
+        map(., ~{
+            x <- apply(., c(1, 2), sum)
+            colnames(x) <- paste0("age", 1:ncol(x))
+            as_tibble(x) %>%
+            mutate(var = c("S", "E", "A", "RA", "P", "Ione", "DI", "Itwo", "RI", "H", "RH", "DH"))
+        }) %>%
+        bind_rows(.id = "particle")
+    }) %>%
+    bind_rows(.id = "t") %>%
+    pivot_longer(!c(particle, t, var), names_to = "age", values_to = "n") %>%
+    mutate(age = as.numeric(gsub("age", "", age))) %>%
+    mutate(t = as.numeric(t) - 1) %>%
+    mutate(var = gsub("one", "1", var)) %>%
+    mutate(var = gsub("two", "2", var))
+    
 #    ## checks
 #    plan(multisession, workers = 8)
 #    map(runs_nomd$particles[[1]], ~{
@@ -156,10 +151,12 @@ for(k in 150) {
 #       })
 #    })
 #    plan(multisession, workers = 1)
+
+    gc()
     
     ## repeat but adding some model discrepancy
     runs_md <- PF1(pars[k, ], C = contact, data = data, u1_moves = u1_moves,
-        u1 = u1, ndays = 50, npart = 10, MD = TRUE, a_dis = 0.001, b_dis = 0.001, 
+        u1 = u1, ndays = 100, npart = 10, MD = TRUE, a_dis = 0.05, b_dis = 0.05, 
         a1 = 0.01, a2 = 0.2, b = 0.001, saveAll = TRUE)
     
     ## plot particle estimates of states (unweighted)
@@ -179,7 +176,7 @@ for(k in 150) {
     mutate(var = gsub("one", "1", var)) %>%
     mutate(var = gsub("two", "2", var))
     
-    ## checks
+#    ## checks
 #    plan(multisession, workers = 8)
 #    map(runs_md$particles[[1]], ~{
 #       out <- future_map(., ~{

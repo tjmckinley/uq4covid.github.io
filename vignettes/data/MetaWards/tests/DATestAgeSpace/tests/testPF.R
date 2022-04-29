@@ -70,7 +70,7 @@ u1_moves <- readRDS("../outputs/u1_moves.rds")
 set.seed(666)
 
 ## set up plot data
-plot_data <- pivot_longer(filter(data, t <= 50), !t, names_to = "var", values_to = "n") %>%
+plot_data <- pivot_longer(filter(data, t <= 100), !t, names_to = "var", values_to = "n") %>%
     mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
     mutate(LAD = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
     mutate(age = gsub('(.*)_[0-9]*', '\\1', age)) %>%
@@ -82,10 +82,10 @@ plot_data <- pivot_longer(filter(data, t <= 50), !t, names_to = "var", values_to
     mutate(var = gsub("two", "2", var)) %>%
     mutate(age = gsub("obs", "", age))
  
-for(k in 150) {
+for(k in 6) {
     ## run model with no model discrepancy
     runs_nomd <- PF(pars[k, ], C = contact, data = data, u1_moves = u1_moves,
-        u1 = u1, ndays = 50, npart = 10, MD = FALSE, saveAll = TRUE)
+        u1 = u1, ndays = 100, npart = 10, MD = FALSE, saveAll = TRUE)
     
     ## plot particle estimates of states (unweighted)
     sims_nomd <- map(runs_nomd$particles[[1]], ~{
@@ -104,7 +104,7 @@ for(k in 150) {
     mutate(var = gsub("one", "1", var)) %>%
     mutate(var = gsub("two", "2", var))
     
-    ## checks
+#    ## checks
     plan(multisession, workers = 8)
     map(runs_nomd$particles[[1]], ~{
        out <- future_map(., ~{
@@ -154,7 +154,7 @@ for(k in 150) {
     
     ## repeat but adding some model discrepancy
     runs_md <- PF(pars[k, ], C = contact, data = data, u1_moves = u1_moves,
-        u1 = u1, ndays = 50, npart = 10, MD = TRUE, a_dis = 0.05, b_dis = 0.05, 
+        u1 = u1, ndays = 100, npart = 10, MD = TRUE, a_dis = 0.05, b_dis = 0.05, 
         a1 = 0.01, a2 = 0.2, b = 0.001, saveAll = TRUE)
     
     ## plot particle estimates of states (unweighted)
