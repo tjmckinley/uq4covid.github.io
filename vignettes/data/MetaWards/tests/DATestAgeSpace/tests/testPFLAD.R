@@ -47,8 +47,8 @@ plot_data <- pivot_longer(filter(data, t <= 100), !t, names_to = "var", values_t
     
 ## run model with model discrepancy
 runs_md <- PF(pars[6, ], C = contact, data = data, u1_moves = u1_moves,
-    u1 = u1, ndays = 6, npart = 50, MD = TRUE, a_dis = 0.05, b_dis = 0.05, 
-    a1 = 0.01, a2 = 0.2, b = 0.001, saveAll = TRUE)
+    u1 = u1, ndays = 100, npart = 20, MD = TRUE, a_dis = 1, b_dis = 1, 
+    a1 = 1, a2 = 1, b = 1, saveAll = TRUE)
 
 ## plot particle estimates of states (unweighted)
 sims_md <- map(runs_md$particles[[1]], ~{
@@ -123,7 +123,8 @@ p1 <- list()
 p1[[1]] <- ggplot(sims_md, aes(x = t)) +
     geom_ribbon(aes(ymin = LCI, ymax = UCI, fill = LAD), alpha = 0.3, colour = NA) +
     geom_ribbon(aes(ymin = LQ, ymax = UQ, fill = LAD), alpha = 0.3, colour = NA) +
-#    geom_line(aes(y = n, colour = LAD), data = p, linetype = "dashed") +
+    geom_line(aes(y = Median, colour = LAD)) +
+    geom_line(aes(y = n, colour = LAD), data = p, linetype = "dashed") +
     facet_grid(var ~ age, scales = "free") +
     xlab("Days") + 
     ylab("Counts") +
