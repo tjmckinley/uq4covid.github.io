@@ -1476,6 +1476,35 @@ List PF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses,
             seeds((arma::uword) omp_get_thread_num()) = eng();
         }
         
+        // save particles if necessary
+        if(saveAll != 0) {
+            if(saveAll == 1) {
+                for(i = 0; i < npart; i++) {
+                    // extract just counts for DI and DH
+                    u1_night_reduced.zeros();
+                    for(l = 0; l < u1_moves.n_rows; l++) {
+                        for(j = 0; j < nages; j++) {
+                            u1_night_reduced(0, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](6, j, l);
+                            u1_night_reduced(1, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](11, j, l);
+                        }
+                    }
+                    out[i + npart * (t + 1)] = u1_night_reduced;
+                }
+            } else {
+                for(i = 0; i < npart; i++) {
+                    u1_night_full.zeros();
+                    for(l = 0; l < u1_moves.n_rows; l++) {
+                        for(j = 0; j < nages; j++) {
+                            for(k = 0; k < nclasses; k++) {
+                                u1_night_full(k, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](k, j, l);
+                            }
+                        }
+                    }
+                    out[i + npart * (t + 1)] = u1_night_full;
+                }
+            }
+        }
+        
         if(PF == 1) {
             // calculate log-likelihood contribution
             ll += log_sum_exp(weights, 1);
@@ -1506,35 +1535,6 @@ List PF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses,
         } else {
             for(i = 0; i < npart; i++) {
                 u1[i] = u1_new[i];
-            }
-        }
-        
-        // save particles if necessary
-        if(saveAll != 0) {
-            if(saveAll == 1) {
-                for(i = 0; i < npart; i++) {
-                    // extract just counts for DI and DH
-                    u1_night_reduced.zeros();
-                    for(l = 0; l < u1_moves.n_rows; l++) {
-                        for(j = 0; j < nages; j++) {
-                            u1_night_reduced(0, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](6, j, l);
-                            u1_night_reduced(1, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](11, j, l);
-                        }
-                    }
-                    out[i + npart * (t + 1)] = u1_night_reduced;
-                }
-            } else {
-                for(i = 0; i < npart; i++) {
-                    u1_night_full.zeros();
-                    for(l = 0; l < u1_moves.n_rows; l++) {
-                        for(j = 0; j < nages; j++) {
-                            for(k = 0; k < nclasses; k++) {
-                                u1_night_full(k, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](k, j, l);
-                            }
-                        }
-                    }
-                    out[i + npart * (t + 1)] = u1_night_full;
-                }
             }
         }
         
