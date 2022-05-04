@@ -15,11 +15,12 @@
 ## obsScale: scaling parameter for Poisson observation process (see code)
 ## a1, a2, b: parameters for Skellam observation process
 ## saveAll: a logical specifying whether to return all states (if FALSE then returns just observed states))
+## writeExt: a logical denoting whether to save particles externally or not
 ## PF:      a logical denoting whether to run a particle filter, or just simulate from the model
 ## ncores:  the number of cores for OpenMP parallelisation (if NA then defaults to all available cores)
 
 APF3 <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, a1 = 0.01, a2 = 0.2, b = 0.1, 
-               a_dis = 0.05, b_dis = 0.5, saveAll = NA, PF = TRUE, ncores = NA) {
+               a_dis = 0.05, b_dis = 0.5, saveAll = NA, writeExt = FALSE, PF = TRUE, ncores = NA) {
                
     ## set default for saveAll if PF = FALSE
     if(!PF & is.na(saveAll)) saveAll <- TRUE
@@ -31,6 +32,7 @@ APF3 <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, a1 = 0.01, a2 =
         saveAllint <- ifelse(saveAll, 2, 1)
     }
     PFint <- ifelse(PF, 1, 0)
+    writeExtint <- ifelse(writeExt, 1, 0)
     
     ## check number of requested cores
     if(is.na(ncores)) {
@@ -51,9 +53,14 @@ APF3 <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, a1 = 0.01, a2 =
     names(ncohorts) <- NULL
     
     print("Reminder to write code to not hard-code sizes of objects and data")
+    if(writeExt) {
+        print("Reminder to write code to pass save folder out")
+        if(dir.exists("saveOut")) unlink("saveOut")
+        dir.create("saveOut")
+    }
     
     ## run particle filter for each set of inputs
-    runs <- lapply(1:nrow(pars), function(k, pars, C, u1_moves, ncohorts, u1, npart, ndays, data, a1, a2, b, a_dis, b_dis, saveAll, PF, ncores) {
+    runs <- lapply(1:nrow(pars), function(k, pars, C, u1_moves, ncohorts, u1, npart, ndays, data, a1, a2, b, a_dis, b_dis, saveAll, writeExt, PF, ncores) {
         
         if(PF == 1) {
             ## extract observations
@@ -78,11 +85,11 @@ APF3 <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, a1 = 0.01, a2 =
         
         ## run particle filter
         ll <- APF3_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
-            npart, a1, a2, b, a_dis, b_dis, saveAll, PF, ncores)
+            npart, a1, a2, b, a_dis, b_dis, saveAll, writeExt, PF, ncores)
         ll
     }, pars = pars, C = C, u1_moves = u1_moves, ncohorts = ncohorts, u1 = u1, npart = npart, ndays = ndays, data = data, 
-       a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis, saveAll = saveAllint, PF = PFint, ncores = ncores)
-    if(!is.na(saveAll)) {
+       a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis, saveAll = saveAllint, writeExt = writeExtint, PF = PFint, ncores = ncores)
+    if(!is.na(saveAll) & !writeExt) {
         if(PF) {
             ll <- map(runs, "ll")
             runs <- map(runs, "particles") %>%
