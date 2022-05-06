@@ -40,6 +40,14 @@ double log_sum_exp(arma::vec &x, int mn = 0) {
     return y;
 }
 
+// log-sum-exp function to prevent numerical overflow
+double log_sum_exp1(arma::vec x, int mn = 0) {
+    double maxx = max(x);
+    double y = maxx + log(sum(exp(x - maxx)));
+    if(mn == 1) y -= log(x.n_elem);
+    return y;
+}
+
 // Poisson RNG using inverse transform method
 // (to try to circumvent non thread-safe RNG in R)
 int rpois_cpp (double lambda, sitmo::prng &eng) {
@@ -990,6 +998,26 @@ List APF3_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
     // split u1 up into different LADs
     std::vector<arma::icube> u1(npart);
     std::vector<arma::icube> u1_new(npart);
+    std::vector< std::vector<arma::mat> > tempdensDHy(npart);
+    std::vector< std::vector<arma::vec> > tempdensDHx(npart);
+    std::vector< std::vector<arma::mat> > tempdensDIy(npart);
+    std::vector< std::vector<arma::vec> > tempdensDIx(npart);
+    
+    std::vector< std::vector<arma::mat> > tempdensDHy1(npart);
+    std::vector< std::vector<arma::vec> > tempdensDHx1(npart);
+    std::vector< std::vector<arma::mat> > tempdensDIy1(npart);
+    std::vector< std::vector<arma::vec> > tempdensDIx1(npart);
+    for(i = 0; i < npart; i++) {
+        tempdensDHy[i] = std::vector<arma::mat> (nages * nlads);
+        tempdensDHx[i] = std::vector<arma::vec> (nages * nlads);
+        tempdensDIy[i] = std::vector<arma::mat> (nages * nlads);
+        tempdensDIx[i] = std::vector<arma::vec> (nages * nlads);
+        
+        tempdensDHy1[i] = std::vector<arma::mat> (nages * nlads);
+        tempdensDHx1[i] = std::vector<arma::vec> (nages * nlads);
+        tempdensDIy1[i] = std::vector<arma::mat> (nages * nlads);
+        tempdensDIx1[i] = std::vector<arma::vec> (nages * nlads);
+    }
     arma::icube u1_night_full(nclasses, nages, nlads); u1_night_full.zeros();
     arma::icube u1_night_reduced(2, nages, nlads); u1_night_reduced.zeros();
     arma::imat N_day(nages, nlads); N_day.zeros();
@@ -1012,7 +1040,7 @@ List APF3_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
     arma::vec weights (npart);
     for(i = 0; i < npart; i++) weights(i) = log(1.0 / ((double) npart));
     arma::vec qweights (npart);
-    arma::ivec inds(npart);
+    arma::ivec inds (npart);
     
     // set up auxiliary objects    
     arma::ivec obsInc (data.n_cols); obsInc.zeros();
@@ -1132,7 +1160,7 @@ List APF3_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
             
             // loop over particles to calculate conditional particle weights
 #ifdef _OPENMP
-#pragma omp parallel for default(none) private(j, l) shared(seeds, npart, u1_moves, nages, nclasses, nlads, data, C, u1, u1_new, t, weights, qweights, a_dis, b_dis, a1, a2, b, obsInc, pars)
+#pragma omp parallel for default(none) private(j, l) shared(seeds, npart, u1_moves, nages, nclasses, nlads, data, C, u1, u1_new, t, weights, qweights, a_dis, b_dis, a1, a2, b, obsInc, pars, tempdensDHy, tempdensDHx, tempdensDIy, tempdensDIx)
 #endif
             for(i = 0; i < npart; i++) {
         
@@ -1141,23 +1169,19 @@ List APF3_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
 	            std::strcpy(str1, "setup");
             
                 // set up auxiliary objects
-                arma::imat DHinc (nages, nlads); DHinc.zeros();
-                arma::imat DIinc (nages, nlads); DIinc.zeros();
                 arma::icube u1_night(nclasses, nages, nlads); u1_night.zeros();
                 
                 // cols: c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "RI", "H", "RH", "DH")
                 //          0,   1,   2,   3,    4,   5,    6,    7,    8,    9,   10,   11
                 
                 // set weights
-                qweights(i) = weights(i);
+                qweights(i) = 0.0;
                 
                 // aggregate incidence to LAD-level
                 for(j = 0; j < nages; j++) {                    
                     for(l = 0; l < u1_moves.n_rows; l++) {
-                        DHinc(j, u1_moves(l, 0) - 1) += (u1_new[i](11, j, l) - u1[i](11, j, l));
-                        DIinc(j, u1_moves(l, 0) - 1) += (u1_new[i](6, j, l) - u1[i](6, j, l));
-                        u1_night(9, j, u1_moves(l, 0) - 1) += u1[i](9, j, l);
-                        u1_night(5, j, u1_moves(l, 0) - 1) += u1[i](5, j, l);
+                        u1_night(9, j, u1_moves(l, 0) - 1) += u1_new[i](9, j, l);
+                        u1_night(5, j, u1_moves(l, 0) - 1) += u1_new[i](5, j, l);
                     }
                 }
                                 
@@ -1171,8 +1195,9 @@ List APF3_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                     for(l = 0; l < nlads; l++) {
                     
                         // calculate unnormalised conditional MD densities
-                        arma::vec tempdensx(u1_night(9, j, l) + 1); tempdensx.zeros();
-                        arma::vec tempdensy(u1_night(9, j, l) + 1); tempdensy.zeros();
+                        int ind = j * nlads + l;
+                        tempdensDHy[i][ind] = arma::mat (u1_night(9, j, l) + 1, u1_night(9, j, l) + 1);
+                        tempdensDHx[i][ind] = arma::vec (u1_night(9, j, l) + 1);
     
                         // loop over x values
                         for(int s = 0; s <= u1_night(9, j, l); s++) {
@@ -1181,7 +1206,7 @@ List APF3_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                             for(int r = 0; r <= u1_night(9, j, l); r++) {
                                 
                                 // observation error for given incidence
-                                tempdensy(r) = ldtskellam_cpp(
+                                tempdensDHy[i][ind](r, s) = ldtskellam_cpp(
                                     obsInc(nlads * nages + j * nlads + l) - r,
                                     a1 + b * r,
                                     a2 + b * r,
@@ -1190,9 +1215,10 @@ List APF3_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                                     obsInc(nlads * nages + j * nlads + l),
                                     0
                                 );
-                                if(!arma::is_finite(tempdensy(r)) && tempdensy(r) >= 0.0) stop("Error in OE\n");
+                                if(!arma::is_finite(tempdensDHy[i][ind](r, s)) && tempdensDHy[i][ind](r, s) >= 0.0) stop("Error in OE\n");
+                                
                                 // model discrepancy for given incidence
-                                tempdensy(r) += ldtskellam_cpp(
+                                tempdensDHy[i][ind](r, s) += ldtskellam_cpp(
                                     -s + r,
                                     a_dis + b_dis * s,
                                     a_dis + b_dis * s,
@@ -1201,16 +1227,15 @@ List APF3_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                                     u1_night(9, j, l) - s,
                                     0
                                 );
-                                if(!arma::is_finite(tempdensy(r)) && tempdensy(r) >= 0.0) stop("Error in MD\n");
+                                if(!arma::is_finite(tempdensDHy[i][ind](r, s)) && tempdensDHy[i][ind](r, s) >= 0.0) stop("Error in MD\n");
                             }
-                            
                             // simulator likelihood
-                            tempdensx(s) = log_sum_exp(tempdensy, 0);
-                            tempdensx(s) += R::dbinom(s, u1_night(9, j, l), pHpHD, 1);
+                            tempdensDHx[i][ind](s) = log_sum_exp1(tempdensDHy[i][ind].col(s), 0);
+                            tempdensDHx[i][ind](s) += R::dbinom(s, u1_night(9, j, l), pHpHD, 1);
                         }
                         
                         // sum over x
-                        qweights(i) += log_sum_exp(tempdensx, 0);
+                        qweights(i) += log_sum_exp(tempdensDHx[i][ind], 0);
                     }
                 }
                 
@@ -1224,8 +1249,9 @@ List APF3_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                     for(l = 0; l < nlads; l++) {
                     
                         // calculate unnormalised conditional MD densities
-                        arma::vec tempdensx(u1_night(5, j, l) + 1); tempdensx.zeros();
-                        arma::vec tempdensy(u1_night(5, j, l) + 1); tempdensy.zeros();
+                        int ind = j * nlads + l;
+                        tempdensDIy[i][ind] = arma::mat (u1_night(5, j, l) + 1, u1_night(5, j, l) + 1); 
+                        tempdensDIx[i][ind] = arma::vec (u1_night(5, j, l) + 1);
     
                         // loop over x values
                         for(int s = 0; s <= u1_night(5, j, l); s++) {
@@ -1234,7 +1260,7 @@ List APF3_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                             for(int r = 0; r <= u1_night(5, j, l); r++) {
                                 
                                 // observation error for given incidence
-                                tempdensy(r) = ldtskellam_cpp(
+                                tempdensDIy[i][ind](r, s) = ldtskellam_cpp(
                                     obsInc(j * nlads + l) - r,
                                     a1 + b * r,
                                     a2 + b * r,
@@ -1243,9 +1269,10 @@ List APF3_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                                     obsInc(j * nlads + l),
                                     0
                                 );
-                                if(!arma::is_finite(tempdensy(r)) && tempdensy(r) >= 0.0) stop("Error in OE\n");
+                                if(!arma::is_finite(tempdensDIy[i][ind](r, s)) && tempdensDIy[i][ind](r, s) >= 0.0) stop("Error in OE\n");
+                                
                                 // model discrepancy for given incidence
-                                tempdensy(r) += ldtskellam_cpp(
+                                tempdensDIy[i][ind](r, s) += ldtskellam_cpp(
                                     -s + r,
                                     a_dis + b_dis * s,
                                     a_dis + b_dis * s,
@@ -1254,36 +1281,45 @@ List APF3_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                                     u1_night(5, j, l) - s,
                                     0
                                 );
-                                if(!arma::is_finite(tempdensy(r)) && tempdensy(r) >= 0.0) stop("Error in MD\n");
+                                if(!arma::is_finite(tempdensDIy[i][ind](r, s)) && tempdensDIy[i][ind](r, s) >= 0.0) stop("Error in MD\n");
                             }
                             
                             // simulator likelihood
-                            tempdensx(s) = log_sum_exp(tempdensy, 0);
-                            tempdensx(s) += R::dbinom(s, u1_night(5, j, l), pI1pI1D, 1);
+                            tempdensDIx[i][ind](s) = log_sum_exp1(tempdensDIy[i][ind].col(s), 0);
+                            tempdensDIx[i][ind](s) += R::dbinom(s, u1_night(5, j, l), pI1pI1D, 1);
                         }
                         
                         // sum over x
-                        qweights(i) += log_sum_exp(tempdensx, 0);
+                        qweights(i) += log_sum_exp(tempdensDIx[i][ind], 0);
                     }
                 }
             }
             
-            // normalise weights
-            weights = qweights - log_sum_exp(qweights, 0);
-            weights = exp(weights);
-            weights = weights / sum(weights);
+            // unnormalised first-stage weights
+            for(i = 0; i < npart; i++) {
+                weights(i) += qweights(i);
+            }
             
             // update log-likelihood contribution
-            ll += log_sum_exp(qweights, 0);
+            ll += log_sum_exp(weights, 0);            
+            
+            // normalised first-stage weights
+            weights -= log_sum_exp(weights, 0);
+            weights = exp(weights);
+//            weights = weights / sum(weights);
             
             // resample
             for(i = 0; i < npart; i++) {
-                inds(i) = (arma::uword) rmultinom_cpp(weights, engSerial);
+                inds(i) = rmultinom_cpp(weights, engSerial);
 //                Rprintf("inds(%d) = %d\n", i, inds(i));
                 u1[i] = u1_new[inds(i)];
+                tempdensDHy1[i] = tempdensDHy[inds(i)];
+                tempdensDHx1[i] = tempdensDHx[inds(i)];
+                tempdensDIy1[i] = tempdensDIy[inds(i)];
+                tempdensDIx1[i] = tempdensDIx[inds(i)];
             }
             
-            // update weights and save for next part
+            // update second-stage weights and save for next part
             for(i = 0; i < npart; i++) {
                 weights(i) = -qweights(inds(i));
 //                Rprintf("weights1(%d) = %f\n", i, weights(i));
@@ -1292,11 +1328,15 @@ List APF3_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
             // copy in order to pass by reference
             for(i = 0; i < npart; i++) {
                 u1_new[i] = u1[i];
+                tempdensDHy[i] = tempdensDHy1[i];
+                tempdensDHx[i] = tempdensDHx1[i];
+                tempdensDIy[i] = tempdensDIy1[i];
+                tempdensDIx[i] = tempdensDIx1[i];
             }                    
         
         // loop over particles to sample states
 #ifdef _OPENMP
-#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, u1_moves, nages, nclasses, nlads, data, C, N_night, N_day, u1, u1_new, t, pars, weights, a_dis, b_dis, a1, a2, b, obsInc, ncohorts, condpars)
+#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, u1_moves, nages, nclasses, nlads, data, C, N_night, N_day, u1, u1_new, t, pars, weights, a_dis, b_dis, a1, a2, b, obsInc, ncohorts, condpars, tempdensDHy, tempdensDHx, tempdensDIy, tempdensDIx)
 #endif
             for(i = 0; i < npart; i++) {
         
@@ -1334,6 +1374,7 @@ List APF3_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                 arma::imat origE(nages, u1_moves.n_rows); origE.zeros();
                 arma::icube u1_day(nclasses, nages, nlads); u1_day.zeros();
                 arma::icube u1_night(nclasses, nages, nlads); u1_night.zeros();
+                arma::icube u1_night1(nclasses, nages, nlads); u1_night.zeros();
                 
                 // aggregate counts to LAD-level
                 for(j = 0; j < nages; j++) {                    
@@ -1356,58 +1397,21 @@ List APF3_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                     for(l = 0; l < nlads; l++) {
                     
                         // calculate unnormalised conditional MD densities
-                        arma::vec tempdensx(u1_night(9, j, l) + 1); tempdensx.zeros();
-                        arma::vec tempdensy(u1_night(9, j, l) + 1); tempdensy.zeros();
+                        int ind = j * nlads + l;
 
-                        // loop over x values
-                        for(int s = 0; s <= u1_night(9, j, l); s++) {
-                        
-                            // loop over y values
-                            for(int r = 0; r <= u1_night(9, j, l); r++) {
-                                
-                                // observation error for given incidence
-                                tempdensy(r) = ldtskellam_cpp(
-                                    obsInc(nlads * nages + j * nlads + l) - r,
-                                    a1 + b * r,
-                                    a2 + b * r,
-                                    str1,
-                                    -r,
-                                    obsInc(nlads * nages + j * nlads + l),
-                                    0
-                                );
-                                if(!arma::is_finite(tempdensy(r)) && tempdensy(r) >= 0.0) stop("Error in OE\n");
-                                // model discrepancy for given incidence
-                                tempdensy(r) += ldtskellam_cpp(
-                                    -s + r,
-                                    a_dis + b_dis * s,
-                                    a_dis + b_dis * s,
-                                    str1,
-                                    -s,
-                                    u1_night(9, j, l) - s,
-                                    0
-                                );
-                                if(!arma::is_finite(tempdensy(r)) && tempdensy(r) >= 0.0) stop("Error in MD\n");
-                            }
-                            
-                            // simulator likelihood
-                            tempdensx(s) = log_sum_exp(tempdensy, 0);
-                            tempdensx(s) += R::dbinom(s, u1_night(9, j, l), pHpHD, 1);
-                        }
-                        
-                        // normalise weights
-                        double tempnorm = log_sum_exp(tempdensx, 0);
-                        // reuse tempdensy cheekily to store log-mass functions
-                        tempdensy = tempdensx - tempnorm;
-                        tempdensx = exp(tempdensy);
-                        tempdensx = tempdensx / sum(tempdensx);
+                        // normalise x values
+                        double tempnorm = log_sum_exp(tempdensDHx[i][ind], 0);
+                        tempdensDHx[i][ind] -= tempnorm;
+                        tempdensDHx[i][ind] = exp(tempdensDHx[i][ind]);
+//                        tempdensDHx[i][ind] = tempdensDHx[i][ind] / sum(tempdensDHx[i][ind]);
                                                 
                         // sample incidence and calculate MD
-                        DHinc(j, l) = rmultinom_cpp(tempdensx, eng);                        
-                        if(DHinc(j, l) < 0 || DHinc(j, l) > u1_night(9, j, l)) stop("DHinc error\n");
+                        DHinc(j, l) = rmultinom_cpp(tempdensDHx[i][ind], eng);                        
+                        if(DHinc(j, l) < 0 || DHinc(j, l) > u1_night(9, j, l)) stop("DHinc errorx\n");
                         
                         // update weights
                         weights(i) += R::dbinom(DHinc(j, l), u1_night(9, j, l), pHpHD, 1);
-                        weights(i) -= tempdensy(DHinc(j, l));
+                        weights(i) -= log(tempdensDHx[i][ind](DHinc(j, l)));
                         
                         // update counts
                         tempMD(11, j, l) = DHinc(j, l);
@@ -1427,60 +1431,21 @@ List APF3_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                     for(l = 0; l < nlads; l++) {
                     
                         // calculate unnormalised conditional MD densities
-                        arma::vec tempdensx(u1_night(5, j, l) + 1); tempdensx.zeros();
-                        arma::vec tempdensy(u1_night(5, j, l) + 1); tempdensy.zeros();
+                        int ind = j * nlads + l;
 
-                        // loop over x values
-                        for(int s = 0; s <= u1_night(5, j, l); s++) {
-                        
-                            // loop over y values
-                            for(int r = 0; r <= u1_night(5, j, l); r++) {
-                                
-                                // observation error for given incidence
-                                tempdensy(r) = ldtskellam_cpp(
-                                    obsInc(j * nlads + l) - r,
-                                    a1 + b * r,
-                                    a2 + b * r,
-                                    str1,
-                                    -r,
-                                    obsInc(j * nlads + l),
-                                    0
-                                );
-                                if(!arma::is_finite(tempdensy(r)) && tempdensy(r) >= 0.0) stop("Error in OE\n");
-                                // model discrepancy for given incidence
-                                tempdensy(r) += ldtskellam_cpp(
-                                    -s + r,
-                                    a_dis + b_dis * s,
-                                    a_dis + b_dis * s,
-                                    str1,
-                                    -s,
-                                    u1_night(5, j, l) - s,
-                                    0
-                                );
-                                if(!arma::is_finite(tempdensy(r)) && tempdensy(r) >= 0.0) stop("Error in MD\n");
-                            }
-                            
-                            // simulator likelihood
-                            tempdensx(s) = log_sum_exp(tempdensy, 0);
-                            tempdensx(s) += R::dbinom(s, u1_night(5, j, l), pI1pI1D, 1);
-//                            Rprintf("tempdensx(%d) = %f\n", s, tempdensx(s));
-                        }
-                        
-                        // normalise weights
-                        double tempnorm = log_sum_exp(tempdensx, 0);
-                        // reuse tempdensy cheekily to store log-mass functions
-                        tempdensy = tempdensx - tempnorm;
-                        tempdensx = exp(tempdensy);
-                        tempdensx = tempdensx / sum(tempdensx);
+                        // normalise x values
+                        double tempnorm = log_sum_exp(tempdensDIx[i][ind], 0);
+                        tempdensDIx[i][ind] -= tempnorm;
+                        tempdensDIx[i][ind] = exp(tempdensDIx[i][ind]);
+//                        tempdensDIx[i][ind] = tempdensDIx[i][ind] / sum(tempdensDIx[i][ind]);
                                                 
                         // sample incidence and calculate MD
-                        DIinc(j, l) = rmultinom_cpp(tempdensx, eng);
-//                        if(DIinc(j, l) > 0) Rprintf("DIinc(%d, %d) = %d\n", j, l, DIinc(j, l));
-                        if(DIinc(j, l) < 0 || DIinc(j, l) > u1_night(5, j, l)) stop("DHinc error\n");
+                        DIinc(j, l) = rmultinom_cpp(tempdensDIx[i][ind], eng);
+                        if(DIinc(j, l) < 0 || DIinc(j, l) > u1_night(5, j, l)) stop("DIinc errorx\n");
                         
                         // update weights
                         weights(i) += R::dbinom(DIinc(j, l), u1_night(5, j, l), pI1pI1D, 1);
-                        weights(i) -= tempdensy(DIinc(j, l));
+                        weights(i) -= log(tempdensDIx[i][ind](DIinc(j, l)));
                         
                         // update counts
                         tempMD(6, j, l) = DIinc(j, l);
@@ -1543,23 +1508,13 @@ List APF3_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
 //                }
                 
                 // run model and return u1
-                discreteStochModel((int) i, condpars, t - 1, t, u1_moves, u1_new, u1_day, u1_night, N_day, N_night, pinf, origE, C, eng);
+                discreteStochModel((int) i, condpars, t - 1, t, u1_moves, u1_new, u1_day, u1_night1, N_day, N_night, pinf, origE, C, eng);
                 
                 // now sample model discrepancy conditional on simulator outputs and data
                 
                 // reset tempMD
                 tempMD.zeros();
                 
-                // reset u1_night to use as correct lad-level counter
-                u1_night.zeros();
-                
-                // aggregate counts to LAD-level
-                for(j = 0; j < nages; j++) {                    
-                    for(l = 0; l < u1_moves.n_rows; l++) {
-                        u1_night(9, j, u1_moves(l, 0) - 1) += u1[i](9, j, l);
-                        u1_night(5, j, u1_moves(l, 0) - 1) += u1[i](5, j, l);
-                    }
-                }
 //                for(j = 0; j < nages; j++) {                    
 //                    for(l = 0; l < u1_moves.n_rows; l++) {
 //                        int s = 0;
@@ -1586,47 +1541,20 @@ List APF3_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                     for(l = 0; l < nlads; l++) {
                     
                         // calculate unnormalised conditional MD densities
-                        arma::vec tempdensy(u1_night(9, j, l) + 1); tempdensy.zeros();
+                        int ind = j * nlads + l;
                         
-                        // loop over y values
-                        for(int r = 0; r <= u1_night(9, j, l); r++) {
-                            
-                            // observation error for given incidence
-                            tempdensy(r) = ldtskellam_cpp(
-                                obsInc(nlads * nages + j * nlads + l) - r,
-                                a1 + b * r,
-                                a2 + b * r,
-                                str1,
-                                -r,
-                                obsInc(nlads * nages + j * nlads + l),
-                                0
-                            );
-                            if(!arma::is_finite(tempdensy(r)) && tempdensy(r) >= 0.0) stop("Error in OE\n");
-                            
-                            // model discrepancy for given incidence
-                            tempdensy(r) += ldtskellam_cpp(
-                                -DHinc(j, l) + r,
-                                a_dis + b_dis * DHinc(j, l),
-                                a_dis + b_dis * DHinc(j, l),
-                                str1,
-                                -DHinc(j, l),
-                                u1_night(9, j, l) - DHinc(j, l),
-                                0
-                            );
-                            if(!arma::is_finite(tempdensy(r)) && tempdensy(r) >= 0.0) stop("Error in MD\n");
-                        }
-                        
-                        // normalise weights
-                        double tempnorm = log_sum_exp(tempdensy, 0);
-                        tempdensy = tempdensy - tempnorm;
-                        tempdensy = exp(tempdensy);
-                        tempdensy = tempdensy / sum(tempdensy);
+                        // normalise y values (reuse x vector)
+                        tempdensDHx[i][ind] = tempdensDHy[i][ind].col(DHinc(j, l));
+                        double tempnorm = log_sum_exp(tempdensDHx[i][ind], 0);
+                        tempdensDHx[i][ind] -= tempnorm;
+                        tempdensDHx[i][ind] = exp(tempdensDHx[i][ind]);
+//                        tempdensDHx[i][ind] = tempdensDHx[i][ind] / sum(tempdensDHx[i][ind]);
                                                 
                         // sample incidence and calculate MD
-                        tempMD(11, j, l) = rmultinom_cpp(tempdensy, eng);
+                        tempMD(11, j, l) = rmultinom_cpp(tempdensDHx[i][ind], eng);
                         tempMD(11, j, l) -= DHinc(j, l);
                         DHinc(j, l) += tempMD(11, j, l);
-                        if(DHinc(j, l) < 0 || DHinc(j, l) > u1_night(9, j, l)) stop("DHinc error\n");
+                        if(DHinc(j, l) < 0 || DHinc(j, l) > u1_night(9, j, l)) stop("DHinc error %d\n", DHinc(j, l));
                         
                         // update weights
                         weights(i) += tempnorm;
@@ -1643,47 +1571,20 @@ List APF3_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                     for(l = 0; l < nlads; l++) {
                     
                         // calculate unnormalised conditional MD densities
-                        arma::vec tempdensy(u1_night(5, j, l) + 1); tempdensy.zeros();
+                        int ind = j * nlads + l;
                         
-                        // loop over y values
-                        for(int r = 0; r <= u1_night(5, j, l); r++) {
-                            
-                            // observation error for given incidence
-                            tempdensy(r) = ldtskellam_cpp(
-                                obsInc(j * nlads + l) - r,
-                                a1 + b * r,
-                                a2 + b * r,
-                                str1,
-                                -r,
-                                obsInc(j * nlads + l),
-                                0
-                            );
-                            if(!arma::is_finite(tempdensy(r)) && tempdensy(r) >= 0.0) stop("Error in OE\n");
-                            // model discrepancy for given incidence
-                            tempdensy(r) += ldtskellam_cpp(
-                                -DIinc(j, l) + r,
-                                a_dis + b_dis * DIinc(j, l),
-                                a_dis + b_dis * DIinc(j, l),
-                                str1,
-                                -DIinc(j, l),
-                                u1_night(5, j, l) - DIinc(j, l),
-                                0
-                            );
-                            if(!arma::is_finite(tempdensy(r)) && tempdensy(r) >= 0.0) stop("Error in MD\n");
-                        }
-                        
-                        // normalise weights
-                        double tempnorm = log_sum_exp(tempdensy, 0);
-                        tempdensy = tempdensy - tempnorm;
-                        tempdensy = exp(tempdensy);
-                        tempdensy = tempdensy / sum(tempdensy);
-//                        for(int r = 0; r < tempdensy.n_elem; r++) Rprintf("td(%d) = %f\n", r, tempdensy(r));
+                        // normalise x values (reuse x vector)
+                        tempdensDIx[i][ind] = tempdensDIy[i][ind].col(DIinc(j, l));
+                        double tempnorm = log_sum_exp(tempdensDIx[i][ind], 0);
+                        tempdensDIx[i][ind] -= tempnorm;
+                        tempdensDIx[i][ind] = exp(tempdensDIx[i][ind]);
+//                        tempdensDIx[i][ind] = tempdensDIx[i][ind] / sum(tempdensDIx[i][ind]);
                                                 
                         // sample incidence and calculate MD
-                        tempMD(6, j, l) = rmultinom_cpp(tempdensy, eng);
+                        tempMD(6, j, l) = rmultinom_cpp(tempdensDIx[i][ind], eng);
                         tempMD(6, j, l) -= DIinc(j, l);
                         DIinc(j, l) += tempMD(6, j, l);
-                        if(DIinc(j, l) < 0 || DIinc(j, l) > u1_night(5, j, l)) stop("DHinc error\n");
+                        if(DIinc(j, l) < 0 || DIinc(j, l) > u1_night(5, j, l)) stop("DIinc error %d\n", DIinc(j, l));
                         
                         // update weights
                         weights(i) += tempnorm;
