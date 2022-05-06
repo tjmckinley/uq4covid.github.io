@@ -1113,6 +1113,9 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
     // if twisting, then calculate first normalising constants
     if(twist == 1) {
     
+        // set counter for rates
+        t = 0;
+    
 #ifdef _OPENMP
 #pragma omp parallel for default(none) private(j, l) shared(seeds, npart, u1_moves, nages, nclasses, nlads, u1, pars, a_dis, b_dis, rates, twistnorm, tempdensy, tempdensx, t)
 #endif
@@ -1143,9 +1146,9 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             // start counter
             int w = 0;
             
-            // DI           
-            for(l = 0; l < nlads; l++) {
-                for(j = 0; j < nages; j++) {
+            // DI      
+            for(j = 0; j < nages; j++) {     
+                for(l = 0; l < nlads; l++) {
                 
                     // extract transition probabilities
                     double pI1pI1D = pars(j + 4 * nages + 2) * pars(j + 6 * nages + 2);
@@ -1192,8 +1195,8 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             }
             
             // DH
-            for(l = 0; l < nlads; l++) {
-                for(j = 0; j < nages; j++) {
+            for(j = 0; j < nages; j++) {
+                for(l = 0; l < nlads; l++) {
                 
                     // extract transition probabilities
                     double pHpHD = pars(j + 8 * nages + 2) * pars(j + 9 * nages + 2);
@@ -1313,8 +1316,8 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                 double obserror = 0.0;
                 
                 // DI           
-                for(l = 0; l < nlads; l++) {
-                    for(j = 0; j < nages; j++) {
+                for(j = 0; j < nages; j++) {
+                    for(l = 0; l < nlads; l++) {
                         
                         // sample from twisted density
                         tempdensx[i][w] = exp(tempdensx[i][w] - twistnorm[i](w));
@@ -1348,8 +1351,8 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                 }
                 
                 // DH
-                for(l = 0; l < nlads; l++) {
-                    for(j = 0; j < nages; j++) {
+                for(j = 0; j < nages; j++) {
+                    for(l = 0; l < nlads; l++) {
                         
                         // sample from twisted density
                         tempdensx[i][w] = exp(tempdensx[i][w] - twistnorm[i](w));
@@ -1711,8 +1714,8 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                 int w = 0;
                 
                 // DI           
-                for(l = 0; l < nlads; l++) {
-                    for(j = 0; j < nages; j++) {
+                for(j = 0; j < nages; j++) {
+                    for(l = 0; l < nlads; l++) {
                     
                         // extract transition probabilities
                         double pI1pI1D = pars(j + 4 * nages + 2) * pars(j + 6 * nages + 2);
@@ -1762,8 +1765,8 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                 }
                 
                 // DH
-                for(l = 0; l < nlads; l++) {
-                    for(j = 0; j < nages; j++) {
+                for(j = 0; j < nages; j++) {
+                    for(l = 0; l < nlads; l++) {
                     
                         // extract transition probabilities
                         double pHpHD = pars(j + 8 * nages + 2) * pars(j + 9 * nages + 2);
