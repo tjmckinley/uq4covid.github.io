@@ -96,7 +96,11 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
         ## set regularised Poisson functions
         regPois <- function(pars, eta, psi_it) {
             if(any(pars <= 0)) return(NA)
-            sum((dpois(eta, lambda = pars[1]) - pars[2] * psi_it)^2)
+            x <- rbind(dpois(eta, lambda = pars[1], log = TRUE), log(pars[2]) + psi_it)
+            x <- apply(x, 2, function(x) 2 * max(x) + log(diff(exp(x - max(x)))^2))
+            if(max(x) == -Inf) return(-Inf)
+            x <- max(x) + log(sum(exp(x - max(x))))
+            x
         }
         
         ## set update loop
@@ -118,7 +122,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
                 x <- as.vector(aperm(x[1:2, , ], 3:1))
                 
                 ## calculate observation densities
-                rbind(x, dtskellam(data - x, a1 + b * x, a2 + b * x, -x, data))
+                rbind(x, dtskellam(data - x, a1 + b * x, a2 + b * x, -x, data, log = TRUE))
             }, data = data[ndays, ], a1 = a1, a2 = a2, b = b)
             temp <- do.call("rbind", temp)
             
@@ -127,8 +131,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
                 x <- x[, i]
                 eta <- x[seq(1, length(x) - 1, by = 2)]
                 psi_it <- x[seq(2, length(x), by = 2)]
-                temp <- optim(c(mean(eta) + 0.1, 1), fn, eta = eta, psi_it = psi_it)
-                if(temp$convergence != 0) temp <- optim(temp$par, fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
+                temp <- optim(c(mean(eta) + 0.1, 1), fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
                 if(any(is.na(temp$par)) | temp$convergence != 0) browser()
                 temp
             }, x = temp, fn = regPois, mc.cores = ncores)
@@ -165,7 +168,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
                     pars <- c(pI1pI1D, pHpHD)
                     
                     ## generate transition constants
-                    psi <- apply(rbind(x, UB, pars, rates), 2, function(x) {
+                    psi <- apply(rbind(x, UB, pars, rates), 2, function(x, a_dis, b_dis) {
                         xdens <- dbinom(0:x[2], size = x[2], prob = x[3], log = TRUE)
                         ydens <- map(0:x[2], function(x, n) {
                             dtskellam(-x:(n - x), a_dis + b_dis * x, a_dis + b_dis * x, -x, n - x, log = TRUE)
@@ -173,26 +176,27 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
                         ydens <- do.call("cbind", ydens) + xdens
                         ydens <- apply(ydens, 2, log_sum_exp)
                         log_sum_exp(ydens + dpois(0:x[2], lambda = x[4], log = TRUE))
-                    })
+                    }, a_dis = a_dis, b_dis = b_dis)
                     
                     ## calculate observation densities
                     obsdens <- dtskellam(data - x, a1 + b * x, a2 + b * x, -x, data, log = TRUE)
                     
                     ## return for optimiser
-                    rbind(x, exp(obsdens + psi))
+                    rbind(x, obsdens + psi)
                 }, data = data[t, ], a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis, pars = pars, nlads = 339L, rates = psi[[t + 1]], mc.cores = ncores)
                 temp <- do.call("rbind", temp)
+            
+            browser()
                 
                 ## optimise twisting functions
-                output <- mclapply(1:ncol(temp), function(i, x, fn) {
+                output <- lapply(1:ncol(temp), function(i, x, fn) {
                     x <- x[, i]
                     eta <- x[seq(1, length(x) - 1, by = 2)]
                     psi_it <- x[seq(2, length(x), by = 2)]
-                    temp <- optim(c(mean(eta) + 0.1, 1), fn, eta = eta, psi_it = psi_it)
-                    if(temp$convergence != 0) temp <- optim(temp$par, fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
+                    temp <- optim(c(mean(eta) + 0.1, 1), fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
                     if(any(is.na(temp$par)) | temp$convergence != 0) browser()
                     temp
-                }, x = temp, fn = regPois, mc.cores = ncores)
+                }, x = temp, fn = regPois)#, mc.cores = ncores)
                 
                 ## check convergence
                 conv <- map_int(output, "convergence")
@@ -222,6 +226,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
             ## extract particles
             ll <- c(ll, particles$ll)
             particles <- particles$particles
+            print(ll)
             
             ## check
             if(kcurr >= kstop) {
