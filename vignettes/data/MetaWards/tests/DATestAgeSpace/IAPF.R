@@ -96,11 +96,12 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
         ## set regularised Poisson functions
         regPois <- function(pars, eta, psi_it) {
             if(any(pars <= 0)) return(NA)
-            x <- rbind(dpois(eta, lambda = pars[1], log = TRUE), log(pars[2]) + psi_it)
-            x <- apply(x, 2, function(x) 2 * max(x) + log(diff(exp(x - max(x)))^2))
+            x1 <- dpois(eta, lambda = pars[1], log = TRUE)
+            x2 <- log(pars[2]) + psi_it
+            mx <- pmax(x1, x2)
+            x <- 2 * mx + log((exp(x1 - mx) - exp(x2 - mx))^2)
             if(max(x) == -Inf) return(-Inf)
-            x <- max(x) + log(sum(exp(x - max(x))))
-            x
+            log_sum_exp(x)
         }
         
         ## set update loop
@@ -167,36 +168,58 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
                     pHpHD <- rep(pars[67:74] * pars[75:82], each = nlads)
                     pars <- c(pI1pI1D, pHpHD)
                     
+                    ## set up matrix
+                    psi <- rbind(UB, pars, rates)
+                    dupes <- duplicated(psi, MARGIN = 2)
+                    psi1 <- psi[, !dupes]
+                    
                     ## generate transition constants
-                    psi <- apply(rbind(x, UB, pars, rates), 2, function(x, a_dis, b_dis) {
-                        xdens <- dbinom(0:x[2], size = x[2], prob = x[3], log = TRUE)
-                        ydens <- map(0:x[2], function(x, n) {
+                    psi2 <- apply(psi1, 2, function(x, a_dis, b_dis) {
+                        xdens <- dbinom(0:x[1], size = x[1], prob = x[2], log = TRUE)
+                        ydens <- map(0:x[1], function(x, n, a_dis, b_dis) {
                             dtskellam(-x:(n - x), a_dis + b_dis * x, a_dis + b_dis * x, -x, n - x, log = TRUE)
-                        }, n = x[2])
+                        }, n = x[1], a_dis = a_dis, b_dis = b_dis)
                         ydens <- do.call("cbind", ydens) + xdens
                         ydens <- apply(ydens, 2, log_sum_exp)
-                        log_sum_exp(ydens + dpois(0:x[2], lambda = x[4], log = TRUE))
+                        log_sum_exp(ydens + dpois(0:x[1], lambda = x[3], log = TRUE))
                     }, a_dis = a_dis, b_dis = b_dis)
+                    
+                    ## expand to include duplicated columns
+                    psi3 <- rep(NA, length(dupes))
+                    psi3[!dupes] <- psi2
+                    for(i in which(dupes)) {
+                        psi3[i] <- psi2[which(apply(psi1, 2, function(x, x1) all(x == x1), x1 = psi[, i]))]
+                    }
                     
                     ## calculate observation densities
                     obsdens <- dtskellam(data - x, a1 + b * x, a2 + b * x, -x, data, log = TRUE)
                     
                     ## return for optimiser
-                    rbind(x, obsdens + psi)
+                    rbind(x, obsdens + psi3)
                 }, data = data[t, ], a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis, pars = pars, nlads = 339L, rates = psi[[t + 1]], mc.cores = ncores)
                 temp <- do.call("rbind", temp)
-            
-            browser()
                 
+                cat(paste0("t = ", round(as.numeric((proc.time() - ptm)["elapsed"]), 2), " secs\n"))
+                ptm <- proc.time()
+            
                 ## optimise twisting functions
-                output <- lapply(1:ncol(temp), function(i, x, fn) {
+                output <- mclapply(1:ncol(temp), function(i, x, fn) {
                     x <- x[, i]
                     eta <- x[seq(1, length(x) - 1, by = 2)]
                     psi_it <- x[seq(2, length(x), by = 2)]
-                    temp <- optim(c(mean(eta) + 0.1, 1), fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
-                    if(any(is.na(temp$par)) | temp$convergence != 0) browser()
+                    ## guess initial conditions
+                    mn <- mean(eta) + 0.1
+                    ini <- (eta - mn)^2
+                    ini <- which(ini == min(ini))[1]
+                    ini <- c(mn, dpois(eta[ini], lambda = mn, log = TRUE) - psi_it[ini])
+                    temp <- optim(ini, fn, eta = eta, psi_it = psi_it, control = list(reltol = 1e-3))
+                    if(temp$convergence != 0) {
+                        temp <- optim(temp$par, fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
+                    } else {
+                        if(any(is.na(temp$par)) | temp$convergence != 0) browser()
+                    }
                     temp
-                }, x = temp, fn = regPois)#, mc.cores = ncores)
+                }, x = temp, fn = regPois, mc.cores = ncores)
                 
                 ## check convergence
                 conv <- map_int(output, "convergence")
