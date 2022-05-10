@@ -87,11 +87,11 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
         
         ## run particle filter
         particles <- TPF_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
-            npart, matrix(0, 1, 1), 0, a1, a2, b, a_dis, b_dis, 1, 1, PF, ncores)
+            npart, matrix(0, 1, 1), 0, a1, a2, b, a_dis, b_dis, 0, 1, PF, ncores)
             
         ## extract particles
         ll <- particles$ll
-        particles <- particles$particles
+        particles <- particles$psi
             
         ## set regularised Poisson functions
         regPois <- function(pars, eta, psi_it) {
@@ -117,14 +117,17 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
             ptm <- proc.time()
             
             ## calculate observation likelihoods
-            temp <- map(particles[(npart * ndays + 1):(npart * (ndays + 1))], function(x, data, a1, a2, b) {
+            temp <- particles[(npart * (ndays - 1)  * 4 + 1):(npart * ndays * 4), , ]
+            temp <- map(1:npart, function(i, x, data, a1, a2, b) {
+                ## extract particle
+                x <- x[((i - 1) * 4 + 1):(i * 4), , ]
             
                 ## reorder particles to match data
                 x <- as.vector(aperm(x[1:2, , ], 3:1))
                 
                 ## calculate observation densities
                 rbind(x, dtskellam(data - x, a1 + b * x, a2 + b * x, -x, data, log = TRUE))
-            }, data = data[ndays, ], a1 = a1, a2 = a2, b = b)
+            }, x = temp, data = data[ndays, ], a1 = a1, a2 = a2, b = b)
             temp <- do.call("rbind", temp)
             
             ## optimise twisting functions
@@ -133,6 +136,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
                 eta <- x[seq(1, length(x) - 1, by = 2)]
                 psi_it <- x[seq(2, length(x), by = 2)]
                 temp <- optim(c(mean(eta) + 0.1, 1), fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
+                if(temp$convergence != 0) temp <- optim(temp$par, fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
                 if(any(is.na(temp$par)) | temp$convergence != 0) browser()
                 temp
             }, x = temp, fn = regPois, mc.cores = ncores)
@@ -153,51 +157,10 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
             
             ## now loop over remaining time points
             for(t in (ndays - 1):1) {
-                
-                ## calculate unnormalised twisting functions
-                temp <- mclapply(particles[(npart * t + 1):(npart * (t + 1))], function(x, data, a1, a2, b, a_dis, b_dis, pars, nlads, rates) {
-                    
-                    ## calculate transition constants and reorder to match data
-                    UB <- as.vector(aperm(x[3:4, , ], 3:1))
-                
-                    ## reorder particles to match data
-                    x <- as.vector(aperm(x[1:2, , ], 3:1))
-                    
-                    ## set up parameters
-                    pI1pI1D <- rep(pars[35:42] * pars[51:58], each = nlads)
-                    pHpHD <- rep(pars[67:74] * pars[75:82], each = nlads)
-                    pars <- c(pI1pI1D, pHpHD)
-                    
-                    ## set up matrix
-                    psi <- rbind(UB, pars, rates)
-                    dupes <- duplicated(psi, MARGIN = 2)
-                    psi1 <- psi[, !dupes]
-                    
-                    ## generate transition constants
-                    psi2 <- apply(psi1, 2, function(x, a_dis, b_dis) {
-                        xdens <- dbinom(0:x[1], size = x[1], prob = x[2], log = TRUE)
-                        ydens <- map(0:x[1], function(x, n, a_dis, b_dis) {
-                            dtskellam(-x:(n - x), a_dis + b_dis * x, a_dis + b_dis * x, -x, n - x, log = TRUE)
-                        }, n = x[1], a_dis = a_dis, b_dis = b_dis)
-                        ydens <- do.call("cbind", ydens) + xdens
-                        ydens <- apply(ydens, 2, log_sum_exp)
-                        log_sum_exp(ydens + dpois(0:x[1], lambda = x[3], log = TRUE))
-                    }, a_dis = a_dis, b_dis = b_dis)
-                    
-                    ## expand to include duplicated columns
-                    psi3 <- rep(NA, length(dupes))
-                    psi3[!dupes] <- psi2
-                    for(i in which(dupes)) {
-                        psi3[i] <- psi2[which(apply(psi1, 2, function(x, x1) all(x == x1), x1 = psi[, i]))]
-                    }
-                    
-                    ## calculate observation densities
-                    obsdens <- dtskellam(data - x, a1 + b * x, a2 + b * x, -x, data, log = TRUE)
-                    
-                    ## return for optimiser
-                    rbind(x, obsdens + psi3)
-                }, data = data[t, ], a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis, pars = pars, nlads = 339L, rates = psi[[t + 1]], mc.cores = ncores)
-                temp <- do.call("rbind", temp)
+            
+                ## generate filter rates
+                temp <- particles[(npart * (t - 1)  * 4 + 1):(npart * t * 4), , ]
+                temp <- TPF_rates_cpp(pars, data[t, ], 8, 339, temp, npart, rates, a1, a2, b, a_dis, b_dis, ncores)
                 
                 cat(paste0("t = ", round(as.numeric((proc.time() - ptm)["elapsed"]), 2), " secs\n"))
                 ptm <- proc.time()
@@ -244,11 +207,11 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
             
             ## run particle filter
             particles <- TPF_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
-                npart, psi, 1, a1, a2, b, a_dis, b_dis, 1, 1, PF, ncores)
+                npart, psi, 1, a1, a2, b, a_dis, b_dis, 0, 1, PF, ncores)
             
             ## extract particles
             ll <- c(ll, particles$ll)
-            particles <- particles$particles
+            particles <- particles$psi
             print(ll)
             
             ## check
