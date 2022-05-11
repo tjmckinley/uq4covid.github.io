@@ -1338,7 +1338,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         // update weights
                         weights(i) += obserror;
                         weights(i) -= R::dpois(DIinc(j, l), rates(t, w), 1);
-                        weights(i) += twistnorm[i](w);
+                        if(t == 0) weights(i) += twistnorm[i](w);
                         
                         // store incidence for redistribution
                         tempMD(6, j, l) = DIinc1(j, l);
@@ -1375,7 +1375,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         // update weights
                         weights(i) += obserror;
                         weights(i) -= R::dpois(DHinc(j, l), rates(t, w), 1);
-                        weights(i) += twistnorm[i](w);
+                        if(t == 0) weights(i) += twistnorm[i](w);
                         
                         // store incidence for redistribution
                         tempMD(11, j, l) = DHinc1(j, l);
@@ -1765,7 +1765,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         
                 
                         // update weights
-                        if(t == 0) weights(i) += twistnorm[i](w);
+                        weights(i) += twistnorm[i](w);
                         
                         // increment counter
                         w++;
@@ -1824,7 +1824,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         twistnorm[i](w) = log_sum_exp(tempdensy[i][w], 0);
                 
                         // update weights
-                        if(t == 0) weights(i) += twistnorm[i](w);
+                        weights(i) += twistnorm[i](w);
                         
                         // increment counter
                         w++;

@@ -161,9 +161,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
                 ## generate filter rates
                 temp <- particles[(npart * (t - 1)  * 4 + 1):(npart * t * 4), , ]
                 temp <- TPF_rates_cpp(pars, data[t, ], 8, 339, temp, npart, rates, a1, a2, b, a_dis, b_dis, ncores)
-                
-                cat(paste0("t = ", round(as.numeric((proc.time() - ptm)["elapsed"]), 2), " secs\n"))
-                ptm <- proc.time()
+#                browser()
             
                 ## optimise twisting functions
                 output <- mclapply(1:ncol(temp), function(i, x, fn) {
@@ -171,22 +169,28 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
                     eta <- x[seq(1, length(x) - 1, by = 2)]
                     psi_it <- x[seq(2, length(x), by = 2)]
                     ## guess initial conditions
-                    mn <- mean(eta) + 0.1
-                    ini <- (eta - mn)^2
-                    ini <- which(ini == min(ini))[1]
-                    ini <- c(mn, dpois(eta[ini], lambda = mn, log = TRUE) - psi_it[ini])
-                    temp <- optim(ini, fn, eta = eta, psi_it = psi_it, control = list(reltol = 1e-3))
-                    if(temp$convergence != 0) {
+#                    mn <- mean(eta) + 0.1
+#                    ini <- (eta - mn)^2
+#                    ini <- which(ini == min(ini))[1]
+#                    ini <- c(mn, exp(dpois(eta[ini], lambda = mn, log = TRUE) - psi_it[ini]))
+#                    print(ini)
+#                    print(fn(ini, eta, psi_it))
+#                    if(is.na(fn(ini, eta, psi_it))) browser()
+                    temp <- optim(c(mean(eta) + 0.1, 1), fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
+                    k <- 1
+                    while(temp$convergence != 0 & k < 3) {
                         temp <- optim(temp$par, fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
-                    } else {
-                        if(any(is.na(temp$par)) | temp$convergence != 0) browser()
+                        k <- k + 1
                     }
+#                     else {
+#                        if(any(is.na(temp$par)) | temp$convergence != 0) browser()
+#                    }
                     temp
                 }, x = temp, fn = regPois, mc.cores = ncores)
                 
                 ## check convergence
                 conv <- map_int(output, "convergence")
-                if(any(conv > 0)) stop(paste0("optim not converged - ", t))
+                if(any(conv > 0)) print(table(conv)) #browser()#stop(paste0("optim not converged - ", t))
                 
                 ## extract Poisson parameters
                 rates <- map(output, "par")
@@ -216,15 +220,20 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
             
             ## check
             if(kcurr >= kstop) {
-                browser()
+#                browser()
             
                 ## check log-likelihoods
                 templl <- ll[(kcurr - kstop + 1):kcurr]
-                templl <- exp(templl - max(templl))
-                cv <- sd(templl) / mean(templl)
-                if(cv < tau) {
+                mnll <- log_sum_exp(templl, mn = TRUE)
+                sdll <- max(c(mnll, templl))
+                sdll <- 0.5 * (2 * sdll - log(length(templl) - 1) + log(sum((exp(templl - sdll) - exp(mnll - sdll))^2)))
+                cv <- sdll - mnll
+                ## if coefficient of variation < tau, then exit
+                if(cv < log(tau)) {
                     valid <- 1
                 } else {
+                    ## if log-likelihoods not monotonically increasing
+                    ## then increase the number of particles
                     if(!all(diff(templl) < 0)) {
                         npart <- npart * 2
                     }
@@ -233,6 +242,12 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
             
             ## update counter
             kcurr <- kcurr + 1
+        }
+        if(saveAllint != 0) {
+            particles <- TPF_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
+                npart, psi, 1, a1, a2, b, a_dis, b_dis, saveAllint, 1, PF, ncores)
+            ll <- particles$ll
+            particles <- particles$particles
         }
         list(ll = ll[length(ll)], particles = particles)
     }, pars = pars, C = C, u1_moves = u1_moves, ncohorts = ncohorts, u1 = u1, npart = npart, kstop = kstop, tau = tau, ndays = ndays, data = data, a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis, saveAll = saveAllint, PF = PFint, ncores = ncores)
