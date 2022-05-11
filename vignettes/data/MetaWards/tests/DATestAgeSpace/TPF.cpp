@@ -1070,9 +1070,9 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
     for(j = 0; j < nages; j++) {
         condpars(j + 4 * nages + 2) = pars(j + 4 * nages + 2) * (1.0 - pars(j + 6 * nages + 2));
         condpars(j + 4 * nages + 2) /= (1.0 - pars(j + 4 * nages + 2) * pars(j + 6 * nages + 2));
-        condpars(j + 6 * nages + 2) = 0.0;
         condpars(j + 5 * nages + 2) = pars(j + 5 * nages + 2);
-        condpars(j + 5 * nages + 2) /= (1.0 - pars(j + 4 * nages + 2) * pars(j + 6 * nages + 2));
+        condpars(j + 5 * nages + 2) /= (1.0 - pars(j + 6 * nages + 2));
+        condpars(j + 6 * nages + 2) = 0.0;
         
         condpars(j + 8 * nages + 2) = pars(j + 8 * nages + 2) * (1.0 - pars(j + 9 * nages + 2));
         condpars(j + 8 * nages + 2) /= (1.0 - pars(j + 8 * nages + 2) * pars(j + 9 * nages + 2));
@@ -1127,7 +1127,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             int w = 0;
             
             // DI      
-            for(j = 0; j < nages; j++) {     
+            for(j = 0; j < nages; j++) {
                 for(l = 0; l < nlads; l++) {
                 
                     // extract transition probabilities
