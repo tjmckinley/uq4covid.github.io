@@ -87,7 +87,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
         
         ## run particle filter
         particles <- TPF_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
-            npart, matrix(0, 1, 1), matrix(0, 1, 1), 0, a1, a2, b, a_dis, b_dis, 0, 1, PF, ncores)
+            npart, matrix(0, 1, 1), 0, a1, a2, b, a_dis, b_dis, 0, 1, PF, ncores)
             
         ## extract particles
         ll <- particles$ll
@@ -98,17 +98,6 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
             if(any(pars <= 0)) return(NA)
             x1 <- dpois(eta, lambda = pars[1], log = TRUE)
             x2 <- log(pars[2]) + psi_it
-            mx <- pmax(x1, x2)
-            x <- 2 * mx + log((exp(x1 - mx) - exp(x2 - mx))^2)
-            if(max(x) == -Inf) return(-Inf)
-            log_sum_exp(x)
-        }
-        
-        ## set regularised NB functions
-        regNB <- function(pars, eta, psi_it) {
-            if(any(pars <= 0)) return(NA)
-            x1 <- dnbinom(eta, mu = pars[1], size = pars[2], log = TRUE)
-            x2 <- log(pars[3]) + psi_it
             mx <- pmax(x1, x2)
             x <- 2 * mx + log((exp(x1 - mx) - exp(x2 - mx))^2)
             if(max(x) == -Inf) return(-Inf)
@@ -147,26 +136,22 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
                 x <- x[, i]
                 eta <- x[seq(1, length(x) - 1, by = 2)]
                 psi_it <- x[seq(2, length(x), by = 2)]
-                temp <- optim(c(mean(eta) + 0.1, 1, 1), fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
-                k <- 1
-                while(temp$convergence != 0 & k < 3) {
-                    temp <- optim(temp$par, fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
-                    k <- k + 1
-                }
+                temp <- optim(c(mean(eta) + 0.1, 1), fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
+                if(temp$convergence != 0) temp <- optim(temp$par, fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
+                if(any(is.na(temp$par)) | temp$convergence != 0) browser()
                 temp
-            }, x = temp, fn = regNB, mc.cores = ncores)
+            }, x = temp, fn = regPois, mc.cores = ncores)
             
             ## check convergence
             conv <- map_int(output, "convergence")
             if(any(conv > 0)) print(table(conv)) #stop(paste0("optim not converged - ", ndays))
             
-            ## extract NB parameters
-            nbmu <- map(output, "par")
-            nbsize <- map_dbl(nbmu, 2)
-            nbmu <- map_dbl(nbmu, 1)
+            ## extract Poisson parameters
+            rates <- map(output, "par")
+            rates <- map_dbl(rates, 1)
             
             ## save rates
-            psi[[ndays]] <- list(nbmu = nbmu, nbsize = nbsize)
+            psi[[ndays]] <- rates
                 
             cat(paste0("Day: ", ndays, " t = ", round(as.numeric((proc.time() - ptm)["elapsed"]), 2), " secs\n"))
             ptm <- proc.time()
@@ -176,43 +161,51 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
             
                 ## generate filter rates
                 temp <- particles[(npart * (t - 1)  * 4 + 1):(npart * t * 4), , ]
-                temp <- TPF_rates_cpp(pars, data[t, ], 8, 339, temp, npart, nbsize, nbmu, a1, a2, b, a_dis, b_dis, ncores)
+                temp <- TPF_rates_cpp(pars, data[t, ], 8, 339, temp, npart, rates, a1, a2, b, a_dis, b_dis, ncores)
+#                browser()
             
                 ## optimise twisting functions
                 output <- mclapply(1:ncol(temp), function(i, x, fn) {
                     x <- x[, i]
                     eta <- x[seq(1, length(x) - 1, by = 2)]
                     psi_it <- x[seq(2, length(x), by = 2)]
-                    temp <- optim(c(mean(eta) + 0.1, 1, 1), fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
+                    ## guess initial conditions
+#                    mn <- mean(eta) + 0.1
+#                    ini <- (eta - mn)^2
+#                    ini <- which(ini == min(ini))[1]
+#                    ini <- c(mn, exp(dpois(eta[ini], lambda = mn, log = TRUE) - psi_it[ini]))
+#                    print(ini)
+#                    print(fn(ini, eta, psi_it))
+#                    if(is.na(fn(ini, eta, psi_it))) browser()
+                    temp <- optim(c(mean(eta) + 0.1, 1), fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
                     k <- 1
                     while(temp$convergence != 0 & k < 3) {
                         temp <- optim(temp$par, fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
                         k <- k + 1
                     }
+#                     else {
+#                        if(any(is.na(temp$par)) | temp$convergence != 0) browser()
+#                    }
                     temp
-                }, x = temp, fn = regNB, mc.cores = ncores)
+                }, x = temp, fn = regPois, mc.cores = ncores)
                 
                 ## check convergence
                 conv <- map_int(output, "convergence")
                 if(any(conv > 0)) print(table(conv)) #browser()#stop(paste0("optim not converged - ", t))
                 
-                ## extract NB parameters
-                nbmu <- map(output, "par")
-                nbsize <- map_dbl(nbmu, 2)
-                nbmu <- map_dbl(nbmu, 1)
+                ## extract Poisson parameters
+                rates <- map(output, "par")
+                rates <- map_dbl(rates, 1)
                 
                 ## save rates
-                psi[[t]] <- list(nbmu = nbmu, nbsize = nbsize)
+                psi[[t]] <- rates
                 
                 cat(paste0("Day: ", t, " t = ", round(as.numeric((proc.time() - ptm)["elapsed"]), 2), " secs\n"))
                 ptm <- proc.time()
             }
             
             ## reduce to rate matrix
-            psimu <- map(psi, "nbmu")
-            psimu <- do.call("rbind", psimu)
-            psisize <- map(psi, "nbsize")
-            psisize <- do.call("rbind", psisize)
+            psi <- do.call("rbind", psi)
             
             ## garbage collect just in case
             gc()
@@ -221,7 +214,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
             npart <- npart1
             cat(paste0("\nRunning model (npart = ", npart, ")\n"))
             particles <- TPF_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
-                npart, psisize, psimu, 1, a1, a2, b, a_dis, b_dis, 0, 1, PF, ncores)
+                npart, psi, 1, a1, a2, b, a_dis, b_dis, 0, 1, PF, ncores)
             
             ## extract particles
             ll <- c(ll, particles$ll)
@@ -258,7 +251,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
         }
         if(saveAllint != 0) {
             particles <- TPF_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
-                npart, psisize, psimu, 1, a1, a2, b, a_dis, b_dis, saveAllint, 1, PF, ncores)
+                npart, psi, 1, a1, a2, b, a_dis, b_dis, saveAllint, 1, PF, ncores)
             ll <- particles$ll
             particles <- particles$particles
         }
