@@ -1317,11 +1317,13 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         
                         // sample MD from twisted density
                         tempdensy[i][w] = exp(tempdensy[i][w] - twistnorm[i](w));
+                        tempdensy[i][w] = tempdensy[i][w] / sum(tempdensy[i][w]);
                         DIinc(j, l) = rmultinom_cpp(tempdensy[i][w], eng);
                         
                         // sample simulator conditional on MD
                         tempdensy[i][w] = tempdensx[i][w].col(DIinc(j, l));
                         tempdensy[i][w] = exp(tempdensy[i][w] - log_sum_exp(tempdensy[i][w], 0));
+                        tempdensy[i][w] = tempdensy[i][w] / sum(tempdensy[i][w]);
                         DIinc1(j, l) = rmultinom_cpp(tempdensy[i][w], eng);
                         
                         // observation error for given incidence
@@ -1354,11 +1356,13 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         
                         // sample MD from twisted density
                         tempdensy[i][w] = exp(tempdensy[i][w] - twistnorm[i](w));
+                        tempdensy[i][w] = tempdensy[i][w] / sum(tempdensy[i][w]);
                         DHinc(j, l) = rmultinom_cpp(tempdensy[i][w], eng);
                         
                         // sample simulator conditional on MD
                         tempdensy[i][w] = tempdensx[i][w].col(DHinc(j, l));
                         tempdensy[i][w] = exp(tempdensy[i][w] - log_sum_exp(tempdensy[i][w], 0));
+                        tempdensy[i][w] = tempdensy[i][w] / sum(tempdensy[i][w]);
                         DHinc1(j, l) = rmultinom_cpp(tempdensy[i][w], eng);
                         
                         // observation error for given incidence
