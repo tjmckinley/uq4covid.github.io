@@ -324,6 +324,159 @@ where $D^{Y^\prime}_{Ht} = 0, \dots, H^{Y^k}_{t - 1}$ and $D^{Y^\prime}_{It} = 0
 \end{align}
 which is straightforward to derive from (\ref{eq:mdlike}).
 
+\subsection{Gaussian approximations}
+
+The densities below require nested loops over potentially large ranges, which is slow.
+
+\begin{align}
+    q\left(k \mid \bz_t, \bA_{t - 1}\right) &\propto \pi^k_{t - 1} \sum_{\bx_t}\left[ \pi\left(\bx_t \mid \by^k_{t - 1}\right) \sum_{\by_t} \pi\left(\bz_t \mid \by_t\right)\pi\left(\by_t \mid \bx_t, \by^k_{t - 1}\right)\right],\\
+    q\left(\bx_t \mid k, \bz_t, \bA_{t - 1}\right) &\propto \pi\left(\bx_t \mid \by^k_{t - 1}\right) \sum_{\by_t} \pi\left(\bz_t \mid \by_t\right)\pi\left(\by_t \mid \bx_t, \by^k_{t - 1}\right)\quad\mbox{and} \\
+    q\left(\by_t \mid \bx_t, k, \bz_t, \bA_{t - 1}\right) &\propto \pi\left(\bz_t \mid \by_t\right)\pi\left(\by_t \mid \bx_t, \by^k_{t - 1}\right).
+\end{align}
+
+\textcolor{red}{Changed dependence on $y_t$ to $x_t$ below for testing.}
+
+Simplifying to a single $z_t$, $y_t$ and $x_t$, then $\left(z_t - y_t\right) \sim \mbox{Skellam}\left(a_1 + b x_t, a_2 + b x_t\right)$ then we can approximate this through a discrete Gaussian distribution such that 
+\begin{equation}
+    \left(z_t - y_t\right) \sim N\left(a_1 - a_2, a_1 + a_2 + 2b x_t\right).
+\end{equation}
+Similarly, since $\left(y_t - x_t\right) \sim \mbox{Skellam}\left(a_D + b_D x_t, a_D + b_D x_t\right)$, then we can approximate this through a discrete Gaussian distribution such that 
+\begin{equation}
+    \left(y_t - x_t\right) \sim N\left(0, 2a_D + 2b_D x_t\right).
+\end{equation}
+Hence, if we let $\mu_1 = a_1 - a_2$, $\sigma^2_{1x} = a_1 + a_2 + 2b x_t$ and $\sigma^2_{2x} = 2a_D + 2b_D x_t$ then
+\begin{align}
+    \tilde{q}\left(x_t \mid k, z_t, \bA_{t - 1}\right) &\propto \pi\left(x_t \mid y^k_{t - 1}\right) \int_{-0.5}^{y^U_t + 0.5} \tilde{\pi}\left(z_t \mid y_t\right)\tilde{\pi}\left(y_t \mid x_t, y^k_{t - 1}\right) dy_t \qquad \mbox{where $y^U_t$ is upper bound of $y_t \mid x_t$}\nonumber\\
+    &\propto \pi\left(x_t \mid y^k_{t - 1}\right) \int_{-0.5}^{y^U_t + 0.5} \frac{1}{\sigma_{1x}}\exp\left(-\frac{1}{2\sigma^2_{1x}}\left[z_t - y_t - \mu_1\right]^2\right)\frac{1}{\sigma_{2x}}\exp\left(-\frac{1}{2\sigma^2_{2x}}\left[y_t - x_t\right]^2\right) dy_t\nonumber\\
+    &\propto \frac{\pi\left(x_t \mid y^k_{t - 1}\right)}{\sigma_{1x}\sigma_{2x}} \int_{-0.5}^{y^U_t + 0.5} \exp\left(-\frac{1}{2}\left[\frac{1}{\sigma^2_{1x}}\left(z_t - y_t - \mu_1\right)^2+\frac{1}{\sigma^2_{2x}}\left(y_t - x_t\right)^2\right]\right) dy_t\nonumber\\
+    &\propto \frac{\pi\left(x_t \mid y^k_{t - 1}\right)}{\sigma_{1x}\sigma_{2x}} \int_{-0.5}^{y^U_t + 0.5} \exp\left(-\frac{1}{2\sigma^2_{1x}\sigma^2_{2x}}\left[\sigma^2_{2x}\left(z_t - y_t - \mu_1\right)^2 + \sigma^2_{1x}\left(y_t - x_t\right)^2\right]\right) dy_t\nonumber\\
+    &\propto \frac{\pi\left(x_t \mid y^k_{t - 1}\right)}{\sigma_{1x}\sigma_{2x}} \int_{-0.5}^{y^U_t + 0.5} \exp\left(-\frac{1}{2\sigma^2_{1x}\sigma^2_{2x}}\left[\sigma^2_{2x}\left(z^2_t - 2z_ty_t - 2z_t\mu_1 + y_t^2 - 2y_t\mu_1 + \mu_1^2\right) \right.\right.\nonumber\\
+    & \qquad \qquad \qquad \qquad \qquad \qquad \left. \left. + \sigma^2_{1x}\left(y_t^2 - 2y_tx_t + x_t^2\right)\right]\right) dy_t\nonumber\\
+    &\propto \frac{\pi\left(x_t \mid y^k_{t - 1}\right)}{\sigma_{1x}\sigma_{2x}} \exp\left(-\frac{1}{2\sigma^2_{1x}\sigma^2_{2x}}\left[\sigma^2_{2x}\left(z^2_t - 2z_t\mu_1 + \mu_1^2\right) + \sigma^2_{1x}x_t^2\right]\right)\nonumber\\
+    & \qquad \qquad \int_{-0.5}^{y^U_t + 0.5} \exp\left(-\frac{1}{2\sigma^2_{1x}\sigma^2_{2x}}\left[y^2_t\left(\sigma^2_{2x} + \sigma^2_{1x}\right) - 2y_t\left(\sigma^2_{2x}\left[z_t + \mu_1\right] + \sigma^2_{1x}x_t\right)\right]\right) dy_t\nonumber\\
+    &\propto \frac{\pi\left(x_t \mid y^k_{t - 1}\right)}{\sigma_{1x}\sigma_{2x}} \exp\left(-\frac{1}{2\sigma^2_{1x}\sigma^2_{2x}}\left[\sigma^2_{2x}\left(z^2_t - 2z_t\mu_1 + \mu_1^2\right) + \sigma^2_{1x}x_t^2\right]\right)\nonumber\\
+    & \qquad \qquad \int_{-0.5}^{y^U_t + 0.5} \exp\left(-\frac{\left(\sigma^2_{2x} + \sigma^2_{1x}\right)}{2\sigma^2_{1x}\sigma^2_{2x}}\left[y^2_t - y_t\frac{2}{\left(\sigma^2_{2x} + \sigma^2_{1x}\right)}\left(\sigma^2_{2x}\left[z_t + \mu_1\right] + \sigma^2_{1x}x_t\right)\right]\right) dy_t\nonumber\\
+    &\propto \frac{\pi\left(x_t \mid y^k_{t - 1}\right)}{\sigma_{1x}\sigma_{2x}} \exp\left(-\frac{1}{2\sigma^2_{1x}\sigma^2_{2x}}\left[\sigma^2_{2x}\left(z^2_t - 2z_t\mu_1 + \mu_1^2\right) + \sigma^2_{1x}x_t^2\right]\right)\nonumber\\
+    & \qquad \qquad \int_{-0.5}^{y^U_t + 0.5} \exp\left(-\frac{\left(\sigma^2_{2x} + \sigma^2_{1x}\right)}{2\sigma^2_{1x}\sigma^2_{2x}}\left\{\left[y_t - \frac{1}{\left(\sigma^2_{2x} + \sigma^2_{1x}\right)}\left(\sigma^2_{2x}\left[z_t + \mu_1\right] + \sigma^2_{1x}x_t\right)\right]^2 \right.\right.\nonumber\\
+    & \qquad \qquad \qquad \qquad \left.\left.- \left[\frac{1}{\left(\sigma^2_{2x} + \sigma^2_{1x}\right)}\left(\sigma^2_{2x}\left[z_t + \mu_1\right] + \sigma^2_{1x}x_t\right)\right]^2\right\}\right) dy_t\nonumber\\
+    &\propto \frac{\pi\left(x_t \mid y^k_{t - 1}\right)}{\sigma_{1x}\sigma_{2x}} \exp\left(-\frac{1}{2\sigma^2_{1x}\sigma^2_{2x}}\left\{\left[\sigma^2_{2x}\left(z_t - \mu_1\right)^2 + \sigma^2_{1x}x_t^2\right] - \left[\sigma^2_{2x}\left[z_t + \mu_1\right] + \sigma^2_{1x}x_t\right]^2\right\}\right)\nonumber\\
+    & \qquad \qquad \int_{-0.5}^{y^U_t + 0.5} \exp\left(-\frac{\left(\sigma^2_{2x} + \sigma^2_{1x}\right)}{2\sigma^2_{1x}\sigma^2_{2x}}\left[y_t - \frac{1}{\left(\sigma^2_{2x} + \sigma^2_{1x}\right)}\left(\sigma^2_{2x}\left[z_t + \mu_1\right] + \sigma^2_{1x}x_t\right)\right]^2\right) dy_t\nonumber\\
+    &\propto \frac{\pi\left(x_t \mid y^k_{t - 1}\right)}{\sqrt{\sigma^2_{2x} + \sigma^2_{1x}}} \exp\left(-\frac{1}{2\sigma^2_{1x}\sigma^2_{2x}}\left\{\left[\sigma^2_{2x}\left(z_t - \mu_1\right)^2 + \sigma^2_{1x}x_t^2\right] - \left[\sigma^2_{2x}\left[z_t + \mu_1\right] + \sigma^2_{1x}x_t\right]^2\right\}\right)\nonumber\\
+    & \qquad \qquad \int_{-0.5}^{y^U_t + 0.5} \frac{\sqrt{\sigma^2_{2x} + \sigma^2_{1x}}}{\sigma_{1x}\sigma_{2x}}\exp\left(-\frac{\left(\sigma^2_{2x} + \sigma^2_{1x}\right)}{2\sigma^2_{1x}\sigma^2_{2x}}\left[y_t - \frac{1}{\left(\sigma^2_{2x} + \sigma^2_{1x}\right)}\left(\sigma^2_{2x}\left[z_t + \mu_1\right] + \sigma^2_{1x}x_t\right)\right]^2\right) dy_t \label{eq:xtilde}
+\end{align}
+
+The term inside the integral is proportional to a Gaussian p.d.f. on the random variable $y_t \sim N\left(\mu_{y \mid x}, \sigma^2_{y \mid x}\right)$, with
+\begin{equation}
+    \mu_{y\mid x} = \frac{\sigma^2_{2x}\left[z_t + \mu_1\right] + \sigma^2_{1x}x_t}{\sigma^2_{2x} + \sigma^2_{1x}} \qquad \mbox{and} \qquad \sigma^2_{y \mid x} = \frac{\sigma^2_{1x}\sigma^2_{2x}}{\sigma^2_{2x} + \sigma^2_{1x}}.
+\end{equation}
+
+As such the integral can be calculated using built-in c.d.f. functions in the usual way, and as such for a given $x_t$ we can evaluate (\ref{eq:xtilde}) with $O(2)$ operations (assuming unit complexity of c.d.f. for a standard Gaussian---not 100\% sure if this is true). This makes evaluating the normalising constant of (\ref{eq:xtilde}) $O\left(2y^U_t\right)$.
+
+\textcolor{red}{Can be made much easier if we have constant MD / OE, but won't work if the OE depends on $y_t$, since the OE variance then depends on $y_t$ and the integral won't be Gaussian.}
+
+\subsection{Gaussian approximations (1)}
+
+The densities below require nested loops over potentially large ranges, which is slow.
+
+\begin{align}
+    q\left(k \mid \bz_t, \bA_{t - 1}\right) &\propto \pi^k_{t - 1} \sum_{\bx_t}\left[ \pi\left(\bx_t \mid \by^k_{t - 1}\right) \sum_{\by_t} \pi\left(\bz_t \mid \by_t\right)\pi\left(\by_t \mid \bx_t, \by^k_{t - 1}\right)\right],\\
+    q\left(\bx_t \mid k, \bz_t, \bA_{t - 1}\right) &\propto \pi\left(\bx_t \mid \by^k_{t - 1}\right) \sum_{\by_t} \pi\left(\bz_t \mid \by_t\right)\pi\left(\by_t \mid \bx_t, \by^k_{t - 1}\right)\quad\mbox{and} \\
+    q\left(\by_t \mid \bx_t, k, \bz_t, \bA_{t - 1}\right) &\propto \pi\left(\bz_t \mid \by_t\right)\pi\left(\by_t \mid \bx_t, \by^k_{t - 1}\right).
+\end{align}
+
+Simplifying to a single $z_t$, $y_t$ and $x_t$, then $\left(z_t - y_t\right) \sim \mbox{Skellam}\left(a_1 + b x_t, a_2 + b y_t\right)$ then we can approximate this through a discrete Gaussian distribution such that 
+\begin{equation}
+    \left(z_t - y_t\right) \sim N\left(a_1 - a_2, a_1 + a_2 + 2b f\left(y_{1:(t - 1)}\right)\right),
+\end{equation}
+where $f\left(\by_{1:(t - 1)}\right)$ is some function of $y_{1:(t - 1})$ used to approximate the magnitude of $y_t$.
+
+Similarly, since $\left(y_t - x_t\right) \sim \mbox{Skellam}\left(a_D + b_D x_t, a_D + b_D x_t\right)$, then we can approximate this through a discrete Gaussian distribution such that 
+\begin{equation}
+    \left(y_t - x_t\right) \sim N\left(0, 2a_D + 2b_D g\left(y_{1:(t - 1)}\right)\right).
+\end{equation}
+where $g\left(\by_{1:(t - 1)}\right)$ is some function of $y_{1:(t - 1})$ used to approximate the magnitude of $x_t$.
+
+Finally, since $x_t \sim \mbox{Bin}\left(n, p\right)$, we can also approximate this through a discrete Gaussian distribution such that 
+\begin{equation}
+    x_t \sim N\left(np, np(1 - p)\right).
+\end{equation}
+
+Hence, if we let $\mu_z = a_1 - a_2$, $\sigma^2_z = a_1 + a_2 + 2b f\left(\by_{1:(t - 1)}\right)$, $\mu_y = 0$, $\sigma^2_y = 2a_D + 2b_D g\left(\by_{1:(t - 1)}\right)$, $\mu_x = np$ and $\sigma^2_x = np(1 - p)$, then
+\begin{align}
+    q\left(x_t, y_t \mid k, z_t, \bA_{t - 1}\right) &\propto \tilde{\pi}\left(z_t \mid y_t\right)\tilde{\pi}\left(y_t \mid x_t, y^k_{t - 1}\right)\tilde{\pi}\left(x_t \mid y^k_{t - 1}\right)\nonumber\\
+    &\propto \exp\left(-\frac{1}{2\sigma^2_z}\left[z_t - y_t - \mu_z\right]^2\right)\exp\left(-\frac{1}{2\sigma^2_y}\left[y_t - x_t\right]^2\right)\exp\left(-\frac{1}{2\sigma^2_x}\left[x_t - \mu_x\right]^2\right)
+\end{align}
+
+If we first consider the conditional distribution:
+\begin{align}
+    q\left(y_t \mid x_t, k, z_t, \bA_{t - 1}\right) &\propto \tilde{\pi}\left(z_t \mid y_t\right)\tilde{\pi}\left(y_t \mid x_t, y^k_{t - 1}\right)\nonumber\\
+    &\propto \exp\left(-\frac{1}{2\sigma^2_z}\left[z_t - y_t - \mu_z\right]^2\right)\exp\left(-\frac{1}{2\sigma^2_y}\left[y_t - x_t\right]^2\right)\nonumber\\
+    &\propto \exp\left(-\frac{1}{2}\left[\frac{1}{\sigma^2_z}\left(z^2_t - 2z_ty_t - 2z_t\mu_z + y^2_t + 2y_t\mu_z + \mu^2_z\right) + \frac{1}{\sigma^2_y}\left(y^2_t - 2y_tx_t + x^2_t\right)\right]\right)\nonumber\\
+    &\propto \exp\left(-\frac{1}{2}\left[y^2_t\left(\frac{1}{\sigma^2_z} + \frac{1}{\sigma^2_y}\right) + 2y_t\left(\frac{\left[\mu_z - z_t\right]}{\sigma^2_z}  - \frac{x_t}{\sigma^2_y}\right)\right]\right)\nonumber\\
+    &\propto \exp\left(-\frac{\sigma^2_y + \sigma^2_z}{2\sigma^2_y\sigma^2_z}\left[y^2_t + 2y_t\left(\frac{\sigma^2_y\sigma^2_z}{\sigma^2_y + \sigma^2_z}\right)\left(\frac{\sigma^2_y \left[\mu_z - z_t\right]  - \sigma^2_z x_t}{\sigma^2_y\sigma^2_z}\right)\right]\right)\nonumber\\
+    &\propto \exp\left(-\frac{\sigma^2_y + \sigma^2_z}{2\sigma^2_y\sigma^2_z}\left[y_t + \frac{\sigma^2_y \left[\mu_z - z_t\right]  - \sigma^2_z x_t}{\sigma^2_y + \sigma^2_z}\right]^2\right).
+\end{align}
+
+This is proportional to a Gaussian p.d.f. with
+\begin{equation}
+    E\left(y_t \mid x_t\right) = \frac{\sigma^2_y \left[\mu_z - z_t\right]  - \sigma^2_z x_t}{\sigma^2_y + \sigma^2_z} \qquad \mbox{and} \qquad \mbox{var}\left(y_t \mid x_t\right) = \frac{\sigma^2_y\sigma^2_z}{\sigma^2_y + \sigma^2_z}.\label{eq:condexp}
+\end{equation}
+
+Now let's consider the marginal $q\left(x_t \mid k, z_t, \bA_{t - 1}\right)$, where
+\begin{align}
+    q\left(x_t \mid k, z_t, \bA_{t - 1}\right) &= \frac{q\left(y_t, x_t \mid k, z_t, \bA_{t - 1}\right)}{q\left(y_t \mid x_t, k, z_t, \bA_{t - 1}\right)}\nonumber\\
+    &\propto \frac{\exp\left(-\frac{1}{2\sigma^2_z}\left[z_t - y_t - \mu_z\right]^2\right)\exp\left(-\frac{1}{2\sigma^2_y}\left[y_t - x_t\right]^2\right)\exp\left(-\frac{1}{2\sigma^2_x}\left[x_t - \mu_x\right]^2\right)}{\exp\left(-\frac{\sigma^2_y + \sigma^2_z}{2\sigma^2_y\sigma^2_z}\left[y_t + \frac{\sigma^2_y \left[\mu_z - z_t\right]  - \sigma^2_z x_t}{\sigma^2_y + \sigma^2_z}\right]^2\right)}\nonumber\\
+    &\propto \exp\left(-\frac{1}{2}\left[\frac{1}{\sigma^2_y}\left(y_t - x_t\right)^2 + \frac{1}{\sigma^2_x}\left(x_t - \mu_x\right)^2 - \frac{\sigma^2_y + \sigma^2_z}{\sigma^2_y\sigma^2_z}\left(y_t + \frac{\sigma^2_y \left[\mu_z - z_t\right]  - \sigma^2_z x_t}{\sigma^2_y + \sigma^2_z}\right)^2\right]\right)\nonumber\\
+    &\propto \exp\left(-\frac{1}{2}\left[\frac{1}{\sigma^2_y}\left(x^2_t -2y_tx_t\right) + \frac{1}{\sigma^2_x}\left(x^2_t - 2x_t\mu_x\right) - \right. \right. \nonumber\\
+    & \qquad \qquad \left.\left.\frac{\sigma^2_y + \sigma^2_z}{\sigma^2_y\sigma^2_z}\left(2y_t\frac{\sigma^2_y \left[\mu_z - z_t\right]  - \sigma^2_z x_t}{\sigma^2_y + \sigma^2_z} + \left(\frac{\sigma^2_y \left[\mu_z - z_t\right]  - \sigma^2_z x_t}{\sigma^2_y + \sigma^2_z}\right)^2\right)\right]\right)\nonumber\\
+    &\propto \exp\left(-\frac{1}{2}\left[x^2_t\left(\frac{1}{\sigma^2_y} + \frac{1}{\sigma^2_x}\right) - 2x_t\left(\frac{y_t}{\sigma^2_y} + \frac{\mu_x}{\sigma^2_x}\right) - \right. \right. \nonumber\\
+    & \qquad \qquad \left.\left.\frac{1}{\sigma^2_y\sigma^2_z}\left(-2y_t\sigma^2_z x_t + \frac{\left(\sigma^2_y \left[\mu_z - z_t\right]  - \sigma^2_z x_t\right)^2}{\sigma^2_y + \sigma^2_z}\right)\right]\right)\nonumber\\
+    &\propto \exp\left(-\frac{1}{2}\left[x^2_t\left(\frac{1}{\sigma^2_y} + \frac{1}{\sigma^2_x}\right) - 2x_t\left(\frac{y_t}{\sigma^2_y} + \frac{\mu_x}{\sigma^2_x}\right) - \right. \right. \nonumber\\
+    & \qquad \qquad \left.\left.\frac{1}{\sigma^2_y\sigma^2_z}\left(-2y_t\sigma^2_z x_t + \frac{\sigma^4_z x^2_t - 2\sigma^2_y\sigma^2_z \left[\mu_z - z_t\right] x_t}{\sigma^2_y + \sigma^2_z}\right)\right]\right)\nonumber\\
+    &\propto \exp\left(-\frac{1}{2}\left[x^2_t\left(\frac{1}{\sigma^2_y} + \frac{1}{\sigma^2_x} - \frac{\sigma^2_z}{\sigma^2_y\left(\sigma^2_y + \sigma^2_z\right)}\right) - 2x_t\left(\frac{y_t}{\sigma^2_y} + \frac{\mu_x}{\sigma^2_x} - \frac{y_t}{\sigma^2_y} - \frac{\left[\mu_z - z_t\right]}{\sigma^2_y + \sigma^2_z}\right) \right]\right)\nonumber\\
+    &\propto \exp\left(-\frac{1}{2}\left[x^2_t\left(\frac{1}{\sigma^2_y} + \frac{1}{\sigma^2_x} - \frac{\sigma^2_z}{\sigma^2_y\left(\sigma^2_y + \sigma^2_z\right)}\right) - 2x_t\left(\frac{\mu_x}{\sigma^2_x} - \frac{\left[\mu_z - z_t\right]}{\sigma^2_y + \sigma^2_z}\right) \right]\right)\nonumber\\
+    &\propto \exp\left(-\frac{1}{2}\left[x^2_t\left(\frac{\sigma^2_x + \sigma^2_y + \sigma^2_z}{\sigma^2_x\left(\sigma^2_y + \sigma^2_z\right)}\right) - 2x_t\left(\frac{\mu_x\left(\sigma^2_y + \sigma^2_z\right) - \mu_z + z_t}{\sigma^2_x\left(\sigma^2_y + \sigma^2_z\right)}\right) \right]\right)\nonumber\\
+    &\propto \exp\left(-\frac{1}{2}\left(\frac{\sigma^2_x + \sigma^2_y + \sigma^2_z}{\sigma^2_x\left(\sigma^2_y + \sigma^2_z\right)}\right)\left[x^2_t - 2x_t\left(\frac{\mu_x\left(\sigma^2_y + \sigma^2_z\right) - \mu_z + z_t}{\sigma^2_x + \sigma^2_y + \sigma^2_z}\right) \right]\right)\nonumber\\
+    &\propto \exp\left(-\frac{1}{2}\left(\frac{\sigma^2_x + \sigma^2_y + \sigma^2_z}{\sigma^2_x\left(\sigma^2_y + \sigma^2_z\right)}\right)\left[x_t - \left(\frac{\mu_x\left(\sigma^2_y + \sigma^2_z\right) - \mu_z + z_t}{\sigma^2_x + \sigma^2_y + \sigma^2_z}\right) \right]^2\right)
+\end{align}
+which is proportional to a Gaussian p.d.f. with 
+\begin{equation}
+    E\left(x_t\right) = \frac{\mu_x\left(\sigma^2_y + \sigma^2_z\right) - \mu_z + z_t}{\sigma^2_x + \sigma^2_y + \sigma^2_z} \qquad \mbox{and} \qquad \mbox{var}\left(x_t\right) = \frac{\sigma^2_x\left(\sigma^2_y + \sigma^2_z\right)}{\sigma^2_x + \sigma^2_y + \sigma^2_z}.
+\end{equation}
+
+% If we are approximating $x_t \sim N\left(\mu_x, \sigma^2_x\right)$, then from the theory of multivariate normal distributions, the conditional distribution above can be mapped to a bivariate normal targeting $\left(x_t, y_t\right)$, where
+% \begin{equation}
+%     \left(\begin{matrix} y_t\\ x_t \end{matrix} \right) \sim N\left(\left[\begin{matrix} \lambda_y \\ \mu_x \end{matrix} \right], \left[\begin{matrix} \phi^2_y & \rho \phi_y \sigma_x \\ \rho \sigma_x \phi_y & \sigma^2_x \end{matrix}\right]\right).\label{eq:mvn}
+% \end{equation}
+% 
+% From (\ref{eq:mvn}) the conditional distribution of $y_t \mid x_t$ is Gaussian with \begin{equation}
+%     E\left(y_t \mid x_t\right) = \lambda_y + \rho \frac{\phi_y}{\sigma_x}\left(x_t - \mu_x\right) \qquad \mbox{and} \qquad \mbox{var}\left(y_t \mid x_t\right) = \left(1 - \rho^2\right)\phi^2_y.\label{eq:condexp1}
+% \end{equation}
+% Hence from (\ref{eq:condexp}) we have that:
+% \begin{align}
+%     E\left(y_t \mid x_t\right) &= \frac{\sigma^2_y \left[\mu_z - z_t\right]  - \sigma^2_z x_t}{\sigma^2_y + \sigma^2_z} \nonumber\\
+%     &= \frac{-\sigma^2_z}{\sigma^2_y + \sigma^2_z}\left(x_t - \mu_x + \mu_x - \frac{\sigma^2_y}{\sigma^2_z}\left[\mu_z - z_t\right]\right) \nonumber\\
+%     &=  \frac{\sigma^2_y}{\sigma^2_y + \sigma^2_z} \left[\mu_z - z_t - \mu_x\right] -\frac{\sigma^2_z}{\sigma^2_y + \sigma^2_z}\left(x_t - \mu_x\right).
+% \end{align}
+% Combining this with (\ref{eq:condexp1}) suggests that
+% \begin{equation}
+%     \lambda_y = \frac{\sigma^2_y}{\sigma^2_y + \sigma^2_z} \left[\mu_z - z_t - \mu_x\right] \qquad \mbox{and} \qquad \frac{\rho\phi_y}{\sigma_x} = -\frac{\sigma^2_z}{\sigma^2_y + \sigma^2_z}.\label{eq:condexp2}
+% \end{equation}
+% Again, from (\ref{eq:condexp}) and (\ref{eq:condexp1}) we have that
+% \begin{align}
+%     \left(1 - \rho^2\right)\phi^2_y &= \frac{\sigma^2_y\sigma^2_z}{\sigma^2_y + \sigma^2_z} \nonumber\\
+%     \phi^2_y - \rho^2\phi^2_y &= \frac{\sigma^2_y\sigma^2_z}{\sigma^2_y + \sigma^2_z} \nonumber\\
+%     \phi^2_y &= \frac{\sigma^2_y\sigma^2_z}{\sigma^2_y + \sigma^2_z} + \left(\frac{\sigma^2_z\sigma_x}{\sigma^2_y + \sigma^2_z}\right)^2 \qquad \mbox{from (\ref{eq:condexp2})} \nonumber\\
+%     \phi^2_y &= \frac{\sigma^2_z}{\sigma^2_y + \sigma^2_z}\left(\sigma^2_y + \frac{\sigma^2_z\sigma_x}{\sigma^2_y + \sigma^2_z}\right) \nonumber\\
+%     \phi^2_y &= \frac{\sigma^2_z}{\left(\sigma^2_y + \sigma^2_z\right)^2}\left(\sigma^4_y + \sigma^2_y\sigma^2_z + \sigma^2_z\sigma_x\right). \label{eq:condexp3}
+% \end{align}
+% Finally, from (\ref{eq:condexp2}) and (\ref{eq:condexp3}) we have that:
+% \begin{align}
+%     \rho &= \left(\frac{-\sigma^2_z\sigma_x}{\sigma^2_y + \sigma^2_x}\right)\left[\frac{\sigma^2_z}{\left(\sigma^2_y + \sigma^2_z\right)^2}\left(\sigma^4_y + \sigma^2_y\sigma^2_z + \sigma^2_z\sigma_x\right)\right]^{\frac12}\nonumber\\
+%     \rho &= \left(\frac{-\sigma^3_z\sigma_x}{\left(\sigma^2_y + \sigma^2_x\right)^2}\right)\left(\sigma^4_y + \sigma^2_y\sigma^2_z + \sigma^2_z\sigma_x\right)^{\frac12}.
+% \end{align}
+
+
 \textcolor{red}{NEED TO TIDY UP BELOW AND REMOVE INTEGRALS ETC.}
 
 \subsection{Unbiasedness of likelihood estimator}
