@@ -107,13 +107,14 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
         ## set update loop
         kcurr <- 2
         valid <- 0
+        npart1 <- npart
         while(valid == 0) {
         
             ## now calculate twisting functions
             psi <- list()
             
             ## print progress        
-            cat(paste0("Calculating twisting functions: l = ", kcurr, "\n"))
+            cat(paste0("Calculating twisting functions: IPF iteration = ", kcurr, "\n"))
             ptm <- proc.time()
             
             ## calculate observation likelihoods
@@ -143,7 +144,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
             
             ## check convergence
             conv <- map_int(output, "convergence")
-            if(any(conv > 0)) stop(paste0("optim not converged - ", ndays))
+            if(any(conv > 0)) print(table(conv)) #stop(paste0("optim not converged - ", ndays))
             
             ## extract Poisson parameters
             rates <- map(output, "par")
@@ -210,6 +211,8 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
             gc()
             
             ## run particle filter
+            npart <- npart1
+            cat(paste0("\nRunning model (npart = ", npart, ")\n"))
             particles <- TPF_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
                 npart, psi, 1, a1, a2, b, a_dis, b_dis, 0, 1, PF, ncores)
             
@@ -219,6 +222,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
             print(ll)
             
             ## check
+            npart1 <- npart
             if(kcurr >= kstop) {
 #                browser()
             
@@ -227,15 +231,17 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
                 mnll <- log_sum_exp(templl, mn = TRUE)
                 sdll <- max(c(mnll, templl))
                 sdll <- 0.5 * (2 * sdll - log(length(templl) - 1) + log(sum((exp(templl - sdll) - exp(mnll - sdll))^2)))
-                cv <- sdll - mnll
+                cv <- round(exp(sdll - mnll), 2)
+                cat(paste0("Previous ", kstop, " log-likelihood estimates: ", paste0(round(templl, 2), collapse = ", "), "\n"))
+                cat(paste0("CV of likelihood estimate = ", cv, " tau = ", tau, "\n"))
                 ## if coefficient of variation < tau, then exit
-                if(cv < log(tau)) {
+                if(cv < tau) {
                     valid <- 1
                 } else {
                     ## if log-likelihoods not monotonically increasing
                     ## then increase the number of particles
                     if(!all(diff(templl) < 0)) {
-                        npart <- npart * 2
+                        npart1 <- npart * 2
                     }
                 }
             }   
