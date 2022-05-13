@@ -87,21 +87,20 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
         
         ## run particle filter
         particles <- TPF_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
-            npart, matrix(0, 1, 1), 0, a1, a2, b, a_dis, b_dis, 0, 1, PF, ncores)
+            npart, matrix(0, 1, 1), matrix(1, 1, 1), 0, a1, a2, b, a_dis, b_dis, 0, 1, PF, ncores)
             
         ## extract particles
         ll <- particles$ll
         particles <- particles$psi
             
         ## set regularised Poisson functions
-        regPois <- function(pars, eta, psi_it) {
-            if(any(pars <= 0)) return(NA)
-            x1 <- dpois(eta, lambda = pars[1], log = TRUE)
-            x2 <- log(pars[2]) + psi_it
-            mx <- pmax(x1, x2)
-            x <- 2 * mx + log((exp(x1 - mx) - exp(x2 - mx))^2)
-            if(max(x) == -Inf) return(-Inf)
-            log_sum_exp(x)
+        
+        regNorm <- function(pars, eta, psi_it) {
+            if(any(pars[-1] <= 0)) return(NA)
+            x1 <- pnorm(eta + 0.5, mean = pars[1], sd = pars[2])
+            x1 <- x1 - pnorm(eta - 0.5, mean = pars[1], sd = pars[2])
+            x2 <- pars[3] * psi_it
+            sum((x1 - x2)^2)
         }
         
         ## set update loop
@@ -136,7 +135,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
                 x <- x[, i]
                 eta <- x[seq(1, length(x) - 1, by = 2)]
                 psi_it <- x[seq(2, length(x), by = 2)]
-                temp <- optim(c(mean(eta) + 0.1, 1), fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
+                temp <- optim(c(mean(eta) + 0.1, sd(eta) + 0.1, 1), fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
                 k <- 1
                 while(temp$convergence != 0 & k < 10) {
                     temp <- optim(temp$par, fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
@@ -144,18 +143,19 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
                 }
                 if(any(is.na(temp$par))) browser()
                 temp
-            }, x = temp, fn = regPois, mc.cores = ncores)
+            }, x = temp, fn = regNorm, mc.cores = ncores)
             
             ## check convergence
             conv <- map_int(output, "convergence")
             if(any(conv > 0)) print(table(conv)) #stop(paste0("optim not converged - ", ndays))
             
-            ## extract Poisson parameters
-            rates <- map(output, "par")
-            rates <- map_dbl(rates, 1)
+            ## extract Gaussian parameters
+            munorm <- map(output, "par")
+            sdnorm <- map_dbl(munorm, 2)
+            munorm <- map_dbl(munorm, 1)
             
             ## save rates
-            psi[[ndays]] <- rates
+            psi[[ndays]] <- list(munorm = munorm, sdnorm = sdnorm)
                 
             cat(paste0("Day: ", ndays, " t = ", round(as.numeric((proc.time() - ptm)["elapsed"]), 2), " secs\n"))
             ptm <- proc.time()
@@ -165,15 +165,14 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
             
                 ## generate filter rates
                 temp <- particles[(npart * (t - 1)  * 4 + 1):(npart * t * 4), , ]
-                temp <- TPF_rates_cpp(pars, data[t, ], 8, 339, temp, npart, rates, a1, a2, b, a_dis, b_dis, ncores)
-#                browser()
+                temp <- TPF_rates_cpp(pars, data[t, ], 8, 339, temp, npart, munorm, sdnorm, a1, a2, b, a_dis, b_dis, ncores)
             
                 ## optimise twisting functions
                 output <- mclapply(1:ncol(temp), function(i, x, fn) {
                     x <- x[, i]
                     eta <- x[seq(1, length(x) - 1, by = 2)]
                     psi_it <- x[seq(2, length(x), by = 2)]
-                    temp <- optim(c(mean(eta) + 0.1, 1), fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
+                    temp <- optim(c(mean(eta) + 0.1, sd(eta) + 0.1, 1), fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
                     k <- 1
                     while(temp$convergence != 0 & k < 10) {
                         temp <- optim(temp$par, fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
@@ -181,31 +180,39 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
                     }
                    if(any(is.na(temp$par))) browser()
                     temp
-                }, x = temp, fn = regPois, mc.cores = ncores)
+                }, x = temp, fn = regNorm, mc.cores = ncores)
                 
                 ## check convergence
                 conv <- map_int(output, "convergence")
                 if(any(conv > 0)) print(table(conv)) #browser()#stop(paste0("optim not converged - ", t))
                 
-                ## extract Poisson parameters
-                rates <- map(output, "par")
-                rates <- map_dbl(rates, 1)
+                ## extract Gaussian parameters
+                munorm <- map(output, "par")
+                sdnorm <- map_dbl(munorm, 2)
+                munorm <- map_dbl(munorm, 1)
                 
                 ## save rates
-                psi[[t]] <- rates
+                psi[[t]] <- list(munorm = munorm, sdnorm = sdnorm)
                 
                 cat(paste0("Day: ", t, " t = ", round(as.numeric((proc.time() - ptm)["elapsed"]), 2), " secs\n"))
                 ptm <- proc.time()
             }
             
             ## reduce to rate matrix
-            psi <- do.call("rbind", psi)
+            psimu <- do.call("rbind", map(psi, "munorm"))
+            psisd <- do.call("rbind", map(psi, "sdnorm"))
             
             ## print summaries to screen
-            temp <- apply(psi, 2, min)
-            print(summary(psi[, which(temp == min(temp))[1]]))
-            temp <- apply(psi, 2, max)
-            print(summary(psi[, which(temp == max(temp))[1]]))
+            cat("Psi means:\n")
+            temp <- apply(psimu, 2, min)
+            print(summary(psimu[, which(temp == min(temp))[1]]))
+            temp <- apply(psimu, 2, max)
+            print(summary(psimu[, which(temp == max(temp))[1]]))
+            cat("Psi SDs:\n")
+            temp <- apply(psisd, 2, min)
+            print(summary(psisd[, which(temp == min(temp))[1]]))
+            temp <- apply(psisd, 2, max)
+            print(summary(psisd[, which(temp == max(temp))[1]]))
             
             ## garbage collect just in case
             gc()
@@ -214,7 +221,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
             npart <- npart1
             cat(paste0("\nRunning model (npart = ", npart, ")\n"))
             particles <- TPF_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
-                npart, psi, 1, a1, a2, b, a_dis, b_dis, 0, 1, PF, ncores)
+                npart, psimu, psisd, 1, a1, a2, b, a_dis, b_dis, 0, 1, PF, ncores)
             
             ## extract particles
             ll <- c(ll, particles$ll)

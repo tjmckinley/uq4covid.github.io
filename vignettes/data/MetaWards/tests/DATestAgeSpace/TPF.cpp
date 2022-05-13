@@ -979,7 +979,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
 
 // [[Rcpp::export]]
 List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses, arma::uword nages, arma::uword nlads, arma::imat u1_moves, arma::ivec ncohorts, 
-         arma::icube u1_comb, arma::uword ndays, arma::uword npart, arma::mat rates, int twist, double a1, double a2, double b, double a_dis, 
+         arma::icube u1_comb, arma::uword ndays, arma::uword npart, arma::mat munorm, arma::mat sdnorm, int twist, double a1, double a2, double b, double a_dis, 
          double b_dis, int saveAll, int returnPsi, int PF, int ncores) {
     
     // set counters
@@ -996,11 +996,11 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
     std::vector< std::vector<arma::mat> > tempdensx1(npart);
     std::vector< std::vector<arma::vec> > tempdensy1(npart);
     for(i = 0; i < npart; i++) {
-        twistnorm[i] = arma::vec(rates.n_cols); twistnorm[i].zeros();
-        tempdensx[i] = std::vector<arma::mat> (rates.n_cols);
-        tempdensy[i] = std::vector<arma::vec> (rates.n_cols);
-        tempdensx1[i] = std::vector<arma::mat> (rates.n_cols);
-        tempdensy1[i] = std::vector<arma::vec> (rates.n_cols);
+        twistnorm[i] = arma::vec(munorm.n_cols); twistnorm[i].zeros();
+        tempdensx[i] = std::vector<arma::mat> (munorm.n_cols);
+        tempdensy[i] = std::vector<arma::vec> (munorm.n_cols);
+        tempdensx1[i] = std::vector<arma::mat> (munorm.n_cols);
+        tempdensy1[i] = std::vector<arma::vec> (munorm.n_cols);
     }
     arma::icube u1_night_full(nclasses, nages, nlads); u1_night_full.zeros();
     arma::icube u1_night_reduced(2, nages, nlads); u1_night_reduced.zeros();
@@ -1097,7 +1097,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
         t = 0;
     
 #ifdef _OPENMP
-#pragma omp parallel for default(none) private(j, l) shared(seeds, npart, u1_moves, nages, nclasses, nlads, u1, pars, a_dis, b_dis, rates, twistnorm, tempdensx, tempdensy, t)
+#pragma omp parallel for default(none) private(j, l) shared(seeds, npart, u1_moves, nages, nclasses, nlads, u1, pars, a_dis, b_dis, munorm, sdnorm, twistnorm, tempdensx, tempdensy, t)
 #endif
         for(i = 0; i < npart; i++) {
     
@@ -1171,7 +1171,10 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         tempdensy[i][w](r) = log_sum_exp(tempdensr, 0);
                             
                         // twisting function density
-                        tempdensy[i][w](r) += R::dpois(r, rates(t, w), 1);
+                        double temp1 = R::pnorm(r - 0.5, munorm(t, w), sdnorm(t, w), 1, 1);
+                        double temp2 = R::pnorm(r + 0.5, munorm(t, w), sdnorm(t, w), 1, 1);
+                        temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                        tempdensy[i][w](r) += temp1;
                     }
                     
                     // calculate normalising constant
@@ -1227,7 +1230,10 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         tempdensy[i][w](r) = log_sum_exp(tempdensr, 0);
                        
                         // twisting function density
-                        tempdensy[i][w](r) += R::dpois(r, rates(t, w), 1);
+                        double temp1 = R::pnorm(r - 0.5, munorm(t, w), sdnorm(t, w), 1, 1);
+                        double temp2 = R::pnorm(r + 0.5, munorm(t, w), sdnorm(t, w), 1, 1);
+                        temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                        tempdensy[i][w](r) += temp1;
                     }
                     
                     // calculate normalising constant
@@ -1252,7 +1258,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
         
         // loop over particles
 #ifdef _OPENMP
-#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, u1_moves, nages, nclasses, nlads, data, C, N_night, N_day, u1, u1_new, t, pars, weights, a_dis, b_dis, a1, a2, b, obsInc, PF, ncohorts, rates, twistnorm, tempdensy, tempdensx, condpars, twist, ndays)
+#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, u1_moves, nages, nclasses, nlads, data, C, N_night, N_day, u1, u1_new, t, pars, weights, a_dis, b_dis, a1, a2, b, obsInc, PF, ncohorts, munorm, sdnorm, twistnorm, tempdensy, tempdensx, condpars, twist, ndays)
 #endif
         for(i = 0; i < npart; i++) {
     
@@ -1339,7 +1345,10 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         
                         // update weights
                         weights(i) += obserror;
-                        weights(i) -= R::dpois(DIinc(j, l), rates(t, w), 1);
+                        double temp1 = R::pnorm(DIinc(j, l) - 0.5, munorm(t, w), sdnorm(t, w), 1, 1);
+                        double temp2 = R::pnorm(DIinc(j, l) + 0.5, munorm(t, w), sdnorm(t, w), 1, 1);
+                        temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                        weights(i) -= temp1;
                         if(t == 0) weights(i) += twistnorm[i](w);
                         
                         // store incidence for redistribution
@@ -1378,7 +1387,10 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         
                         // update weights
                         weights(i) += obserror;
-                        weights(i) -= R::dpois(DHinc(j, l), rates(t, w), 1);
+                        double temp1 = R::pnorm(DHinc(j, l) - 0.5, munorm(t, w), sdnorm(t, w), 1, 1);
+                        double temp2 = R::pnorm(DHinc(j, l) + 0.5, munorm(t, w), sdnorm(t, w), 1, 1);
+                        temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                        weights(i) -= temp1;
                         if(t == 0) weights(i) += twistnorm[i](w);
                         
                         // store incidence for redistribution
@@ -1761,7 +1773,10 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             tempdensy[i][w](r) = log_sum_exp(tempdensr, 0);
                                 
                             // twisting function density
-                            tempdensy[i][w](r) += R::dpois(r, rates(t + 1, w), 1);
+                            double temp1 = R::pnorm(r - 0.5, munorm(t + 1, w), sdnorm(t + 1, w), 1, 1);
+                            double temp2 = R::pnorm(r + 0.5, munorm(t + 1, w), sdnorm(t + 1, w), 1, 1);
+                            temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                            tempdensy[i][w](r) += temp1;
                         }
                         
                         // calculate normalising constant
@@ -1821,7 +1836,10 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             tempdensy[i][w](r) = log_sum_exp(tempdensr, 0);
                                 
                             // twisting function density
-                            tempdensy[i][w](r) += R::dpois(r, rates(t + 1, w), 1);
+                            double temp1 = R::pnorm(r - 0.5, munorm(t + 1, w), sdnorm(t + 1, w), 1, 1);
+                            double temp2 = R::pnorm(r + 0.5, munorm(t + 1, w), sdnorm(t + 1, w), 1, 1);
+                            temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                            tempdensy[i][w](r) += temp1;
                         }
                         
                         // calculate normalising constant
@@ -1999,13 +2017,13 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
 
 // [[Rcpp::export]]
 arma::mat TPF_rates_cpp (arma::vec pars, arma::ivec data, arma::uword nages, arma::uword nlads, arma::cube psi, 
-    arma::uword npart, arma::vec rates, double a1, double a2, double b, double a_dis, double b_dis, int ncores) {
+    arma::uword npart, arma::vec munorm, arma::vec sdnorm, double a1, double a2, double b, double a_dis, double b_dis, int ncores) {
     
     // set counters
     arma::uword i, j, l;
     
     // set auxiliary objects
-    arma::mat twistnorm(npart * 2, rates.n_elem); 
+    arma::mat twistnorm(npart * 2, munorm.n_elem); 
     
     // sample seeds to set up thread-safe PRNGs
 #ifdef _OPENMP
@@ -2019,7 +2037,7 @@ arma::mat TPF_rates_cpp (arma::vec pars, arma::ivec data, arma::uword nages, arm
     sitmo::prng engSerial(coreseedSerial);
 
 #ifdef _OPENMP
-#pragma omp parallel for default(none) private(j, l) shared(seeds, npart, nages, nlads, pars, a1, a2, b, a_dis, b_dis, rates, twistnorm, psi, data)
+#pragma omp parallel for default(none) private(j, l) shared(seeds, npart, nages, nlads, pars, a1, a2, b, a_dis, b_dis, munorm, sdnorm, twistnorm, psi, data)
 #endif
     for(i = 0; i < npart; i++) {
 
@@ -2082,7 +2100,10 @@ arma::mat TPF_rates_cpp (arma::vec pars, arma::ivec data, arma::uword nages, arm
                     tempdensy(r) = log_sum_exp(tempdensr, 0);
                         
                     // twisting function density
-                    tempdensy(r) += R::dpois(r, rates(w), 1);
+                    double temp1 = R::pnorm(r - 0.5, munorm(w), sdnorm(w), 1, 1);
+                    double temp2 = R::pnorm(r + 0.5, munorm(w), sdnorm(w), 1, 1);
+                    temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                    tempdensy(r) += temp1;
                 }
                 
                 // calculate normalising constant
@@ -2152,7 +2173,10 @@ arma::mat TPF_rates_cpp (arma::vec pars, arma::ivec data, arma::uword nages, arm
                     tempdensy(r) = log_sum_exp(tempdensr, 0);
                    
                     // twisting function density
-                    tempdensy(r) += R::dpois(r, rates(w), 1);
+                    double temp1 = R::pnorm(r - 0.5, munorm(w), sdnorm(w), 1, 1);
+                    double temp2 = R::pnorm(r + 0.5, munorm(w), sdnorm(w), 1, 1);
+                    temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                    tempdensy(r) += temp1;
                 }
                 
                 // calculate normalising constant
