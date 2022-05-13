@@ -137,8 +137,12 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
                 eta <- x[seq(1, length(x) - 1, by = 2)]
                 psi_it <- x[seq(2, length(x), by = 2)]
                 temp <- optim(c(mean(eta) + 0.1, 1), fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
-                if(temp$convergence != 0) temp <- optim(temp$par, fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
-                if(any(is.na(temp$par)) | temp$convergence != 0) browser()
+                k <- 1
+                while(temp$convergence != 0 & k < 10) {
+                    temp <- optim(temp$par, fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
+                    k <- k + 1
+                }
+                if(any(is.na(temp$par))) browser()
                 temp
             }, x = temp, fn = regPois, mc.cores = ncores)
             
@@ -169,23 +173,13 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
                     x <- x[, i]
                     eta <- x[seq(1, length(x) - 1, by = 2)]
                     psi_it <- x[seq(2, length(x), by = 2)]
-                    ## guess initial conditions
-#                    mn <- mean(eta) + 0.1
-#                    ini <- (eta - mn)^2
-#                    ini <- which(ini == min(ini))[1]
-#                    ini <- c(mn, exp(dpois(eta[ini], lambda = mn, log = TRUE) - psi_it[ini]))
-#                    print(ini)
-#                    print(fn(ini, eta, psi_it))
-#                    if(is.na(fn(ini, eta, psi_it))) browser()
                     temp <- optim(c(mean(eta) + 0.1, 1), fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
                     k <- 1
-                    while(temp$convergence != 0 & k < 3) {
+                    while(temp$convergence != 0 & k < 10) {
                         temp <- optim(temp$par, fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
                         k <- k + 1
                     }
-#                     else {
-#                        if(any(is.na(temp$par)) | temp$convergence != 0) browser()
-#                    }
+                   if(any(is.na(temp$par))) browser()
                     temp
                 }, x = temp, fn = regPois, mc.cores = ncores)
                 
@@ -206,6 +200,12 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
             
             ## reduce to rate matrix
             psi <- do.call("rbind", psi)
+            
+            ## print summaries to screen
+            temp <- apply(psi, 2, min)
+            print(summary(psi[, which(temp == min(temp))[1]]))
+            temp <- apply(psi, 2, max)
+            print(summary(psi[, which(temp == max(temp))[1]]))
             
             ## garbage collect just in case
             gc()
