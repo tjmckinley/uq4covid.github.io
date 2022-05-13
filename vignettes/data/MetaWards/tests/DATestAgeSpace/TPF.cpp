@@ -1890,14 +1890,14 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                 inds(i) = (arma::uword) rmultinom_cpp(weights, engSerial);
             }
             if(returnPsi == 1) {
-                // save particle summaries for twisting functions
+                // save particle summaries for twisting functions (BEFORE resampling for more variation)
                 for(i = 0; i < npart; i++) {
                     for(l = 0; l < u1_moves.n_rows; l++) {
                         for(j = 0; j < nages; j++) {
-                            psi(t * npart * 4 + i * 4, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[inds(i)](6, j, l) - u1[inds(i)](6, j, l);
-                            psi(t * npart * 4 + i * 4 + 1, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[inds(i)](11, j, l) - u1_new[inds(i)](11, j, l);
-                            psi(t * npart * 4 + i * 4 + 2, j, (arma::uword) u1_moves(l, 0) - 1) += u1[inds(i)](5, j, l);
-                            psi(t * npart * 4 + i * 4 + 3, j, (arma::uword) u1_moves(l, 0) - 1) += u1[inds(i)](9, j, l);
+                            psi(t * npart * 4 + i * 4, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](6, j, l) - u1[i](6, j, l);
+                            psi(t * npart * 4 + i * 4 + 1, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](11, j, l) - u1_new[i](11, j, l);
+                            psi(t * npart * 4 + i * 4 + 2, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](5, j, l);
+                            psi(t * npart * 4 + i * 4 + 3, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](9, j, l);
                         }
                     }
                 }
