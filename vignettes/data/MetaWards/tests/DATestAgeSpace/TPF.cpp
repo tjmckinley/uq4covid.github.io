@@ -89,7 +89,7 @@ int rbinom_cpp (int n, double p, sitmo::prng &eng) {
         k++;
         if(k > n) {
             // check for rounding errors
-            if(fabs(temp) < 1e-15 && fabs(u) < 1e-15) return(n);
+            if(fabs(temp) < 1e-10 && fabs(u) < 1e-10) return(n);
             stop("Error in binomial sampling: lcum = %e lu = %e k = %d n = %d\n", temp, u, k, n);
         }
         lx += log(k);
@@ -1715,7 +1715,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             redistribution(i, nages, nlads, tempMD, ncohorts, u1, u1_new, eng, 0);
             
             // calculate new normalising constants
-            if(twist == 1 && t < (ndays - 1)) {
+            if(twist == 1) {
             
                 // aggregate incidence to LAD-level
                 u1_night.zeros();
@@ -1773,10 +1773,12 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             tempdensy[i][w](r) = log_sum_exp(tempdensr, 0);
                                 
                             // twisting function density
-                            double temp1 = R::pnorm(r - 0.5, munorm(t + 1, w), sdnorm(t + 1, w), 1, 1);
-                            double temp2 = R::pnorm(r + 0.5, munorm(t + 1, w), sdnorm(t + 1, w), 1, 1);
-                            temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
-                            tempdensy[i][w](r) += temp1;
+                            if(t < (ndays - 1)) {
+                                double temp1 = R::pnorm(r - 0.5, munorm(t + 1, w), sdnorm(t + 1, w), 1, 1);
+                                double temp2 = R::pnorm(r + 0.5, munorm(t + 1, w), sdnorm(t + 1, w), 1, 1);
+                                temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                                tempdensy[i][w](r) += temp1;
+                            }
                         }
                         
                         // calculate normalising constant
@@ -1836,10 +1838,12 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             tempdensy[i][w](r) = log_sum_exp(tempdensr, 0);
                                 
                             // twisting function density
-                            double temp1 = R::pnorm(r - 0.5, munorm(t + 1, w), sdnorm(t + 1, w), 1, 1);
-                            double temp2 = R::pnorm(r + 0.5, munorm(t + 1, w), sdnorm(t + 1, w), 1, 1);
-                            temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
-                            tempdensy[i][w](r) += temp1;
+                            if(t < (ndays - 1)) {
+                                double temp1 = R::pnorm(r - 0.5, munorm(t + 1, w), sdnorm(t + 1, w), 1, 1);
+                                double temp2 = R::pnorm(r + 0.5, munorm(t + 1, w), sdnorm(t + 1, w), 1, 1);
+                                temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                                tempdensy[i][w](r) += temp1;
+                            }
                         }
                         
                         // calculate normalising constant
