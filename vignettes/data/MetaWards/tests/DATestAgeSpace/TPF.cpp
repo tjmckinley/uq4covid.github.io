@@ -133,9 +133,9 @@ double lpskellam_cpp(int x, double lambda1, double lambda2) {
     } else {
         ldens = R::pnchisq(2.0 * lambda1, 2.0 * (x + 1), 2.0 * lambda2, 0, 1);
     }
-    if(!arma::is_finite(ldens)) {
-        Rprintf("Non-finite pdensity in lpskellam = %f x = %d lambda1 = %f lambda2 = %f\n", ldens, x, lambda1, lambda2);
-    }
+//    if(!arma::is_finite(ldens)) {
+//        Rprintf("Non-finite pdensity in lpskellam = %f x = %d lambda1 = %f lambda2 = %f\n", ldens, x, lambda1, lambda2);
+//    }
     return ldens;
 }
 
