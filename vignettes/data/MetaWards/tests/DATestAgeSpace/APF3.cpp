@@ -2362,7 +2362,7 @@ List APF3_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
         prev_time = res[timer_cnt] / 1e9;
         timer_cnt++;
     }
-    if(saveAll == 0 || writeExt == 0) {
+    if(saveAll == 0 || writeExt == 1) {
         return List::create(Named("ll") = ll);
     } else {
         if(PF == 1) {
