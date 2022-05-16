@@ -21,7 +21,7 @@ log_sum_exp <- function(x, mn = FALSE) {
 ## ndays: the number of days to fit to
 ## npart: the number of particles
 ## kstop: stopping criteria for IAPF
-## obsScale: scaling parameter for Poisson observation process (see code)
+## obsScale: scaling parameter for Skellam observation process (see code)
 ## a1, a2, b: parameters for Skellam observation process
 ## saveAll: a logical specifying whether to return all states (if FALSE then returns just observed states))
 ## PF:      a logical denoting whether to run a particle filter, or just simulate from the model
@@ -93,8 +93,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
         ll <- particles$ll
         particles <- particles$psi
             
-        ## set regularised Poisson functions
-        
+        ## set regularised Gaussian functions
         regNorm <- function(pars, eta, psi_it) {
             if(any(pars[-1] <= 0)) return(NA)
             x1 <- pnorm(eta + 0.5, mean = pars[1], sd = pars[2])
@@ -104,135 +103,13 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
         }
         
         ## set update loop
-        kcurr <- 2
+        kcurr <- 1
         valid <- 0
-        npart1 <- npart
         while(valid == 0) {
-        
-            ## now calculate twisting functions
-            psi <- list()
-            
-            ## print progress        
-            cat(paste0("Calculating twisting functions: IPF iteration = ", kcurr, "\n"))
-            ptm <- proc.time()
-            
-            ## calculate observation likelihoods
-            temp <- particles[(npart * (ndays - 1)  * 4 + 1):(npart * ndays * 4), , ]
-            temp <- map(1:npart, function(i, x, data, a1, a2, b) {
-                ## extract particle
-                x <- x[((i - 1) * 4 + 1):(i * 4), , ]
-            
-                ## reorder particles to match data
-                x <- as.vector(aperm(x[1:2, , ], 3:1))
-                
-                ## calculate observation densities
-                rbind(x, dtskellam(data - x, a1 + b * x, a2 + b * x, -x, data, log = TRUE))
-            }, x = temp, data = data[ndays, ], a1 = a1, a2 = a2, b = b)
-            temp <- do.call("rbind", temp)
-            
-            ## optimise twisting functions
-            output <- mclapply(1:ncol(temp), function(i, x, fn) {
-                x <- x[, i]
-                eta <- x[seq(1, length(x) - 1, by = 2)]
-                psi_it <- x[seq(2, length(x), by = 2)]
-                temp <- optim(c(mean(eta) + 0.1, sd(eta) + 0.1, 1), fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
-                k <- 1
-                while(temp$convergence != 0 & k < 10) {
-                    temp <- optim(temp$par, fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
-                    k <- k + 1
-                }
-                if(any(is.na(temp$par))) browser()
-                temp
-            }, x = temp, fn = regNorm, mc.cores = ncores)
-            
-            ## check convergence
-            conv <- map_int(output, "convergence")
-            if(any(conv > 0)) print(table(conv)) #stop(paste0("optim not converged - ", ndays))
-            
-            ## extract Gaussian parameters
-            munorm <- map(output, "par")
-            sdnorm <- map_dbl(munorm, 2)
-            munorm <- map_dbl(munorm, 1)
-            
-            ## save rates
-            psi[[ndays]] <- list(munorm = munorm, sdnorm = sdnorm)
-                
-            cat(paste0("Day: ", ndays, " t = ", round(as.numeric((proc.time() - ptm)["elapsed"]), 2), " secs\n"))
-            ptm <- proc.time()
-            
-            ## now loop over remaining time points
-            for(t in (ndays - 1):1) {
-            
-                ## generate filter rates
-                temp <- particles[(npart * (t - 1)  * 4 + 1):(npart * t * 4), , ]
-                temp <- TPF_rates_cpp(pars, data[t, ], 8, 339, temp, npart, munorm, sdnorm, a1, a2, b, a_dis, b_dis, ncores)
-            
-                ## optimise twisting functions
-                output <- mclapply(1:ncol(temp), function(i, x, fn) {
-                    x <- x[, i]
-                    eta <- x[seq(1, length(x) - 1, by = 2)]
-                    psi_it <- x[seq(2, length(x), by = 2)]
-                    temp <- optim(c(mean(eta) + 0.1, sd(eta) + 0.1, 1), fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
-                    k <- 1
-                    while(temp$convergence != 0 & k < 10) {
-                        temp <- optim(temp$par, fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
-                        k <- k + 1
-                    }
-                   if(any(is.na(temp$par))) browser()
-                    temp
-                }, x = temp, fn = regNorm, mc.cores = ncores)
-                
-                ## check convergence
-                conv <- map_int(output, "convergence")
-                if(any(conv > 0)) print(table(conv)) #browser()#stop(paste0("optim not converged - ", t))
-                
-                ## extract Gaussian parameters
-                munorm <- map(output, "par")
-                sdnorm <- map_dbl(munorm, 2)
-                munorm <- map_dbl(munorm, 1)
-                
-                ## save rates
-                psi[[t]] <- list(munorm = munorm, sdnorm = sdnorm)
-                
-                cat(paste0("Day: ", t, " t = ", round(as.numeric((proc.time() - ptm)["elapsed"]), 2), " secs\n"))
-                ptm <- proc.time()
-            }
-            
-            ## reduce to rate matrix
-            psimu <- do.call("rbind", map(psi, "munorm"))
-            psisd <- do.call("rbind", map(psi, "sdnorm"))
-            
-            ## print summaries to screen
-            cat("Psi means:\n")
-            temp <- apply(psimu, 2, min)
-            print(summary(psimu[, which(temp == min(temp))[1]]))
-            temp <- apply(psimu, 2, max)
-            print(summary(psimu[, which(temp == max(temp))[1]]))
-            cat("Psi SDs:\n")
-            temp <- apply(psisd, 2, min)
-            print(summary(psisd[, which(temp == min(temp))[1]]))
-            temp <- apply(psisd, 2, max)
-            print(summary(psisd[, which(temp == max(temp))[1]]))
-            
-            ## garbage collect just in case
-            gc()
-            
-            ## run particle filter
-            npart <- npart1
-            cat(paste0("\nRunning model (npart = ", npart, ")\n"))
-            particles <- TPF_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
-                npart, psimu, psisd, 1, a1, a2, b, a_dis, b_dis, 0, 1, PF, ncores)
-            
-            ## extract particles
-            ll <- c(ll, particles$ll)
-            particles <- particles$psi
-            print(ll)
             
             ## check
-            npart1 <- npart
             if(kcurr >= kstop) {
-#                browser()
-            
+                        
                 ## check log-likelihoods
                 templl <- ll[(kcurr - kstop + 1):kcurr]
                 mnll <- log_sum_exp(templl, mn = TRUE)
@@ -247,14 +124,140 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
                 } else {
                     ## if log-likelihoods not monotonically increasing
                     ## then increase the number of particles
-                    if(!all(diff(templl) < 0)) {
-                        npart1 <- npart * 2
+                    if(!all(diff(templl) > 0) & npart[(kcurr - kstop + 1)] == npart[kcurr]) {
+                        npart <- c(npart, npart[kcurr] * 2)
+                    } else {
+                        npart <- c(npart, npart[kcurr])
                     }
                 }
-            }   
+            } else {
+                npart <- c(npart, npart[kcurr])
+            }
             
-            ## update counter
-            kcurr <- kcurr + 1
+            if(valid == 0) {
+            
+                ## now calculate twisting functions
+                psi <- list()
+                
+                ## print progress        
+                cat(paste0("\nCalculating twisting functions: IPF iteration = ", kcurr, "\n"))
+                ptm <- proc.time()
+                
+                ## calculate observation likelihoods
+                temp <- particles[(npart[kcurr] * (ndays - 1)  * 4 + 1):(npart[kcurr] * ndays * 4), , ]
+                temp <- map(1:npart[kcurr], function(i, x, data, a1, a2, b) {
+                    ## extract particle
+                    x <- x[((i - 1) * 4 + 1):(i * 4), , ]
+                
+                    ## reorder particles to match data
+                    x <- as.vector(aperm(x[1:2, , ], 3:1))
+                    
+                    ## calculate observation densities
+                    rbind(x, dtskellam(data - x, a1 + b * x, a2 + b * x, -x, data, log = TRUE))
+                }, x = temp, data = data[ndays, ], a1 = a1, a2 = a2, b = b)
+                temp <- do.call("rbind", temp)
+                
+                ## optimise twisting functions
+                output <- mclapply(1:ncol(temp), function(i, x, fn) {
+                    x <- x[, i]
+                    eta <- x[seq(1, length(x) - 1, by = 2)]
+                    psi_it <- x[seq(2, length(x), by = 2)]
+                    temp <- optim(c(mean(eta) + 0.1, sd(eta) + 0.1, 1), fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
+                    k <- 1
+                    while(temp$convergence != 0 & k < 10) {
+                        temp <- optim(temp$par, fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
+                        k <- k + 1
+                    }
+                    if(any(is.na(temp$par))) browser()
+                    temp
+                }, x = temp, fn = regNorm, mc.cores = ncores)
+                
+                ## check convergence
+                conv <- map_int(output, "convergence")
+                if(any(conv > 0)) print(table(conv))
+                
+                ## extract Gaussian parameters
+                munorm <- map(output, "par")
+                sdnorm <- map_dbl(munorm, 2)
+                munorm <- map_dbl(munorm, 1)
+                
+                ## save rates
+                psi[[ndays]] <- list(munorm = munorm, sdnorm = sdnorm)
+                    
+                cat(paste0("Day: ", ndays, " t = ", round(as.numeric((proc.time() - ptm)["elapsed"]), 2), " secs\n"))
+                ptm <- proc.time()
+                
+                ## now loop over remaining time points
+                for(t in (ndays - 1):1) {
+                
+                    ## generate filter rates
+                    temp <- particles[(npart[kcurr] * (t - 1)  * 4 + 1):(npart[kcurr] * t * 4), , ]
+                    temp <- TPF_rates_cpp(pars, data[t, ], 8, 339, temp, npart[kcurr], munorm, sdnorm, a1, a2, b, a_dis, b_dis, ncores)
+                
+                    ## optimise twisting functions
+                    output <- mclapply(1:ncol(temp), function(i, x, fn) {
+                        x <- x[, i]
+                        eta <- x[seq(1, length(x) - 1, by = 2)]
+                        psi_it <- x[seq(2, length(x), by = 2)]
+                        temp <- optim(c(mean(eta) + 0.1, sd(eta) + 0.1, 1), fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
+                        k <- 1
+                        while(temp$convergence != 0 & k < 10) {
+                            temp <- optim(temp$par, fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
+                            k <- k + 1
+                        }
+                       if(any(is.na(temp$par))) browser()
+                        temp
+                    }, x = temp, fn = regNorm, mc.cores = ncores)
+                    
+                    ## check convergence
+                    conv <- map_int(output, "convergence")
+                    if(any(conv > 0)) print(table(conv))
+                    
+                    ## extract Gaussian parameters
+                    munorm <- map(output, "par")
+                    sdnorm <- map_dbl(munorm, 2)
+                    munorm <- map_dbl(munorm, 1)
+                    
+                    ## save rates
+                    psi[[t]] <- list(munorm = munorm, sdnorm = sdnorm)
+                    
+                    cat(paste0("Day: ", t, " t = ", round(as.numeric((proc.time() - ptm)["elapsed"]), 2), " secs\n"))
+                    ptm <- proc.time()
+                }
+                
+                ## reduce to rate matrix
+                psimu <- do.call("rbind", map(psi, "munorm"))
+                psisd <- do.call("rbind", map(psi, "sdnorm"))
+                
+                ## print summaries to screen
+                cat("\nPsi means:\n")
+                temp <- apply(psimu, 2, min)
+                print(summary(psimu[, which(temp == min(temp))[1]]))
+                temp <- apply(psimu, 2, max)
+                print(summary(psimu[, which(temp == max(temp))[1]]))
+                cat("\nPsi SDs:\n")
+                temp <- apply(psisd, 2, min)
+                print(summary(psisd[, which(temp == min(temp))[1]]))
+                temp <- apply(psisd, 2, max)
+                print(summary(psisd[, which(temp == max(temp))[1]]))
+                
+                ## garbage collect just in case
+                gc()
+                
+                ## update counter
+                kcurr <- kcurr + 1
+                
+                ## run particle filter
+                cat(paste0("\nRunning model (npart = ", npart[kcurr], ")\n"))
+                particles <- TPF_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
+                    npart[kcurr], psimu, psisd, 1, a1, a2, b, a_dis, b_dis, saveAllint, 1, PF, ncores)
+                saveRDS(particles, paste0("particles_", kcurr, ".rds"))
+            
+                ## extract particles
+                ll <- c(ll, particles$ll)
+                particles <- particles$psi
+                print(ll)
+            }
         }
         if(saveAllint != 0) {
             particles <- TPF_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
