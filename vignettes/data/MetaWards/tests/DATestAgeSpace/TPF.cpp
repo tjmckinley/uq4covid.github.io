@@ -1163,7 +1163,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                     }
                     
                     // loop over y values
-                    arma::vec tempdensr (u1_night(5, j, l));
+                    arma::vec tempdensr (u1_night(5, j, l) + 1);
                     for(int r = 0; r <= u1_night(5, j, l); r++) {
                        
                         // MD likelihood
@@ -1222,7 +1222,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                     }
                     
                     // loop over y values
-                    arma::vec tempdensr (u1_night(9, j, l));
+                    arma::vec tempdensr (u1_night(9, j, l) + 1);
                     for(int r = 0; r <= u1_night(9, j, l); r++) {
                     
                         // MD likelihood
