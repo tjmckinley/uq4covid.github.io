@@ -979,7 +979,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
 
 // [[Rcpp::export]]
 List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses, arma::uword nages, arma::uword nlads, arma::imat u1_moves, arma::ivec ncohorts, 
-         arma::icube u1_comb, arma::uword ndays, arma::uword npart, arma::mat munorm, arma::mat sdnorm, int twist, double a1, double a2, double b, double a_dis, 
+         arma::icube u1_comb, arma::uword ndays, arma::uword npart, arma::mat munorm, arma::mat varnorm, int twist, double a1, double a2, double b, double a_dis, 
          double b_dis, int saveAll, int returnPsi, int PF, int ncores) {
     
     // set counters
@@ -989,18 +989,14 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
     std::vector<arma::icube> u1(npart);
     std::vector<arma::icube> u1_new(npart);
     std::vector<arma::vec> twistnorm(npart);
-    std::vector< std::vector<arma::mat> > tempdensx(npart);
-    std::vector< std::vector<arma::vec> > tempdensy(npart);
+    std::vector< std::vector<arma::vec> > tempdensx(npart);
     // set up new objects (need a better way to do this)
     std::vector<arma::vec> twistnorm1(npart);
-    std::vector< std::vector<arma::mat> > tempdensx1(npart);
-    std::vector< std::vector<arma::vec> > tempdensy1(npart);
+    std::vector< std::vector<arma::vec> > tempdensx1(npart);
     for(i = 0; i < npart; i++) {
         twistnorm[i] = arma::vec(munorm.n_cols); twistnorm[i].zeros();
-        tempdensx[i] = std::vector<arma::mat> (munorm.n_cols);
-        tempdensy[i] = std::vector<arma::vec> (munorm.n_cols);
-        tempdensx1[i] = std::vector<arma::mat> (munorm.n_cols);
-        tempdensy1[i] = std::vector<arma::vec> (munorm.n_cols);
+        tempdensx[i] = std::vector<arma::vec> (munorm.n_cols);
+        tempdensx1[i] = std::vector<arma::vec> (munorm.n_cols);
     }
     arma::icube u1_night_full(nclasses, nages, nlads); u1_night_full.zeros();
     arma::icube u1_night_reduced(2, nages, nlads); u1_night_reduced.zeros();
@@ -1097,7 +1093,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
         t = 0;
     
 #ifdef _OPENMP
-#pragma omp parallel for default(none) private(j, l) shared(seeds, npart, u1_moves, nages, nclasses, nlads, u1, pars, a_dis, b_dis, munorm, sdnorm, twistnorm, tempdensx, tempdensy, t)
+#pragma omp parallel for default(none) private(j, l) shared(seeds, npart, u1_moves, nages, nclasses, nlads, u1, pars, a_dis, b_dis, munorm, varnorm, twistnorm, tempdensx, t)
 #endif
         for(i = 0; i < npart; i++) {
     
@@ -1126,59 +1122,39 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             // start counter
             int w = 0;
             
+            // set auxiliary variables
+            double muy, sigma2y, temp1, temp2, pI1pI1D, pHpHD;
+            
             // DI      
             for(j = 0; j < nages; j++) {
                 for(l = 0; l < nlads; l++) {
                 
                     // extract transition probabilities
-                    double pI1pI1D = pars(j + 4 * nages + 2) * pars(j + 6 * nages + 2);
+                    pI1pI1D = pars(j + 4 * nages + 2) * pars(j + 6 * nages + 2);
                 
                     // set up auxiliary matrix for sampling
-                    tempdensx[i][w] = arma::mat (u1_night(5, j, l) + 1, u1_night(5, j, l) + 1);
-                    tempdensy[i][w] = arma::vec (u1_night(5, j, l) + 1);
+                    tempdensx[i][w] = arma::vec (u1_night(5, j, l) + 1);
 
                     // loop over x values
                     for(int s = 0; s <= u1_night(5, j, l); s++) {
-                    
-                        // loop over y values
-                        for(int r = 0; r <= u1_night(5, j, l); r++) {
                         
-                            // simulator density
-                            tempdensx[i][w](s, r) = R::dbinom(s, u1_night(5, j, l), pI1pI1D, 1);
+                        // simulator density
+                        tempdensx[i][w](s) = R::dbinom(s, u1_night(5, j, l), pI1pI1D, 1);
                         
-                            // model discrepancy for given incidence
-                            tempdensx[i][w](s, r) += ldtskellam_cpp(
-                                -s + r,
-                                a_dis + b_dis * s,
-                                a_dis + b_dis * s,
-                                str1,
-                                -s,
-                                u1_night(5, j, l) - s,
-                                0
-                            );
-                            
-                            // check validity
-                            if(!arma::is_finite(tempdensx[i][w](s, r)) && tempdensx[i][w](s, r) >= 0.0) stop("Error in MD\n");
-                        }
-                    }
-                    
-                    // loop over y values
-                    arma::vec tempdensr (u1_night(5, j, l) + 1);
-                    for(int r = 0; r <= u1_night(5, j, l); r++) {
-                       
-                        // MD likelihood
-                        tempdensr = tempdensx[i][w].col(r);
-                        tempdensy[i][w](r) = log_sum_exp(tempdensr, 0);
-                            
-                        // twisting function density
-                        double temp1 = R::pnorm(r - 0.5, munorm(t, w), sdnorm(t, w), 1, 1);
-                        double temp2 = R::pnorm(r + 0.5, munorm(t, w), sdnorm(t, w), 1, 1);
+                        // integrate over y values
+                        sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(5, j, l) * pI1pI1D;
+                        muy = varnorm(t, w) * s + sigma2y * munorm(t, w);
+                        muy /= (varnorm(t, w) + sigma2y);
+                        sigma2y = sigma2y * varnorm(t, w) / (varnorm(t, w) + sigma2y);
+                        
+                        temp1 = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
+                        temp2 = R::pnorm(u1_night(5, j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
                         temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
-                        tempdensy[i][w](r) += temp1;
+                        tempdensx[i][w](s) += temp1;
                     }
                     
                     // calculate normalising constant
-                    twistnorm[i](w) = log_sum_exp(tempdensy[i][w], 0);
+                    twistnorm[i](w) = log_sum_exp(tempdensx[i][w], 0);
                     
                     // increment counter
                     w++;
@@ -1190,54 +1166,31 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                 for(l = 0; l < nlads; l++) {
                 
                     // extract transition probabilities
-                    double pHpHD = pars(j + 8 * nages + 2) * pars(j + 9 * nages + 2);
+                    pHpHD = pars(j + 8 * nages + 2) * pars(j + 9 * nages + 2);
                 
                     // set up auxiliary matrix for sampling
-                    tempdensx[i][w] = arma::mat (u1_night(9, j, l) + 1, u1_night(9, j, l) + 1);
-                    tempdensy[i][w] = arma::vec (u1_night(9, j, l) + 1);
+                    tempdensx[i][w] = arma::vec (u1_night(9, j, l) + 1);
 
                     // loop over x values
                     for(int s = 0; s <= u1_night(9, j, l); s++) {
-                    
-                        // loop over y values
-                        for(int r = 0; r <= u1_night(9, j, l); r++) {
                         
-                            // simulator density
-                            tempdensx[i][w](s, r) = R::dbinom(s, u1_night(9, j, l), pHpHD, 1);
+                        // simulator density
+                        tempdensx[i][w](s) = R::dbinom(s, u1_night(9, j, l), pHpHD, 1);
+                    
+                        // integrate over y values
+                        sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(9, j, l) * pHpHD;
+                        muy = varnorm(t, w) * s + sigma2y * munorm(t, w);
+                        muy /= (varnorm(t, w) + sigma2y);
+                        sigma2y = sigma2y * varnorm(t, w) / (varnorm(t, w) + sigma2y);
                         
-                            // model discrepancy for given incidence
-                            tempdensx[i][w](s, r) += ldtskellam_cpp(
-                                -s + r,
-                                a_dis + b_dis * s,
-                                a_dis + b_dis * s,
-                                str1,
-                                -s,
-                                u1_night(9, j, l) - s,
-                                0
-                            );
-                            
-                            // check validity
-                            if(!arma::is_finite(tempdensx[i][w](s, r)) && tempdensx[i][w](s, r) >= 0.0) stop("Error in MD\n");
-                        }
-                    }
-                    
-                    // loop over y values
-                    arma::vec tempdensr (u1_night(9, j, l) + 1);
-                    for(int r = 0; r <= u1_night(9, j, l); r++) {
-                    
-                        // MD likelihood
-                        tempdensr = tempdensx[i][w].col(r);
-                        tempdensy[i][w](r) = log_sum_exp(tempdensr, 0);
-                       
-                        // twisting function density
-                        double temp1 = R::pnorm(r - 0.5, munorm(t, w), sdnorm(t, w), 1, 1);
-                        double temp2 = R::pnorm(r + 0.5, munorm(t, w), sdnorm(t, w), 1, 1);
+                        temp1 = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
+                        temp2 = R::pnorm(u1_night(5, j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
                         temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
-                        tempdensy[i][w](r) += temp1;
+                        tempdensx[i][w](s) += temp1;
                     }
                     
                     // calculate normalising constant
-                    twistnorm[i](w) = log_sum_exp(tempdensy[i][w], 0);
+                    twistnorm[i](w) = log_sum_exp(tempdensx[i][w], 0);
                     
                     // increment counter
                     w++;
@@ -1258,7 +1211,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
         
         // loop over particles
 #ifdef _OPENMP
-#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, u1_moves, nages, nclasses, nlads, data, C, N_night, N_day, u1, u1_new, t, pars, weights, a_dis, b_dis, a1, a2, b, obsInc, PF, ncohorts, munorm, sdnorm, twistnorm, tempdensy, tempdensx, condpars, twist, ndays)
+#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, u1_moves, nages, nclasses, nlads, data, C, N_night, N_day, u1, u1_new, t, pars, weights, a_dis, b_dis, a1, a2, b, obsInc, PF, ncohorts, munorm, varnorm, twistnorm, tempdensx, condpars, twist, ndays)
 #endif
         for(i = 0; i < npart; i++) {
     
@@ -1310,6 +1263,10 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             // set weights
             weights(i) = 0.0;
             
+            // set auxiliary variables
+            double muy, sigma2y, pI1pI1D, pHpHD, u, temp1, temp2, tempnorm, temp;
+            double mx = sitmo::prng::max();
+            
             // if twisting, then sample new observations
             if(twist == 1) {
             
@@ -1321,16 +1278,38 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                 for(j = 0; j < nages; j++) {
                     for(l = 0; l < nlads; l++) {
                         
-                        // sample MD from twisted density
-                        tempdensy[i][w] = exp(tempdensy[i][w] - twistnorm[i](w));
-                        tempdensy[i][w] = tempdensy[i][w] / sum(tempdensy[i][w]);
-                        DIinc(j, l) = rmultinom_cpp(tempdensy[i][w], eng);
+                        // set transition probability
+                        pI1pI1D = pars(j + 4 * nages + 2) * pars(j + 6 * nages + 2);
                         
-                        // sample simulator conditional on MD
-                        tempdensy[i][w] = tempdensx[i][w].col(DIinc(j, l));
-                        tempdensy[i][w] = exp(tempdensy[i][w] - log_sum_exp(tempdensy[i][w], 0));
-                        tempdensy[i][w] = tempdensy[i][w] / sum(tempdensy[i][w]);
-                        DIinc1(j, l) = rmultinom_cpp(tempdensy[i][w], eng);
+                        // sample simulator from twisted density
+                        tempdensx[i][w] = exp(tempdensx[i][w] - twistnorm[i](w));
+                        tempdensx[i][w] = tempdensx[i][w] / sum(tempdensx[i][w]);
+                        DIinc1(j, l) = rmultinom_cpp(tempdensx[i][w], eng);
+                        
+                        // sample MD conditional on simulator
+                        sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(5, j, l) * pI1pI1D;
+                        muy = varnorm(t, w) * DIinc1(j, l) + sigma2y * munorm(t, w);
+                        muy /= (varnorm(t, w) + sigma2y);
+                        sigma2y = sigma2y * varnorm(t, w) / (varnorm(t, w) + sigma2y);
+                        
+                        u = eng() / mx;
+                        temp1 = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
+                        temp2 = R::pnorm(u1_night(5, j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
+                        tempnorm = temp2 + log(1.0 - exp(temp1 - temp2));
+                        temp1 = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
+                        temp2 = R::pnorm(0.5, muy, sqrt(sigma2y), 1, 1);
+                        temp = temp2 + log(1.0 - exp(temp1 - temp2));
+                        temp -= tempnorm;
+                        temp = exp(temp);
+                        int s = 0;
+                        while(temp < u) {
+                            s++;
+                            if(s > u1_night(5, j, l)) stop("Error in multinomial sampling TDI (%d, %d) %d %d %f %f\n", j, l, s, u1_night(5, j, l), temp, u);
+                            temp1 = R::pnorm(s - 0.5, muy, sqrt(sigma2y), 1, 1);
+                            temp2 = R::pnorm(s + 0.5, muy, sqrt(sigma2y), 1, 1);
+                            temp += exp(temp2 + log(1.0 - exp(temp1 - temp2)) - tempnorm);
+                        }
+                        DIinc(j, l) = s;
                         
                         // observation error for given incidence
                         obserror = ldtskellam_cpp(
@@ -1345,8 +1324,8 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         
                         // update weights
                         weights(i) += obserror;
-                        double temp1 = R::pnorm(DIinc(j, l) - 0.5, munorm(t, w), sdnorm(t, w), 1, 1);
-                        double temp2 = R::pnorm(DIinc(j, l) + 0.5, munorm(t, w), sdnorm(t, w), 1, 1);
+//                        temp1 = R::pnorm(DIinc(j, l) - 0.5, munorm(t, w), varnorm(t, w), 1, 1);
+//                        temp2 = R::pnorm(DIinc(j, l) + 0.5, munorm(t, w), varnorm(t, w), 1, 1);
                         temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
                         weights(i) -= temp1;
                         if(t == 0) weights(i) += twistnorm[i](w);
@@ -1362,17 +1341,39 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                 // DH
                 for(j = 0; j < nages; j++) {
                     for(l = 0; l < nlads; l++) {
+                
+                        // extract transition probabilities
+                        pHpHD = pars(j + 8 * nages + 2) * pars(j + 9 * nages + 2);
                         
-                        // sample MD from twisted density
-                        tempdensy[i][w] = exp(tempdensy[i][w] - twistnorm[i](w));
-                        tempdensy[i][w] = tempdensy[i][w] / sum(tempdensy[i][w]);
-                        DHinc(j, l) = rmultinom_cpp(tempdensy[i][w], eng);
+                        // sample simulator from twisted density
+                        tempdensx[i][w] = exp(tempdensx[i][w] - twistnorm[i](w));
+                        tempdensx[i][w] = tempdensx[i][w] / sum(tempdensx[i][w]);
+                        DHinc1(j, l) = rmultinom_cpp(tempdensx[i][w], eng);
                         
-                        // sample simulator conditional on MD
-                        tempdensy[i][w] = tempdensx[i][w].col(DHinc(j, l));
-                        tempdensy[i][w] = exp(tempdensy[i][w] - log_sum_exp(tempdensy[i][w], 0));
-                        tempdensy[i][w] = tempdensy[i][w] / sum(tempdensy[i][w]);
-                        DHinc1(j, l) = rmultinom_cpp(tempdensy[i][w], eng);
+                        // sample MD conditional on simulator
+                        sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(9, j, l) * pHpHD;
+                        muy = varnorm(t, w) * DHinc1(j, l) + sigma2y * munorm(t, w);
+                        muy /= (varnorm(t, w) + sigma2y);
+                        sigma2y = sigma2y * varnorm(t, w) / (varnorm(t, w) + sigma2y);
+                        
+                        u = eng() / mx;
+                        temp1 = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
+                        temp2 = R::pnorm(u1_night(9, j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
+                        tempnorm = temp2 + log(1.0 - exp(temp1 - temp2));
+                        temp1 = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
+                        temp2 = R::pnorm(0.5, muy, sqrt(sigma2y), 1, 1);
+                        temp = temp2 + log(1.0 - exp(temp1 - temp2));
+                        temp -= tempnorm;
+                        temp = exp(temp);
+                        int s = 0;
+                        while(temp < u) {
+                            s++;
+                            if(s > u1_night(9, j, l)) stop("Error in multinomial sampling TDH %d %d %f %f\n", s, u1_night(9, j, l), temp, u);
+                            temp1 = R::pnorm(s - 0.5, muy, sqrt(sigma2y), 1, 1);
+                            temp2 = R::pnorm(s + 0.5, muy, sqrt(sigma2y), 1, 1);
+                            temp += exp(temp2 + log(1.0 - exp(temp1 - temp2)) - tempnorm);
+                        }
+                        DHinc(j, l) = s;
                         
                         // observation error for given incidence
                         obserror = ldtskellam_cpp(
@@ -1387,8 +1388,8 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         
                         // update weights
                         weights(i) += obserror;
-                        double temp1 = R::pnorm(DHinc(j, l) - 0.5, munorm(t, w), sdnorm(t, w), 1, 1);
-                        double temp2 = R::pnorm(DHinc(j, l) + 0.5, munorm(t, w), sdnorm(t, w), 1, 1);
+//                        temp1 = R::pnorm(DHinc(j, l) - 0.5, munorm(t, w), varnorm(t, w), 1, 1);
+//                        temp2 = R::pnorm(DHinc(j, l) + 0.5, munorm(t, w), varnorm(t, w), 1, 1);
                         temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
                         weights(i) -= temp1;
                         if(t == 0) weights(i) += twistnorm[i](w);
@@ -1715,7 +1716,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             redistribution(i, nages, nlads, tempMD, ncohorts, u1, u1_new, eng, 0);
             
             // calculate new normalising constants
-            if(twist == 1) {
+            if(twist == 1 && t < (ndays - 1)) {
             
                 // aggregate incidence to LAD-level
                 u1_night.zeros();
@@ -1729,62 +1730,40 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                 // start counter
                 int w = 0;
                 
-                // DI           
+                // set auxiliary variables
+                double muy, sigma2y, temp1, temp2, pI1pI1D, pHpHD;
+                
+                // DI      
                 for(j = 0; j < nages; j++) {
                     for(l = 0; l < nlads; l++) {
                     
                         // extract transition probabilities
-                        double pI1pI1D = pars(j + 4 * nages + 2) * pars(j + 6 * nages + 2);
+                        pI1pI1D = pars(j + 4 * nages + 2) * pars(j + 6 * nages + 2);
                     
                         // set up auxiliary matrix for sampling
-                        tempdensx[i][w] = arma::mat (u1_night(5, j, l) + 1, u1_night(5, j, l) + 1);
-                        tempdensy[i][w] = arma::vec (u1_night(5, j, l) + 1);
+                        tempdensx[i][w] = arma::vec (u1_night(5, j, l) + 1);
 
                         // loop over x values
                         for(int s = 0; s <= u1_night(5, j, l); s++) {
-                        
-                            // loop over y values
-                            for(int r = 0; r <= u1_night(5, j, l); r++) {
                             
-                                // simulator density
-                                tempdensx[i][w](s, r) = R::dbinom(s, u1_night(5, j, l), pI1pI1D, 1);
+                            // simulator density
+                            tempdensx[i][w](s) = R::dbinom(s, u1_night(5, j, l), pI1pI1D, 1);
                             
-                                // model discrepancy for given incidence
-                                tempdensx[i][w](s, r) += ldtskellam_cpp(
-                                    -s + r,
-                                    a_dis + b_dis * s,
-                                    a_dis + b_dis * s,
-                                    str1,
-                                    -s,
-                                    u1_night(5, j, l) - s,
-                                    0
-                                );
-                                // check validity
-                                if(!arma::is_finite(tempdensx[i][w](s, r)) && tempdensx[i][w](s, r) >= 0.0) stop("Error in MD\n");
-                            }
-                        }
-                    
-                        // loop over y values
-                        arma::vec tempdensr (u1_night(5, j, l) + 1);
-                        for(int r = 0; r <= u1_night(5, j, l); r++) {
-                           
-                            // MD likelihood
-                            tempdensr = tempdensx[i][w].col(r);
-                            tempdensy[i][w](r) = log_sum_exp(tempdensr, 0);
-                                
-                            // twisting function density
-                            if(t < (ndays - 1)) {
-                                double temp1 = R::pnorm(r - 0.5, munorm(t + 1, w), sdnorm(t + 1, w), 1, 1);
-                                double temp2 = R::pnorm(r + 0.5, munorm(t + 1, w), sdnorm(t + 1, w), 1, 1);
-                                temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
-                                tempdensy[i][w](r) += temp1;
-                            }
+                            // integrate over y values
+                            sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(5, j, l) * pI1pI1D;
+                            muy = varnorm(t + 1, w) * s + sigma2y * munorm(t + 1, w);
+                            muy /= (varnorm(t + 1, w) + sigma2y);
+                            sigma2y = sigma2y * varnorm(t + 1, w) / (varnorm(t + 1, w) + sigma2y);
+                            
+                            temp1 = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
+                            temp2 = R::pnorm(u1_night(5, j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
+                            temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                            tempdensx[i][w](s) += temp1;
                         }
                         
                         // calculate normalising constant
-                        twistnorm[i](w) = log_sum_exp(tempdensy[i][w], 0);
+                        twistnorm[i](w) = log_sum_exp(tempdensx[i][w], 0);
                         
-                
                         // update weights
                         weights(i) += twistnorm[i](w);
                         
@@ -1798,57 +1777,32 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                     for(l = 0; l < nlads; l++) {
                     
                         // extract transition probabilities
-                        double pHpHD = pars(j + 8 * nages + 2) * pars(j + 9 * nages + 2);
+                        pHpHD = pars(j + 8 * nages + 2) * pars(j + 9 * nages + 2);
                     
                         // set up auxiliary matrix for sampling
-                        tempdensx[i][w] = arma::mat (u1_night(9, j, l) + 1, u1_night(9, j, l) + 1);
-                        tempdensy[i][w] = arma::vec (u1_night(9, j, l) + 1);
+                        tempdensx[i][w] = arma::vec (u1_night(9, j, l) + 1);
 
                         // loop over x values
                         for(int s = 0; s <= u1_night(9, j, l); s++) {
+                            
+                            // simulator density
+                            tempdensx[i][w](s) = R::dbinom(s, u1_night(9, j, l), pHpHD, 1);
                         
-                            // loop over y values
-                            for(int r = 0; r <= u1_night(9, j, l); r++) {
+                            // integrate over y values
+                            sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(9, j, l) * pHpHD;
+                            muy = varnorm(t + 1, w) * s + sigma2y * munorm(t + 1, w);
+                            muy /= (varnorm(t + 1, w) + sigma2y);
+                            sigma2y = sigma2y * varnorm(t + 1, w) / (varnorm(t + 1, w) + sigma2y);
                             
-                                // simulator likelihood
-                                tempdensx[i][w](s, r) = R::dbinom(s, u1_night(9, j, l), pHpHD, 1);
-                            
-                                // model discrepancy for given incidence
-                                tempdensx[i][w](s, r) += ldtskellam_cpp(
-                                    -s + r,
-                                    a_dis + b_dis * s,
-                                    a_dis + b_dis * s,
-                                    str1,
-                                    -s,
-                                    u1_night(9, j, l) - s,
-                                    0
-                                );
-                                
-                                // check validity
-                                if(!arma::is_finite(tempdensx[i][w](s, r)) && tempdensx[i][w](s, r) >= 0.0) stop("Error in MD\n");
-                            }
-                        }
-                    
-                        // loop over y values
-                        arma::vec tempdensr (u1_night(9, j, l) + 1);
-                        for(int r = 0; r <= u1_night(9, j, l); r++) {
-                           
-                            // MD likelihood
-                            tempdensr = tempdensx[i][w].col(r);
-                            tempdensy[i][w](r) = log_sum_exp(tempdensr, 0);
-                                
-                            // twisting function density
-                            if(t < (ndays - 1)) {
-                                double temp1 = R::pnorm(r - 0.5, munorm(t + 1, w), sdnorm(t + 1, w), 1, 1);
-                                double temp2 = R::pnorm(r + 0.5, munorm(t + 1, w), sdnorm(t + 1, w), 1, 1);
-                                temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
-                                tempdensy[i][w](r) += temp1;
-                            }
+                            temp1 = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
+                            temp2 = R::pnorm(u1_night(9, j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
+                            temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                            tempdensx[i][w](s) += temp1;
                         }
                         
                         // calculate normalising constant
-                        twistnorm[i](w) = log_sum_exp(tempdensy[i][w], 0);
-                
+                        twistnorm[i](w) = log_sum_exp(tempdensx[i][w], 0);
+                        
                         // update weights
                         weights(i) += twistnorm[i](w);
                         
@@ -1929,7 +1883,6 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                 if(twist == 1) {
                     twistnorm1[i] = twistnorm[inds(i)];
                     tempdensx1[i] = tempdensx[inds(i)];
-                    tempdensy1[i] = tempdensy[inds(i)];
                 }
             }
             // copy in order to pass by reference
@@ -1938,7 +1891,6 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                 if(twist == 1) {
                     twistnorm[i] = twistnorm1[i];
                     tempdensx[i] = tempdensx1[i];
-                    tempdensy[i] = tempdensy1[i];
                 }
             }
         } else {
@@ -2021,7 +1973,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
 
 // [[Rcpp::export]]
 arma::mat TPF_rates_cpp (arma::vec pars, arma::ivec data, arma::uword nages, arma::uword nlads, arma::cube psi, 
-    arma::uword npart, arma::vec munorm, arma::vec sdnorm, double a1, double a2, double b, double a_dis, double b_dis, int ncores) {
+    arma::uword npart, arma::vec munorm, arma::vec varnorm, double a1, double a2, double b, double a_dis, double b_dis, int ncores) {
     
     // set counters
     arma::uword i, j, l;
@@ -2041,7 +1993,7 @@ arma::mat TPF_rates_cpp (arma::vec pars, arma::ivec data, arma::uword nages, arm
     sitmo::prng engSerial(coreseedSerial);
 
 #ifdef _OPENMP
-#pragma omp parallel for default(none) private(j, l) shared(seeds, npart, nages, nlads, pars, a1, a2, b, a_dis, b_dis, munorm, sdnorm, twistnorm, psi, data)
+#pragma omp parallel for default(none) private(j, l) shared(seeds, npart, nages, nlads, pars, a1, a2, b, a_dis, b_dis, munorm, varnorm, twistnorm, psi, data)
 #endif
     for(i = 0; i < npart; i++) {
 
@@ -2059,59 +2011,39 @@ arma::mat TPF_rates_cpp (arma::vec pars, arma::ivec data, arma::uword nages, arm
         // start counter
         int w = 0;
         
+        // set auxiliary variables
+        double muy, sigma2y, temp1, temp2, pI1pI1D, pHpHD;
+        
         // DI      
-        for(j = 0; j < nages; j++) {     
+        for(j = 0; j < nages; j++) {
             for(l = 0; l < nlads; l++) {
             
                 // extract transition probabilities
-                double pI1pI1D = pars(j + 4 * nages + 2) * pars(j + 6 * nages + 2);
+                pI1pI1D = pars(j + 4 * nages + 2) * pars(j + 6 * nages + 2);
             
                 // set up auxiliary matrix for sampling
-                arma::mat tempdensx (psi(i * 4 + 2, j, l) + 1, psi(i * 4 + 2, j, l) + 1);
-                arma::vec tempdensy (psi(i * 4 + 2, j, l) + 1);
+                arma::vec tempdensx (psi(i * 4 + 2, j, l) + 1);
 
                 // loop over x values
                 for(int s = 0; s <= psi(i * 4 + 2, j, l); s++) {
-                
-                    // loop over y values
-                    for(int r = 0; r <= psi(i * 4 + 2, j, l); r++) {
                     
-                        // simulator density
-                        tempdensx(s, r) = R::dbinom(s, psi(i * 4 + 2, j, l), pI1pI1D, 1);
+                    // simulator density
+                    tempdensx(s) = R::dbinom(s, psi(i * 4 + 2, j, l), pI1pI1D, 1);
                     
-                        // model discrepancy for given incidence
-                        tempdensx(s, r) += ldtskellam_cpp(
-                            -s + r,
-                            a_dis + b_dis * s,
-                            a_dis + b_dis * s,
-                            str1,
-                            -s,
-                            psi(i * 4 + 2, j, l) - s,
-                            0
-                        );
-                        
-                        // check validity
-                        if(!arma::is_finite(tempdensx(s, r)) && tempdensx(s, r) >= 0.0) stop("Error in MD\n");
-                    }
-                }
-                
-                // loop over y values
-                arma::vec tempdensr (psi(i * 4 + 2, j, l) + 1);
-                for(int r = 0; r <= psi(i * 4 + 2, j, l); r++) {
-                   
-                    // MD likelihood
-                    tempdensr = tempdensx.col(r);
-                    tempdensy(r) = log_sum_exp(tempdensr, 0);
-                        
-                    // twisting function density
-                    double temp1 = R::pnorm(r - 0.5, munorm(w), sdnorm(w), 1, 1);
-                    double temp2 = R::pnorm(r + 0.5, munorm(w), sdnorm(w), 1, 1);
+                    // integrate over y values
+                    sigma2y = 2.0 * a_dis + 2.0 * b_dis * psi(i * 4 + 2, j, l) * pI1pI1D;
+                    muy = varnorm(w) * s + sigma2y * munorm(w);
+                    muy /= (varnorm(w) + sigma2y);
+                    sigma2y = sigma2y * varnorm(w) / (varnorm(w) + sigma2y);
+                    
+                    temp1 = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
+                    temp2 = R::pnorm(psi(i * 4 + 2, j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
                     temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
-                    tempdensy(r) += temp1;
+                    tempdensx(s) += temp1;
                 }
                 
                 // calculate normalising constant
-                twistnorm(i * 2 + 1, w) = log_sum_exp(tempdensy, 0);
+                twistnorm(i * 2 + 1, w) = log_sum_exp(tempdensx, 0);
                 
                 // observation error for given incidence
                 twistnorm(i * 2 + 1, w) += ldtskellam_cpp(
@@ -2137,54 +2069,31 @@ arma::mat TPF_rates_cpp (arma::vec pars, arma::ivec data, arma::uword nages, arm
             for(l = 0; l < nlads; l++) {
             
                 // extract transition probabilities
-                double pHpHD = pars(j + 8 * nages + 2) * pars(j + 9 * nages + 2);
+                pHpHD = pars(j + 8 * nages + 2) * pars(j + 9 * nages + 2);
             
                 // set up auxiliary matrix for sampling
-                arma::mat tempdensx (psi(i * 4 + 3, j, l) + 1, psi(i * 4 + 3, j, l) + 1);
-                arma::vec tempdensy (psi(i * 4 + 3, j, l) + 1);
+                arma::vec tempdensx (psi(i * 4 + 3, j, l) + 1);
 
                 // loop over x values
                 for(int s = 0; s <= psi(i * 4 + 3, j, l); s++) {
-                
-                    // loop over y values
-                    for(int r = 0; r <= psi(i * 4 + 3, j, l); r++) {
                     
-                        // simulator density
-                        tempdensx(s, r) = R::dbinom(s, psi(i * 4 + 3, j, l), pHpHD, 1);
+                    // simulator density
+                    tempdensx(s) = R::dbinom(s, psi(i * 4 + 3, j, l), pHpHD, 1);
+                
+                    // integrate over y values
+                    sigma2y = 2.0 * a_dis + 2.0 * b_dis * psi(i * 4 + 3, j, l) * pHpHD;
+                    muy = varnorm(w) * s + sigma2y * munorm(w);
+                    muy /= (varnorm(w) + sigma2y);
+                    sigma2y = sigma2y * varnorm(w) / (varnorm(w) + sigma2y);
                     
-                        // model discrepancy for given incidence
-                        tempdensx(s, r) += ldtskellam_cpp(
-                            -s + r,
-                            a_dis + b_dis * s,
-                            a_dis + b_dis * s,
-                            str1,
-                            -s,
-                            psi(i * 4 + 3, j, l) - s,
-                            0
-                        );
-                        
-                        // check validity
-                        if(!arma::is_finite(tempdensx(s, r)) && tempdensx(s, r) >= 0.0) stop("Error in MD\n");
-                    }
-                }
-                
-                // loop over y values
-                arma::vec tempdensr (psi(i * 4 + 3, j, l) + 1);
-                for(int r = 0; r <= psi(i * 4 + 3, j, l); r++) {
-                
-                    // MD likelihood
-                    tempdensr = tempdensx.col(r);
-                    tempdensy(r) = log_sum_exp(tempdensr, 0);
-                   
-                    // twisting function density
-                    double temp1 = R::pnorm(r - 0.5, munorm(w), sdnorm(w), 1, 1);
-                    double temp2 = R::pnorm(r + 0.5, munorm(w), sdnorm(w), 1, 1);
+                    temp1 = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
+                    temp2 = R::pnorm(psi(i * 4 + 3, j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
                     temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
-                    tempdensy(r) += temp1;
+                    tempdensx(s) += temp1;
                 }
                 
                 // calculate normalising constant
-                twistnorm(i * 2 + 1, w) = log_sum_exp(tempdensy, 0);
+                twistnorm(i * 2 + 1, w) = log_sum_exp(tempdensx, 0);
                 
                 // observation error for given incidence
                 twistnorm(i * 2 + 1, w) += ldtskellam_cpp(

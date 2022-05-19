@@ -178,11 +178,11 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
                 
                 ## extract Gaussian parameters
                 munorm <- map(output, "par")
-                sdnorm <- map_dbl(munorm, 2)
+                varnorm <- (map_dbl(munorm, 2))^2
                 munorm <- map_dbl(munorm, 1)
                 
                 ## save rates
-                psi[[ndays]] <- list(munorm = munorm, sdnorm = sdnorm)
+                psi[[ndays]] <- list(munorm = munorm, varnorm = varnorm)
                     
                 cat(paste0("Day: ", ndays, " t = ", round(as.numeric((proc.time() - ptm)["elapsed"]), 2), " secs\n"))
                 ptm <- proc.time()
@@ -192,7 +192,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
                 
                     ## generate filter rates
                     temp <- particles[(npart[kcurr] * (t - 1)  * 4 + 1):(npart[kcurr] * t * 4), , ]
-                    temp <- TPF_rates_cpp(pars, data[t, ], 8, 339, temp, npart[kcurr], munorm, sdnorm, a1, a2, b, a_dis, b_dis, ncores)
+                    temp <- TPF_rates_cpp(pars, data[t, ], 8, 339, temp, npart[kcurr], munorm, varnorm, a1, a2, b, a_dis, b_dis, ncores)
                 
                     ## optimise twisting functions
                     output <- mclapply(1:ncol(temp), function(i, x, fn) {
@@ -215,11 +215,11 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
                     
                     ## extract Gaussian parameters
                     munorm <- map(output, "par")
-                    sdnorm <- map_dbl(munorm, 2)
+                    varnorm <- (map_dbl(munorm, 2))^2
                     munorm <- map_dbl(munorm, 1)
                     
                     ## save rates
-                    psi[[t]] <- list(munorm = munorm, sdnorm = sdnorm)
+                    psi[[t]] <- list(munorm = munorm, varnorm = varnorm)
                     
                     cat(paste0("Day: ", t, " t = ", round(as.numeric((proc.time() - ptm)["elapsed"]), 2), " secs\n"))
                     ptm <- proc.time()
@@ -227,7 +227,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
                 
                 ## reduce to rate matrix
                 psimu <- do.call("rbind", map(psi, "munorm"))
-                psisd <- do.call("rbind", map(psi, "sdnorm"))
+                psivar <- do.call("rbind", map(psi, "varnorm"))
                 
                 ## print summaries to screen
                 cat("\nPsi means:\n")
@@ -235,11 +235,11 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
                 print(summary(psimu[, which(temp == min(temp))[1]]))
                 temp <- apply(psimu, 2, max)
                 print(summary(psimu[, which(temp == max(temp))[1]]))
-                cat("\nPsi SDs:\n")
-                temp <- apply(psisd, 2, min)
-                print(summary(psisd[, which(temp == min(temp))[1]]))
-                temp <- apply(psisd, 2, max)
-                print(summary(psisd[, which(temp == max(temp))[1]]))
+                cat("\nPsi Vars:\n")
+                temp <- apply(psivar, 2, min)
+                print(summary(psivar[, which(temp == min(temp))[1]]))
+                temp <- apply(psivar, 2, max)
+                print(summary(psivar[, which(temp == max(temp))[1]]))
                 
                 ## garbage collect just in case
                 gc()
@@ -250,7 +250,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
                 ## run particle filter
                 cat(paste0("\nRunning model (npart = ", npart[kcurr], ")\n"))
                 particles <- TPF_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
-                    npart[kcurr], psimu, psisd, 1, a1, a2, b, a_dis, b_dis, saveAllint, 1, PF, ncores)
+                    npart[kcurr], psimu, psivar, 1, a1, a2, b, a_dis, b_dis, saveAllint, 1, PF, ncores)
                 saveRDS(particles, paste0("particles_", kcurr, ".rds"))
             
                 ## extract particles
