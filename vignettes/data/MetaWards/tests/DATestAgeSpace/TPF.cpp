@@ -7,6 +7,8 @@
 #include <RcppArmadillo.h>
 #include <Rcpp/Benchmark/Timer.h>
 #include <sitmo.h>
+#include <iostream>
+#include <fstream>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -980,7 +982,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
 // [[Rcpp::export]]
 List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses, arma::uword nages, arma::uword nlads, arma::imat u1_moves, arma::ivec ncohorts, 
          arma::icube u1_comb, arma::uword ndays, arma::uword npart, arma::mat munorm, arma::mat varnorm, int twist, double a1, double a2, double b, double a_dis, 
-         double b_dis, int saveAll, int returnPsi, int PF, int ncores) {
+         double b_dis, int saveAll, int writeExt, int returnPsi, int PF, int ncores) {
     
     // set counters
     arma::uword i, j, l, k, t;
@@ -1027,6 +1029,8 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
     
     // check which output required
     List out (npart * (ndays + 1));
+    std::ofstream file;
+    char file_name[128];
     if(saveAll != 0) {
         if(saveAll == 1) {
             for(i = 0; i < npart; i++) {
@@ -1038,7 +1042,25 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         u1_night_reduced(1, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](11, j, l);
                     }
                 }
-                out[i] = u1_night_reduced;
+                if(writeExt == 0) {
+                    out[i] = u1_night_reduced;
+                } else {
+                    std::sprintf(file_name, "saveOut/p_%u.csv", i);
+                    file.open(file_name);
+                    file << "time, class, ";
+                    for(j = 0; j < nages; j++) file << "age" << j + 1 << ", ";
+                    file << "lad\n";
+                    for(l = 0; l < nlads; l++) {
+                        for(arma::uword r = 0; r < 2; r++) {
+                            file << t << ", " << r << ", ";
+                            for(j = 0; j < nages; j++) {
+                                file << u1_night_reduced(r, j, l) << ", ";
+                            }
+                            file << l + 1 << "\n";
+                        }
+                    }
+                    file.close();
+                }
             }
         } else {
             for(i = 0; i < npart; i++) {
@@ -1050,7 +1072,25 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         }
                     }
                 }
-                out[i] = u1_night_full;
+                if(writeExt == 0) {
+                    out[i] = u1_night_full;
+                } else {
+                    std::sprintf(file_name, "saveOut/p_%u.csv", i);
+                    file.open(file_name);
+                    file << "time, class, ";
+                    for(j = 0; j < nages; j++) file << "age" << j + 1 << ", ";
+                    file << "lad\n";
+                    for(l = 0; l < nlads; l++) {
+                        for(arma::uword r = 0; r < nclasses; r++) {
+                            file << t << ", " << r << ", ";
+                            for(j = 0; j < nages; j++) {
+                                file << u1_night_full(r, j, l) << ", ";
+                            }
+                            file << l + 1 << "\n";
+                        }
+                    }
+                    file.close();
+                }
             }
         }
     }
@@ -1849,7 +1889,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             
             // if zero likelihood then return
             if(!arma::is_finite(ll)) {
-                if(saveAll == 0) {
+                if(saveAll == 0 || writeExt == 1) {
                     return List::create(Named("ll") = ll);
                 } else {
                     return List::create(Named("ll") = ll, _["particles"] = out);
@@ -1911,7 +1951,22 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             u1_night_reduced(1, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](11, j, l);
                         }
                     }
-                    out[i + npart * (t + 1)] = u1_night_reduced;
+                    if(writeExt == 0) {
+                        out[i + npart * (t + 1)] = u1_night_reduced;
+                    } else {
+                        std::sprintf(file_name, "saveOut/p_%u.csv", i);
+                        file.open(file_name, std::ios::app);
+                        for(l = 0; l < nlads; l++) {
+                            for(arma::uword r = 0; r < 2; r++) {
+                                file << t << ", " << r << ", ";
+                                for(j = 0; j < nages; j++) {
+                                    file << u1_night_reduced(r, j, l) << ", ";
+                                }
+                                file << l + 1 << "\n";
+                            }
+                        }
+                        file.close();
+                    }
                 }
             } else {
                 for(i = 0; i < npart; i++) {
@@ -1923,7 +1978,22 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             }
                         }
                     }
-                    out[i + npart * (t + 1)] = u1_night_full;
+                    if(writeExt == 0) {
+                        out[i + npart * (t + 1)] = u1_night_full;
+                    } else {
+                        std::sprintf(file_name, "saveOut/p_%u.csv", i);
+                        file.open(file_name, std::ios::app);
+                        for(l = 0; l < nlads; l++) {
+                            for(arma::uword r = 0; r < nclasses; r++) {
+                                file << t << ", " << r << ", ";
+                                for(j = 0; j < nages; j++) {
+                                    file << u1_night_full(r, j, l) << ", ";
+                                }
+                                file << l + 1 << "\n";
+                            }
+                        }
+                        file.close();
+                    }
                 }
             }
         }
@@ -1950,20 +2020,36 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
         if(saveAll == 0) {
             return List::create(Named("ll") = ll, _["psi"] = psi);
         } else {
-            if(PF == 1) {
-                return List::create(Named("ll") = ll, _["particles"] = out, _["psi"] = psi);
+            if(writeExt == 0) {
+                if(PF == 1) {
+                    return List::create(Named("ll") = ll, _["particles"] = out, _["psi"] = psi);
+                } else {
+                    return List::create(Named("particles") = out, _["psi"] = psi);
+                }
             } else {
-                return List::create(Named("particles") = out, _["psi"] = psi);
+                if(PF == 1) {
+                    return List::create(Named("ll") = ll, _["psi"] = psi);
+                } else {
+                    return List::create(Named("psi") = psi);
+                }
             }
         }
     } else {
         if(saveAll == 0) {
             return List::create(Named("ll") = ll);
         } else {
-            if(PF == 1) {
-                return List::create(Named("ll") = ll, _["particles"] = out);
+            if(writeExt == 0) {
+                if(PF == 1) {
+                    return List::create(Named("ll") = ll, _["particles"] = out);
+                } else {
+                    return List::create(Named("particles") = out);
+                }
             } else {
-                return List::create(Named("particles") = out);
+                if(PF == 1) {
+                    return List::create(Named("ll") = ll);
+                } else {
+                    return List::create(Named("particles") = NA_INTEGER);
+                }
             }
         }
     }
