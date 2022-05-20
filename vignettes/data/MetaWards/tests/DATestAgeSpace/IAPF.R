@@ -256,11 +256,11 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
                 print(summary(psimu[, which(temp == min(temp))[1]]))
                 temp <- apply(psimu, 2, max)
                 print(summary(psimu[, which(temp == max(temp))[1]]))
-                cat("\nPsi Vars:\n")
+                cat("\nPsi SDs:\n")
                 temp <- apply(psivar, 2, min)
-                print(summary(psivar[, which(temp == min(temp))[1]]))
+                print(summary(sqrt(psivar[, which(temp == min(temp))[1]])))
                 temp <- apply(psivar, 2, max)
-                print(summary(psivar[, which(temp == max(temp))[1]]))
+                print(summary(sqrt(psivar[, which(temp == max(temp))[1]])))
                 
                 ## garbage collect just in case
                 gc()
