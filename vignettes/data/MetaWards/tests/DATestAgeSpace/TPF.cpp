@@ -113,57 +113,66 @@ const double invroot2pi = {
   1/pow(2*M_PI, 0.5)
 };
 
-double devroye(double a){
-  bool accept = FALSE;
+double devroye(double a, sitmo::prng &eng){
+  bool accept = false;
   double x = 0;
+  double mx = sitmo::prng::max();
   while(!accept){
-    NumericVector u = runif(2);
-    x = -(1/a)*log(u[0]) + a;
-    accept = u[1]*exp(a*(a/2 - x)) <= exp(-0.5*pow(x,2));
+    arma::vec u(2);
+    u(0) = eng() / mx;
+    u(1) = eng() / mx;
+    x = -(1/a)*log(u(0)) + a;
+    accept = u(1)*exp(a*(a/2 - x)) <= exp(-0.5*pow(x,2));
   }
   return x;
 }
 
-double devroye_ab(double a, double b){
+double devroye_ab(double a, double b, sitmo::prng &eng){
   if(a >= b){
     stop("'a' must be less than 'b'");
   }
   double lambda = ( (b>0) ? a : b);
   double eal = exp(-a*lambda);
   double ebl = exp(-b*lambda);
-  bool accept = FALSE;
+  double mx = sitmo::prng::max();
+  bool accept = false;
   double x = 0;
   while(!accept){
-    NumericVector u = runif(2);
-    x = -(1/lambda)*log(eal - u[0]*(eal-ebl));
-    accept = u[1]*exp(a*(a/2 - x)) <= exp(-0.5*pow(x,2));
+    arma::vec u(2);
+    u(0) = eng() / mx;
+    u(1) = eng() / mx;
+    x = -(1/lambda)*log(eal - u(0)*(eal-ebl));
+    accept = u(1)*exp(a*(a/2 - x)) <= exp(-0.5*pow(x,2));
   }
   return x;
 }
 
-double Direct(double a, double b){
+double Direct(double a, double b, sitmo::prng &eng){
   double x = 0;
-  bool accept = FALSE;
+  bool accept = false;
+  double mx = sitmo::prng::max();
   while(!accept){
-    int i = rand() % (2*tN+2) + 1;
-    if(i < (2*tN + 2) & i > 1){
-      NumericVector u = runif(1);
-      double y = yVec[i-2]*u[0];
+    int i = eng() % (2*tN+2) + 1;
+    if(i < (2*tN + 2) && i > 1){
+      double u = eng() / mx;
+      double y = yVec[i-2]*u;
       if(y <= ybar[i-2]){
-        accept = TRUE;
-        x = xVec[i-2] + delta[i-2]*u[0];
+        accept = true;
+        x = xVec[i-2] + delta[i-2]*u;
       }
       else{
-        NumericVector v = runif(1);
-        x = xVec[i-2] + d[i-2]*v[0];
+        double v = eng() / mx;
+        x = xVec[i-2] + d[i-2]*v;
         accept = y <= invroot2pi * exp(-0.5*pow(x,2));
       }
     }
     else{
-      NumericVector u = runif(2);
+      arma::vec u(2);
+      u(0) = eng() / mx;
+      u(1) = eng() / mx;
       double lambda = xVec[2*tN];
-      x = -(1/lambda)*log(u[0]) + lambda;
-      accept = u[1]*exp(lambda*(lambda/2 - x)) <= exp(-0.5*pow(x,2));
+      x = -(1/lambda)*log(u(0)) + lambda;
+      accept = u(1)*exp(lambda*(lambda/2 - x)) <= exp(-0.5*pow(x,2));
       if(accept){
         if(i<2){
           x = -x;
@@ -171,49 +180,50 @@ double Direct(double a, double b){
       }
     }
     if(accept){
-      accept = (x >= a) & (x <= b);
+      accept = (x >= a) && (x <= b);
     } 
   }
   return x;
 }
 
-double rtnorm_lower_one(double a){
+double rtnorm_lower_one(double a, sitmo::prng &eng){
   //TN(0,1,a, Inf)
   if(a <= amin){
-    return Direct(a, std::numeric_limits<double>::infinity());
+    return Direct(a, std::numeric_limits<double>::infinity(), eng);
   }
   else if(a >= amax){
-    return devroye(a);
+    return devroye(a, eng);
   }
   int ia = ja[static_cast<int>(floor(a/h)) - static_cast<int>(ceil(amin/h))];
   double x = 0;
-  bool accept = FALSE;
+  bool accept = false;
+  double mx = sitmo::prng::max();
   while(!accept){
-    int i = rand() %  (2*tN+1) + 1  - ia;
+    int i = eng() %  (2*tN+1) + 1  - ia;
     i = i+ia;
     if(i > 2*tN ){
-      x = devroye(xVec[2*tN]);
-      accept = TRUE;
+      x = devroye(xVec[2*tN], eng);
+      accept = true;
     }
     else if(i < ia+2){
-      NumericVector u = runif(1);
-      x = xVec[i-1] + d[i-1]*u[0];
+      double u = eng() / mx;
+      x = xVec[i-1] + d[i-1]*u;
       if(x >= a){
-        NumericVector v = runif(1);
-        double y = yVec[i-1]*v[0];
+        double v = eng() / mx;
+        double y = yVec[i-1]*v;
         accept = y <= invroot2pi * exp(-0.5*pow(x,2));
       }
     }
     else{
-      NumericVector u = runif(1);
-      double y = u[0]*yVec[i-1];
+      double u = eng() / mx;
+      double y = u*yVec[i-1];
       if(y <= ybar[i-1]){
-        accept = TRUE;
-        x = xVec[i-1] + u[0]*delta[i-1];
+        accept = true;
+        x = xVec[i-1] + u*delta[i-1];
       }
       else{
-        NumericVector v = runif(1);
-        x = xVec[i-1] + d[i-1]*v[0];
+        double v = eng() / mx;
+        x = xVec[i-1] + d[i-1]*v;
         accept = y <= invroot2pi * exp(-0.5*pow(x,2));
       }
     }
@@ -221,92 +231,93 @@ double rtnorm_lower_one(double a){
   return x;
 }
 
-double rtnorm_upper_one(double b){
+double rtnorm_upper_one(double b, sitmo::prng &eng){
   //TN(0,1,-Inf, b)
-  return (-rtnorm_lower_one(-b));
+  return (-rtnorm_lower_one(-b, eng));
 }
 
-double Direct_b(double a, double b){
-  bool accept = FALSE;
+double Direct_b(double a, double b, sitmo::prng &eng){
+  bool accept = false;
   double x;
   while(!accept){
-    x = rtnorm_upper_one(b);
+    x = rtnorm_upper_one(b, eng);
     accept = x >= a;
   }
   return x;
 }
 
-double Direct_a(double a, double b){
-  bool accept = FALSE;
+double Direct_a(double a, double b, sitmo::prng &eng){
+  bool accept = false;
   double x;
   while(!accept){
-    x = rtnorm_lower_one(a);
+    x = rtnorm_lower_one(a, eng);
     accept = x <= b;
   }
   return x;
 }
 
-double rtnorm_one(double a, double b){
+double rtnorm_one(double a, double b, sitmo::prng &eng){
   //n number of samples of TN(0,1, a, b)
   if(a >= b){
     stop("'a' must be less than 'b'");
   }
-  if(isinf(a)){
-    if(isinf(b)){
-      return Direct(a,b);
+  if(std::isinf(a)){
+    if(std::isinf(b)){
+      return Direct(a,b, eng);
     }
     else{
-      return rtnorm_upper_one(b);
+      return rtnorm_upper_one(b, eng);
     }
   }
-  else if(isinf(b)){
-    return rtnorm_lower_one(a);
+  else if(std::isinf(b)){
+    return rtnorm_lower_one(a, eng);
   }
   else{
     if(a <= amin){
       if(b < amax){
-        return Direct_b(a, b);
+        return Direct_b(a, b, eng);
       }
       else{
-        return Direct(a,b);
+        return Direct(a,b, eng);
       }
     }
     else if(a >= amax){
-      return Direct_a(a,b);
+      return Direct_a(a,b, eng);
     }
     else if(b >= amax){
-      return Direct_a(a, b);
+      return Direct_a(a, b, eng);
     }
   }
   int ia = ja[static_cast<int>(floor(a/h)) - static_cast<int>(ceil(amin/h))];
   int ib = ja[static_cast<int>(ceil(b/h)) - static_cast<int>(ceil(amin/h))];
   if(ib-ia < 5){
-    return devroye_ab(a, b);
+    return devroye_ab(a, b, eng);
   }
-  bool accept=FALSE;
+  bool accept=false;
+  double mx = sitmo::prng::max();
   double x;
   while(!accept){
-    int i = rand() %  ib + 1  - ia;
+    int i = eng() %  ib + 1  - ia;
     i = i+ia;
-    if((i < ia+2) | (i > ib-2)){
-      NumericVector u = runif(1);
-      x = xVec[i-1] + d[i-1]*u[0];
-      if(x >= a & x<=b){
-        NumericVector v = runif(1);
-        double y = yVec[i-1]*v[0];
+    if((i < ia+2) || (i > ib-2)){
+      double u = eng() / mx;
+      x = xVec[i-1] + d[i-1]*u;
+      if(x >= a && x<=b){
+        double v = eng() / mx;
+        double y = yVec[i-1]*v;
         accept = y <= invroot2pi * exp(-0.5*pow(x,2));
       }
     }
     else{
-      NumericVector u = runif(1);
-      double y = u[0]*yVec[i-1];
+      double u = eng() / mx;
+      double y = u*yVec[i-1];
       if(y <= ybar[i-1]){
-        accept = TRUE;
-        x = xVec[i-1] + u[0]*delta[i-1];
+        accept = true;
+        x = xVec[i-1] + u*delta[i-1];
       }
       else{
-        NumericVector v = runif(1);
-        x = xVec[i-1] + d[i-1]*v[0];
+        double v = eng() / mx;
+        x = xVec[i-1] + d[i-1]*v;
         accept = y <= invroot2pi * exp(-0.5*pow(x,2));
       }
     }
@@ -314,11 +325,10 @@ double rtnorm_one(double a, double b){
   return x;
 }
 
-// [[Rcpp::export]]
-NumericVector rtnorm(int n, double a, double b){
-  NumericVector x(n);
+arma::vec rtnorm(int n, double a, double b, sitmo::prng &eng){
+  arma::vec x(n);
   for(int i=0; i < n; ++i){
-    x[i] = rtnorm_one(a, b);
+    x(i) = rtnorm_one(a, b, eng);
   }
   return x;
 }
