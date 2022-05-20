@@ -1167,10 +1167,10 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             
             // DI      
             for(j = 0; j < nages; j++) {
-                for(l = 0; l < nlads; l++) {
                 
-                    // extract transition probabilities
-                    pI1pI1D = pars(j + 4 * nages + 2) * pars(j + 6 * nages + 2);
+                // extract transition probabilities
+                pI1pI1D = pars(j + 4 * nages + 2) * pars(j + 6 * nages + 2);
+                for(l = 0; l < nlads; l++) {
                 
                     // set up auxiliary matrix for sampling
                     tempdensx[i][w] = arma::vec (u1_night(5, j, l) + 1);
@@ -1203,10 +1203,10 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             
             // DH
             for(j = 0; j < nages; j++) {
-                for(l = 0; l < nlads; l++) {
                 
-                    // extract transition probabilities
-                    pHpHD = pars(j + 8 * nages + 2) * pars(j + 9 * nages + 2);
+                // extract transition probabilities
+                pHpHD = pars(j + 8 * nages + 2) * pars(j + 9 * nages + 2);
+                for(l = 0; l < nlads; l++) {
                 
                     // set up auxiliary matrix for sampling
                     tempdensx[i][w] = arma::vec (u1_night(9, j, l) + 1);
@@ -1224,7 +1224,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         sigma2y = sigma2y * varnorm(t, w) / (varnorm(t, w) + sigma2y);
                         
                         temp1 = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
-                        temp2 = R::pnorm(u1_night(5, j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
+                        temp2 = R::pnorm(u1_night(9, j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
                         temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
                         tempdensx[i][w](s) += temp1;
                     }
@@ -1316,10 +1316,10 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                 
                 // DI           
                 for(j = 0; j < nages; j++) {
-                    for(l = 0; l < nlads; l++) {
                         
-                        // set transition probability
-                        pI1pI1D = pars(j + 4 * nages + 2) * pars(j + 6 * nages + 2);
+                    // set transition probability
+                    pI1pI1D = pars(j + 4 * nages + 2) * pars(j + 6 * nages + 2);
+                    for(l = 0; l < nlads; l++) {
                         
                         // sample simulator from twisted density
                         tempdensx[i][w] = exp(tempdensx[i][w] - twistnorm[i](w));
@@ -1344,12 +1344,13 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         int s = 0;
                         while(temp < u) {
                             s++;
-                            if(s > u1_night(5, j, l)) stop("Error in multinomial sampling TDI (%d, %d) %d %d %f %f\n", j, l, s, u1_night(5, j, l), temp, u);
+                            if(s > u1_night(5, j, l)) stop("Error in multinomial sampling TDI\n");
                             temp1 = R::pnorm(s - 0.5, muy, sqrt(sigma2y), 1, 1);
                             temp2 = R::pnorm(s + 0.5, muy, sqrt(sigma2y), 1, 1);
                             temp += exp(temp2 + log(1.0 - exp(temp1 - temp2)) - tempnorm);
                         }
                         DIinc(j, l) = s;
+                        if(DIinc(j, l) < 0 || DIinc(j, l) > u1_night(5, j, l)) stop("Error in DIinc\n");
                         
                         // observation error for given incidence
                         obserror = ldtskellam_cpp(
@@ -1380,10 +1381,10 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                 
                 // DH
                 for(j = 0; j < nages; j++) {
-                    for(l = 0; l < nlads; l++) {
                 
-                        // extract transition probabilities
-                        pHpHD = pars(j + 8 * nages + 2) * pars(j + 9 * nages + 2);
+                    // extract transition probabilities
+                    pHpHD = pars(j + 8 * nages + 2) * pars(j + 9 * nages + 2);
+                    for(l = 0; l < nlads; l++) {
                         
                         // sample simulator from twisted density
                         tempdensx[i][w] = exp(tempdensx[i][w] - twistnorm[i](w));
@@ -1408,12 +1409,13 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         int s = 0;
                         while(temp < u) {
                             s++;
-                            if(s > u1_night(9, j, l)) stop("Error in multinomial sampling TDH %d %d %f %f\n", s, u1_night(9, j, l), temp, u);
+                            if(s > u1_night(9, j, l)) stop("Error in multinomial sampling TDH\n");
                             temp1 = R::pnorm(s - 0.5, muy, sqrt(sigma2y), 1, 1);
                             temp2 = R::pnorm(s + 0.5, muy, sqrt(sigma2y), 1, 1);
                             temp += exp(temp2 + log(1.0 - exp(temp1 - temp2)) - tempnorm);
                         }
                         DHinc(j, l) = s;
+                        if(DHinc(j, l) < 0 || DHinc(j, l) > u1_night(9, j, l)) stop("Error in DHinc\n");
                         
                         // observation error for given incidence
                         obserror = ldtskellam_cpp(
@@ -1775,10 +1777,10 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                 
                 // DI      
                 for(j = 0; j < nages; j++) {
-                    for(l = 0; l < nlads; l++) {
                     
-                        // extract transition probabilities
-                        pI1pI1D = pars(j + 4 * nages + 2) * pars(j + 6 * nages + 2);
+                    // extract transition probabilities
+                    pI1pI1D = pars(j + 4 * nages + 2) * pars(j + 6 * nages + 2);
+                    for(l = 0; l < nlads; l++) {
                     
                         // set up auxiliary matrix for sampling
                         tempdensx[i][w] = arma::vec (u1_night(5, j, l) + 1);
@@ -1814,10 +1816,10 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                 
                 // DH
                 for(j = 0; j < nages; j++) {
-                    for(l = 0; l < nlads; l++) {
                     
-                        // extract transition probabilities
-                        pHpHD = pars(j + 8 * nages + 2) * pars(j + 9 * nages + 2);
+                    // extract transition probabilities
+                    pHpHD = pars(j + 8 * nages + 2) * pars(j + 9 * nages + 2);
+                    for(l = 0; l < nlads; l++) {
                     
                         // set up auxiliary matrix for sampling
                         tempdensx[i][w] = arma::vec (u1_night(9, j, l) + 1);
@@ -2102,10 +2104,10 @@ arma::mat TPF_rates_cpp (arma::vec pars, arma::ivec data, arma::uword nages, arm
         
         // DI      
         for(j = 0; j < nages; j++) {
-            for(l = 0; l < nlads; l++) {
             
-                // extract transition probabilities
-                pI1pI1D = pars(j + 4 * nages + 2) * pars(j + 6 * nages + 2);
+            // extract transition probabilities
+            pI1pI1D = pars(j + 4 * nages + 2) * pars(j + 6 * nages + 2);
+            for(l = 0; l < nlads; l++) {
             
                 // set up auxiliary matrix for sampling
                 arma::vec tempdensx (psi(i * 4 + 2, j, l) + 1);
@@ -2152,10 +2154,10 @@ arma::mat TPF_rates_cpp (arma::vec pars, arma::ivec data, arma::uword nages, arm
         
         // DH
         for(j = 0; j < nages; j++) {
-            for(l = 0; l < nlads; l++) {
             
-                // extract transition probabilities
-                pHpHD = pars(j + 8 * nages + 2) * pars(j + 9 * nages + 2);
+            // extract transition probabilities
+            pHpHD = pars(j + 8 * nages + 2) * pars(j + 9 * nages + 2);
+            for(l = 0; l < nlads; l++) {
             
                 // set up auxiliary matrix for sampling
                 arma::vec tempdensx (psi(i * 4 + 3, j, l) + 1);
