@@ -1282,9 +1282,6 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             arma::imat Einc (nages, nlads); Einc.zeros();
             arma::icube tempMD (nclasses, nages, nlads); tempMD.zeros();
             
-            arma::ivec Dtempinc (data.n_cols); Dtempinc.zeros();
-            arma::vec tempdens (data.n_cols); tempdens.zeros();
-            
             arma::mat pinf(nages, nlads); pinf.zeros();
             arma::imat origE(nages, u1_moves.n_rows); origE.zeros();
             arma::icube u1_day(nclasses, nages, nlads); u1_day.zeros();
@@ -1476,18 +1473,45 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                     }
                 }
                 for(j = 0; j < nages; j++) {
+                
+                    // extract transition probabilities
+                    pHpHD = pars(j + 8 * nages + 2) * pars(j + 9 * nages + 2);
                     for(l = 0; l < nlads; l++) {
-                        // calculate MD
-                        tempMD(11, j, l) = rtskellam_cpp(
-                            a_dis + b_dis * DHinc(j, l),
-                            a_dis + b_dis * DHinc(j, l),
-                            str1,
-                            eng,
-                            -DHinc(j, l),
-                            u1_night(9, j, l) - DHinc(j, l)
-                        );
-                        DHinc(j, l) += tempMD(11, j, l);
+                    
+                        // sample MD conditional on simulator
+                        sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(9, j, l) * pHpHD;
+                        muy = DHinc(j, l);
+                        
+                        u = eng() / mx;
+                        temp1 = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
+                        temp2 = R::pnorm(u1_night(9, j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
+                        tempnorm = temp2 + log(1.0 - exp(temp1 - temp2));
+                        temp1 = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
+                        temp2 = R::pnorm(0.5, muy, sqrt(sigma2y), 1, 1);
+                        temp = temp2 + log(1.0 - exp(temp1 - temp2));
+                        temp -= tempnorm;
+                        temp = exp(temp);
+                        int s = 0;
+                        while(temp < u) {
+                            s++;
+                            if(s > u1_night(9, j, l)) stop("Error in multinomial sampling TDH\n");
+                            temp1 = R::pnorm(s - 0.5, muy, sqrt(sigma2y), 1, 1);
+                            temp2 = R::pnorm(s + 0.5, muy, sqrt(sigma2y), 1, 1);
+                            temp += exp(temp2 + log(1.0 - exp(temp1 - temp2)) - tempnorm);
+                        }
+                        tempMD(11, j, l) = s - DHinc(j, l);
+                        DHinc(j, l) = s;
                         if(DHinc(j, l) < 0 || DHinc(j, l) > u1_night(9, j, l)) stop("DHinc error\n");
+                        // observation error for given incidence
+                        weights(i) += ldtskellam_cpp(
+                            obsInc(nlads * nages + j * nlads + l) - DHinc(j, l),
+                            a1 + b * DHinc(j, l),
+                            a2 + b * DHinc(j, l),
+                            str1,
+                            -DHinc(j, l),
+                            obsInc(nlads * nages + j * nlads + l),
+                            0
+                        );
                     }
                 }
                 
@@ -1500,17 +1524,46 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                     }
                 }
                 for(j = 0; j < nages; j++) {
+                    
+                    // set transition probability
+                    pI1pI1D = pars(j + 4 * nages + 2) * pars(j + 6 * nages + 2);
                     for(l = 0; l < nlads; l++) {
-                        tempMD(6, j, l) = rtskellam_cpp(
-                            a_dis + b_dis * DIinc(j, l),
-                            a_dis + b_dis * DIinc(j, l),
-                            str1,
-                            eng,
-                            -DIinc(j, l),
-                            u1_night(5, j, l) - DIinc(j, l)
-                        );
-                        DIinc(j, l) += tempMD(6, j, l);
+                        
+                        // sample MD conditional on simulator
+                        sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(5, j, l) * pI1pI1D;
+                        muy = DIinc(j, l);
+                        
+                        u = eng() / mx;
+                        temp1 = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
+                        temp2 = R::pnorm(u1_night(5, j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
+                        tempnorm = temp2 + log(1.0 - exp(temp1 - temp2));
+                        temp1 = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
+                        temp2 = R::pnorm(0.5, muy, sqrt(sigma2y), 1, 1);
+                        temp = temp2 + log(1.0 - exp(temp1 - temp2));
+                        temp -= tempnorm;
+                        temp = exp(temp);
+                        int s = 0;
+                        while(temp < u) {
+                            s++;
+                            if(s > u1_night(5, j, l)) stop("Error in multinomial sampling TDI\n");
+                            temp1 = R::pnorm(s - 0.5, muy, sqrt(sigma2y), 1, 1);
+                            temp2 = R::pnorm(s + 0.5, muy, sqrt(sigma2y), 1, 1);
+                            temp += exp(temp2 + log(1.0 - exp(temp1 - temp2)) - tempnorm);
+                        }
+                        tempMD(6, j, l) = s - DIinc(j, l);
+                        DIinc(j, l) = s;
                         if(DIinc(j, l) < 0 || DIinc(j, l) > u1_night(5, j, l)) stop("DIinc error\n");
+                        
+                        // observation error for given incidence
+                        weights(i) += ldtskellam_cpp(
+                            obsInc(j * nlads + l) - DIinc(j, l),
+                            a1 + b * DIinc(j, l),
+                            a2 + b * DIinc(j, l),
+                            str1,
+                            -DIinc(j, l),
+                            obsInc(j * nlads + l),
+                            0
+                        );
                     }
                 }
             }
@@ -1852,33 +1905,6 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         w++;
                     }
                 }
-            }
-                        
-            if(PF == 1 && twist == 0) {
-            
-                // generate data in correct format for observation error weights
-                Dtempinc.zeros();
-                for(j = 0; j < nages; j++) {
-                    for(l = 0; l < nlads; l++) {
-                        Dtempinc(j * nlads + l) = DIinc(j, l);
-                        Dtempinc(nlads * nages + j * nlads + l) = DHinc(j, l);
-                    }
-                }
-                
-                // calculate log observation error weights
-                for(l = 0; l < Dtempinc.n_elem; l++) {
-                    tempdens(l) = ldtskellam_cpp(
-                        obsInc(l) - Dtempinc(l),
-                        a1 + b * Dtempinc(l),
-                        a2 + b * Dtempinc(l),
-                        str1,
-                        -Dtempinc(l),
-                        obsInc(l),
-                        0
-                    );
-                    if(!arma::is_finite(tempdens(l)) && tempdens(l) >= 0.0) stop("Error in OE\n");
-                }
-                weights(i) += sum(tempdens);
             }
             
             // advance seed
