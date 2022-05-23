@@ -1,11 +1,10 @@
-// [[Rcpp::depends(RcppArmadillo, sitmo, RcppTN)]]
+// [[Rcpp::depends(RcppArmadillo, sitmo)]]
 
 // [[Rcpp::plugins(openmp)]]
 
 #include <RcppArmadillo.h>
 #include <Rcpp/Benchmark/Timer.h>
 #include <sitmo.h>
-#include <RcppTN.h>
 #include <iostream>
 #include <fstream>
 
@@ -33,79 +32,7 @@ using namespace Rcpp;
 
 // BEGIN declaring external constants
 
-const double xVec[41] = {
-  -1.9807524, -1.6683912, -1.4652338, -1.3091717, -1.1797611, -1.0675705, -0.9674216, -0.8761428, -0.7916386,
-  -0.7124430, -0.6374842, -0.5659488, -0.4972006, -0.4307273, -0.3661064, -0.3029804, -0.2410404, -0.1800124,
-  -0.1196481, -0.0597171,  0.0000000,  0.0597171,  0.1196481,  0.1800124,  0.2410404,  0.3029804,  0.3661064,
-  0.4307273,  0.4972006,  0.5659488,  0.6374842,  0.7124430,  0.7916386,  0.8761428,  0.9674216,  1.0675705,
-  1.1797611,  1.3091717,  1.4652338,  1.6683912,  1.9807524
-};
-
-const double yVec[40] = {
-  0.0991914833974907, 0.136368627073833, 0.169330335288007, 0.198919177391222, 0.225645082638625, 
-  0.249850940614043, 0.271782903751605, 0.291625633643761, 0.309522011324769, 0.325585050064361, 
-  0.339905524967058, 0.352557081344368, 0.363599774675318, 0.373082589062525, 0.381045263468641, 
-  0.387519631728437, 0.392530609095417, 0.396096912678947, 0.398231573790631, 0.398942280401433, 
-  0.398942280401433, 0.398231573790631, 0.396096912678947, 0.392530609095417, 0.387519631728437, 
-  0.381045263468641, 0.373082589062525, 0.363599774675318, 0.352557081344368, 0.339905524967058, 
-  0.325585050064361, 0.309522011324769, 0.291625633643761, 0.271782903751605, 0.249850940614043, 
-  0.225645082638625, 0.198919177391222, 0.169330335288007, 0.136368627073833, 0.0991914833974908
-};
-
-const double ybar[40] = {
-  0.0560994897636673, 0.0991914833974907, 0.136368627073833, 0.169330335288007, 0.198919177391222, 
-  0.225645082638625, 0.249850940614043, 0.271782903751605, 0.291625633643761, 0.309522011324769, 
-  0.325585050064361, 0.339905524967058, 0.352557081344368, 0.363599774675318, 0.373082589062525, 
-  0.381045263468641, 0.387519631728437, 0.392530609095417, 0.396096912678947, 0.398231573790631, 
-  0.398231573790631, 0.396096912678947, 0.392530609095417, 0.387519631728437, 0.381045263468641, 
-  0.373082589062525, 0.363599774675318, 0.352557081344368, 0.339905524967058, 0.325585050064361, 
-  0.309522011324769, 0.291625633643761, 0.271782903751605, 0.249850940614043, 0.225645082638625, 
-  0.198919177391222, 0.169330335288007, 0.136368627073833, 0.0991914833974908, 0.0560994897636673
-};
-
-const double d[40] = {
-  0.3123612027002, 0.203157401261556, 0.156062075899745, 0.129410599173917, 0.112190593733719, 
-  0.10014895777644, 0.0912787168548603, 0.0845042415034665, 0.0791955753538854, 0.0749588714271121, 
-  0.0715353390295139, 0.0687482512513091, 0.0664732713860967, 0.0646209424948876, 0.0631259087443631, 
-  0.0619400541701797, 0.0610280240933219, 0.0603642567528628, 0.0599310132545193, 0.0597170997853229, 
-  0.0597170997853229, 0.059931013254519, 0.0603642567528631, 0.0610280240933219, 0.0619400541701797, 
-  0.0631259087443631, 0.0646209424948876, 0.0664732713860967, 0.0687482512513091, 0.0715353390295135, 
-  0.0749588714271122, 0.0791955753538858, 0.0845042415034665, 0.0912787168548603, 0.10014895777644, 
-  0.112190593733719, 0.129410599173917, 0.156062075899744, 0.203157401261557, 0.3123612027002
-};
-
-const double delta[40] = {
-  0.55229684230967, 0.279301155109322, 0.193783894469647, 0.152023852605008, 0.127264028166238, 
-  0.110892340348641, 0.0992911799994245, 0.090673852673812, 0.0840556211238302, 0.0788489574680251, 
-  0.0746817366513506, 0.0713071163260433, 0.0685553284187411, 0.0663062801817788, 0.0644732003968216, 
-  0.0629924822126621, 0.0618171713324415, 0.0609126910919604, 0.0602539958360118, 0.0598236743022336, 
-  0.0598236743022336, 0.0602539958360114, 0.0609126910919608, 0.0618171713324415, 0.0629924822126621, 
-  0.0644732003968216, 0.0663062801817788, 0.0685553284187411, 0.0713071163260433, 0.0746817366513502, 
-  0.0788489574680252, 0.0840556211238306, 0.090673852673812, 0.0992911799994245, 0.110892340348641, 
-  0.127264028166238, 0.152023852605008, 0.193783894469645, 0.279301155109323, 0.55229684230967
-};
-
-const int ja[67] = {
-  1, 1, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 5, 5, 6, 7, 7, 8, 9, 9, 10, 11, 12, 13, 14, 15, 16, 17, 
-  18, 19, 20, 21, 22, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 32, 33, 34, 34, 35, 36, 36, 37, 
-  37, 38, 38, 38, 39, 39, 39, 40, 40, 40, 40, 40, 40
-};
-
-const double amin = {
-  -2.0
-};
-
-const double amax = {
-  2.0
-};
-
-const int tN = {
-  20
-};
-
-const double h = {
-  0.0597171
-};
+#include "tnormConsts.h"
 
 // END declaring external constants
 
@@ -152,7 +79,7 @@ double Direct(double a, double b, sitmo::prng &eng){
   bool accept = false;
   double mx = sitmo::prng::max();
   while(!accept){
-    int i = eng() % (2*tN+2) + 1;
+    int i = rand() % (2*tN+2) + 1;
     if(i < (2*tN + 2) && i > 1){
       double u = eng() / mx;
       double y = yVec[i-2]*u;
@@ -199,7 +126,7 @@ double rtnorm_lower_one(double a, sitmo::prng &eng){
   bool accept = false;
   double mx = sitmo::prng::max();
   while(!accept){
-    int i = eng() %  (2*tN+1) + 1  - ia;
+    int i = rand() %  (2*tN+1) + 1  - ia;
     i = i+ia;
     if(i > 2*tN ){
       x = devroye(xVec[2*tN], eng);
@@ -297,7 +224,7 @@ double rtnorm_one(double a, double b, sitmo::prng &eng){
   double mx = sitmo::prng::max();
   double x;
   while(!accept){
-    int i = eng() %  ib + 1  - ia;
+    int i = rand() %  ib + 1  - ia;
     i = i+ia;
     if((i < ia+2) || (i > ib-2)){
       double u = eng() / mx;
@@ -1602,8 +1529,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             weights(i) = 0.0;
             
             // set auxiliary variables
-            double muy, sigma2y, pI1pI1D, pHpHD, u, temp1, temp2, tempnorm, temp;
-            double mx = sitmo::prng::max();
+            double muy, sigma2y, pI1pI1D, pHpHD, u, temp1, temp2;
             
             // if twisting, then sample new observations
             if(twist == 1) {
@@ -1630,25 +1556,10 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         muy /= (varnorm(t, w) + sigma2y);
                         sigma2y = sigma2y * varnorm(t, w) / (varnorm(t, w) + sigma2y);
                         
-                        u = eng() / mx;
-                        temp1 = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
-                        temp2 = R::pnorm(u1_night(5, j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
-                        tempnorm = temp2 + log(1.0 - exp(temp1 - temp2));
-                        temp1 = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
-                        temp2 = R::pnorm(0.5, muy, sqrt(sigma2y), 1, 1);
-                        temp = temp2 + log(1.0 - exp(temp1 - temp2));
-                        temp -= tempnorm;
-                        temp = exp(temp);
-                        int s = 0;
-                        while(temp < u) {
-                            s++;
-                            if(s > u1_night(5, j, l)) stop("Error in multinomial sampling TDI\n");
-                            temp1 = R::pnorm(s - 0.5, muy, sqrt(sigma2y), 1, 1);
-                            temp2 = R::pnorm(s + 0.5, muy, sqrt(sigma2y), 1, 1);
-                            temp += exp(temp2 + log(1.0 - exp(temp1 - temp2)) - tempnorm);
-                        }
-                        DIinc(j, l) = s;
-                        if(DIinc(j, l) < 0 || DIinc(j, l) > u1_night(5, j, l)) stop("Error in DIinc\n");
+                        u = rtnorm_one((-0.5 - muy) / sqrt(sigma2y), (u1_night(5, j, l) + 0.5 - muy) / sqrt(sigma2y), eng);
+                        u = u * sqrt(sigma2y) + muy;
+                        DIinc(j, l) = (int) round(u);
+                        if(DIinc(j, l) < 0 || DIinc(j, l) > u1_night(5, j, l)) stop("Error in DIinc DI = %d u = %f uorig = %f LB = %f UB = %f mu = %f sigma2 = %f\n", DIinc(j, l), u, (u - muy) / sqrt(sigma2y), (-0.5 - muy) / sqrt(sigma2y), (u1_night(5, j, l) + 0.5 - muy) / sqrt(sigma2y), muy, sigma2y);
                         
                         // observation error for given incidence
                         obserror = ldtskellam_cpp(
@@ -1663,8 +1574,20 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         
                         // update weights
                         weights(i) += obserror;
-//                        temp1 = R::pnorm(DIinc(j, l) - 0.5, munorm(t, w), varnorm(t, w), 1, 1);
-//                        temp2 = R::pnorm(DIinc(j, l) + 0.5, munorm(t, w), varnorm(t, w), 1, 1);
+                        
+                        temp1 = R::pnorm(DIinc(j, l) - 0.5, muy, sqrt(sigma2y), 1, 1);
+                        temp2 = R::pnorm(DIinc(j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
+                        temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                        weights(i) -= temp1;
+                        
+                        sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(5, j, l) * pI1pI1D;
+                        temp1 = R::pnorm(DIinc(j, l) - 0.5, DIinc1(j, l), sqrt(sigma2y), 1, 1);
+                        temp2 = R::pnorm(DIinc(j, l) + 0.5, DIinc1(j, l), sqrt(sigma2y), 1, 1);
+                        temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                        weights(i) += temp1;
+                        
+                        temp1 = R::pnorm(-0.5, DIinc1(j, l), sqrt(sigma2y), 1, 1);
+                        temp2 = R::pnorm(u1_night(5, j, l) + 0.5, DIinc1(j, l), sqrt(sigma2y), 1, 1);
                         temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
                         weights(i) -= temp1;
                         if(t == 0) weights(i) += twistnorm[i](w);
@@ -1695,24 +1618,9 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         muy /= (varnorm(t, w) + sigma2y);
                         sigma2y = sigma2y * varnorm(t, w) / (varnorm(t, w) + sigma2y);
                         
-                        u = eng() / mx;
-                        temp1 = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
-                        temp2 = R::pnorm(u1_night(9, j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
-                        tempnorm = temp2 + log(1.0 - exp(temp1 - temp2));
-                        temp1 = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
-                        temp2 = R::pnorm(0.5, muy, sqrt(sigma2y), 1, 1);
-                        temp = temp2 + log(1.0 - exp(temp1 - temp2));
-                        temp -= tempnorm;
-                        temp = exp(temp);
-                        int s = 0;
-                        while(temp < u) {
-                            s++;
-                            if(s > u1_night(9, j, l)) stop("Error in multinomial sampling TDH\n");
-                            temp1 = R::pnorm(s - 0.5, muy, sqrt(sigma2y), 1, 1);
-                            temp2 = R::pnorm(s + 0.5, muy, sqrt(sigma2y), 1, 1);
-                            temp += exp(temp2 + log(1.0 - exp(temp1 - temp2)) - tempnorm);
-                        }
-                        DHinc(j, l) = s;
+                        u = rtnorm_one((-0.5 - muy) / sqrt(sigma2y), (u1_night(9, j, l) + 0.5 - muy) / sqrt(sigma2y), eng);
+                        u = u * sqrt(sigma2y) + muy;
+                        DHinc(j, l) = (int) round(u);
                         if(DHinc(j, l) < 0 || DHinc(j, l) > u1_night(9, j, l)) stop("Error in DHinc\n");
                         
                         // observation error for given incidence
@@ -1728,8 +1636,20 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         
                         // update weights
                         weights(i) += obserror;
-//                        temp1 = R::pnorm(DHinc(j, l) - 0.5, munorm(t, w), varnorm(t, w), 1, 1);
-//                        temp2 = R::pnorm(DHinc(j, l) + 0.5, munorm(t, w), varnorm(t, w), 1, 1);
+                        
+                        temp1 = R::pnorm(DHinc(j, l) - 0.5, muy, sqrt(sigma2y), 1, 1);
+                        temp2 = R::pnorm(DHinc(j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
+                        temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                        weights(i) -= temp1;
+                        
+                        sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(9, j, l) * pI1pI1D;
+                        temp1 = R::pnorm(DHinc(j, l) - 0.5, DHinc1(j, l), sqrt(sigma2y), 1, 1);
+                        temp2 = R::pnorm(DHinc(j, l) + 0.5, DHinc1(j, l), sqrt(sigma2y), 1, 1);
+                        temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                        weights(i) += temp1;
+                        
+                        temp1 = R::pnorm(-0.5, DHinc1(j, l), sqrt(sigma2y), 1, 1);
+                        temp2 = R::pnorm(u1_night(5, j, l) + 0.5, DHinc1(j, l), sqrt(sigma2y), 1, 1);
                         temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
                         weights(i) -= temp1;
                         if(t == 0) weights(i) += twistnorm[i](w);
@@ -1783,23 +1703,9 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(9, j, l) * pHpHD;
                         muy = DHinc(j, l);
                         
-                        u = eng() / mx;
-                        temp1 = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
-                        temp2 = R::pnorm(u1_night(9, j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
-                        tempnorm = temp2 + log(1.0 - exp(temp1 - temp2));
-                        temp1 = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
-                        temp2 = R::pnorm(0.5, muy, sqrt(sigma2y), 1, 1);
-                        temp = temp2 + log(1.0 - exp(temp1 - temp2));
-                        temp -= tempnorm;
-                        temp = exp(temp);
-                        int s = 0;
-                        while(temp < u) {
-                            s++;
-                            if(s > u1_night(9, j, l)) stop("Error in multinomial sampling TDH\n");
-                            temp1 = R::pnorm(s - 0.5, muy, sqrt(sigma2y), 1, 1);
-                            temp2 = R::pnorm(s + 0.5, muy, sqrt(sigma2y), 1, 1);
-                            temp += exp(temp2 + log(1.0 - exp(temp1 - temp2)) - tempnorm);
-                        }
+                        u = rtnorm_one((-0.5 - muy) / sqrt(sigma2y), (u1_night(9, j, l) + 0.5 - muy) / sqrt(sigma2y), eng);
+                        u = u * sqrt(sigma2y) + muy;
+                        int s = (int) round(u);
                         tempMD(11, j, l) = s - DHinc(j, l);
                         DHinc(j, l) = s;
                         if(DHinc(j, l) < 0 || DHinc(j, l) > u1_night(9, j, l)) stop("DHinc error\n");
@@ -1834,23 +1740,9 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(5, j, l) * pI1pI1D;
                         muy = DIinc(j, l);
                         
-                        u = eng() / mx;
-                        temp1 = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
-                        temp2 = R::pnorm(u1_night(5, j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
-                        tempnorm = temp2 + log(1.0 - exp(temp1 - temp2));
-                        temp1 = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
-                        temp2 = R::pnorm(0.5, muy, sqrt(sigma2y), 1, 1);
-                        temp = temp2 + log(1.0 - exp(temp1 - temp2));
-                        temp -= tempnorm;
-                        temp = exp(temp);
-                        int s = 0;
-                        while(temp < u) {
-                            s++;
-                            if(s > u1_night(5, j, l)) stop("Error in multinomial sampling TDI\n");
-                            temp1 = R::pnorm(s - 0.5, muy, sqrt(sigma2y), 1, 1);
-                            temp2 = R::pnorm(s + 0.5, muy, sqrt(sigma2y), 1, 1);
-                            temp += exp(temp2 + log(1.0 - exp(temp1 - temp2)) - tempnorm);
-                        }
+                        u = rtnorm_one((-0.5 - muy) / sqrt(sigma2y), (u1_night(5, j, l) + 0.5 - muy) / sqrt(sigma2y), eng);
+                        u = u * sqrt(sigma2y) + muy;
+                        int s = (int) round(u);
                         tempMD(6, j, l) = s - DIinc(j, l);
                         DIinc(j, l) = s;
                         if(DIinc(j, l) < 0 || DIinc(j, l) > u1_night(5, j, l)) stop("DIinc error\n");
