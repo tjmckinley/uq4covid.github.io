@@ -1647,7 +1647,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         temp1 = temp2 + log(1.0 - exp(temp1 - temp2));                  
                         weights(i) -= temp1;
                         
-                        sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(9, j, l) * pI1pI1D;
+                        sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(9, j, l) * pHpHD;
                         temp1 = R::pnorm(DHinc(j, l) - 0.5, DHinc1(j, l), sqrt(sigma2y), 1, 1);
                         temp2 = R::pnorm(DHinc(j, l) + 0.5, DHinc1(j, l), sqrt(sigma2y), 1, 1);
                         temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
@@ -1661,7 +1661,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         weights(i) += temp1;
                         
                         temp1 = R::pnorm(-0.5, DHinc1(j, l), sqrt(sigma2y), 1, 1);
-                        temp2 = R::pnorm(u1_night(5, j, l) + 0.5, DHinc1(j, l), sqrt(sigma2y), 1, 1);
+                        temp2 = R::pnorm(u1_night(9, j, l) + 0.5, DHinc1(j, l), sqrt(sigma2y), 1, 1);
                         temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
                         weights(i) -= temp1;
                         if(t == 0) weights(i) += twistnorm[i](w);
@@ -2144,7 +2144,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                     for(l = 0; l < u1_moves.n_rows; l++) {
                         for(j = 0; j < nages; j++) {
                             psi(t * npart * 4 + i * 4, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](6, j, l) - u1[i](6, j, l);
-                            psi(t * npart * 4 + i * 4 + 1, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](11, j, l) - u1_new[i](11, j, l);
+                            psi(t * npart * 4 + i * 4 + 1, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](11, j, l) - u1[i](11, j, l);
                             psi(t * npart * 4 + i * 4 + 2, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](5, j, l);
                             psi(t * npart * 4 + i * 4 + 3, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](9, j, l);
                         }
