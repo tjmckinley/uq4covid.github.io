@@ -1,4 +1,4 @@
-// [[Rcpp::depends(RcppArmadillo, sitmo)]]
+// [[Rcpp::depends(RcppArmadillo, sitmo, BH)]]
 
 // [[Rcpp::plugins(openmp)]]
 
@@ -7,6 +7,7 @@
 #include <sitmo.h>
 #include <iostream>
 #include <fstream>
+#include <boost/multiprecision/gmp.hpp>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -29,6 +30,7 @@ double bessel_k_ex_new(double x, double alpha, double expo, double *bk);
 double Rf_gamma_cody(double x);
 
 using namespace Rcpp;
+namespace mp = boost::multiprecision;
 
 // BEGIN declaring external constants
 
@@ -1584,6 +1586,14 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         temp1 = R::pnorm(DIinc(j, l) - 0.5, DIinc1(j, l), sqrt(sigma2y), 1, 1);
                         temp2 = R::pnorm(DIinc(j, l) + 0.5, DIinc1(j, l), sqrt(sigma2y), 1, 1);
                         temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                        if(!arma::is_finite(temp1)) {
+                            mp::mpf_float::default_precision(1000);
+                            mp::mpf_float temp1_mpfr = R::pnorm(DIinc(j, l) - 0.5, DIinc1(j, l), sqrt(sigma2y), 1, 1);
+                            mp::mpf_float temp2_mpfr = R::pnorm(DIinc(j, l) + 0.5, DIinc1(j, l), sqrt(sigma2y), 1, 1);
+                            temp1_mpfr = temp2_mpfr + mp::log(1.0 - mp::exp(temp1_mpfr - temp2_mpfr));
+                            temp1 = temp1_mpfr.convert_to<double>();
+//                            Rprintf("temp1 = %f\n", temp1);
+                        }                            
                         weights(i) += temp1;
                         
                         temp1 = R::pnorm(-0.5, DIinc1(j, l), sqrt(sigma2y), 1, 1);
@@ -1639,13 +1649,20 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         
                         temp1 = R::pnorm(DHinc(j, l) - 0.5, muy, sqrt(sigma2y), 1, 1);
                         temp2 = R::pnorm(DHinc(j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
-                        temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                        temp1 = temp2 + log(1.0 - exp(temp1 - temp2));                  
                         weights(i) -= temp1;
                         
                         sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(9, j, l) * pI1pI1D;
                         temp1 = R::pnorm(DHinc(j, l) - 0.5, DHinc1(j, l), sqrt(sigma2y), 1, 1);
                         temp2 = R::pnorm(DHinc(j, l) + 0.5, DHinc1(j, l), sqrt(sigma2y), 1, 1);
                         temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                        if(!arma::is_finite(temp1)) {
+                            mp::mpf_float::default_precision(1000);
+                            mp::mpf_float temp1_mpfr = R::pnorm(DHinc(j, l) - 0.5, DHinc1(j, l), sqrt(sigma2y), 1, 1);
+                            mp::mpf_float temp2_mpfr = R::pnorm(DHinc(j, l) + 0.5, DHinc1(j, l), sqrt(sigma2y), 1, 1);
+                            temp1_mpfr = temp2_mpfr + mp::log(1.0 - mp::exp(temp1_mpfr - temp2_mpfr));
+                            temp1 = temp1_mpfr.convert_to<double>();
+                        }
                         weights(i) += temp1;
                         
                         temp1 = R::pnorm(-0.5, DHinc1(j, l), sqrt(sigma2y), 1, 1);
