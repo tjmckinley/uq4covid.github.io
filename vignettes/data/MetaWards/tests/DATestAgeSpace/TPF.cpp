@@ -1538,7 +1538,6 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             
                 // start counter
                 int w = 0;
-                double obserror = 0.0;
                 
                 // DI           
                 for(j = 0; j < nages; j++) {
@@ -1564,7 +1563,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         if(DIinc(j, l) < 0 || DIinc(j, l) > u1_night(5, j, l)) stop("Error in DIinc DI = %d u = %f uorig = %f LB = %f UB = %f mu = %f sigma2 = %f\n", DIinc(j, l), u, (u - muy) / sqrt(sigma2y), (-0.5 - muy) / sqrt(sigma2y), (u1_night(5, j, l) + 0.5 - muy) / sqrt(sigma2y), muy, sigma2y);
                         
                         // observation error for given incidence
-                        obserror = ldtskellam_cpp(
+                        weights(i) += ldtskellam_cpp(
                             obsInc(j * nlads + l) - DIinc(j, l),
                             a1 + b * DIinc(j, l),
                             a2 + b * DIinc(j, l),
@@ -1574,9 +1573,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             0
                         );
                         
-                        // update weights
-                        weights(i) += obserror;
-                        
+                        // adjust weights for proposal
                         temp1 = R::pnorm(DIinc(j, l) - 0.5, muy, sqrt(sigma2y), 1, 1);
                         temp2 = R::pnorm(DIinc(j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
                         temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
@@ -1634,7 +1631,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         if(DHinc(j, l) < 0 || DHinc(j, l) > u1_night(9, j, l)) stop("Error in DHinc\n");
                         
                         // observation error for given incidence
-                        obserror = ldtskellam_cpp(
+                        weights(i) += ldtskellam_cpp(
                             obsInc(nlads * nages + j * nlads + l) - DHinc(j, l),
                             a1 + b * DHinc(j, l),
                             a2 + b * DHinc(j, l),
@@ -1644,9 +1641,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             0
                         );
                         
-                        // update weights
-                        weights(i) += obserror;
-                        
+                        // adjust weights for proposal
                         temp1 = R::pnorm(DHinc(j, l) - 0.5, muy, sqrt(sigma2y), 1, 1);
                         temp2 = R::pnorm(DHinc(j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
                         temp1 = temp2 + log(1.0 - exp(temp1 - temp2));                  
