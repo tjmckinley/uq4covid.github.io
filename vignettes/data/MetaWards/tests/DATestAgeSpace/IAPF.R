@@ -28,7 +28,7 @@ log_sum_exp <- function(x, mn = FALSE) {
 ## PF:      a logical denoting whether to run a particle filter, or just simulate from the model
 ## ncores:  the number of cores for OpenMP parallelisation (if NA then defaults to all available cores)
 
-IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau = 1, a1 = 0.01, a2 = 0.2, b = 0.1, 
+IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, kmax = 3, tau = 1, a1 = 0.01, a2 = 0.2, b = 0.1, 
                a_dis = 0.05, b_dis = 0.5, saveAll = NA, writeExt = FALSE, PF = TRUE, ncores = NA) {
                
     ## set default for saveAll if PF = FALSE
@@ -139,7 +139,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
                 cat(paste0("Previous ", kstop, " log-likelihood estimates: ", paste0(round(templl, 2), collapse = ", "), "\n"))
                 cat(paste0("CV of likelihood estimate = ", cv, " tau = ", tau, "\n"))
                 ## if coefficient of variation < tau, then exit
-                if(cv < tau) {
+                if(cv < tau | kcurr >= kmax) {
                     valid <- 1
                 } else {
                     ## if log-likelihoods not monotonically increasing
