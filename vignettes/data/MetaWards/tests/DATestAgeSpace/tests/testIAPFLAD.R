@@ -6,6 +6,8 @@ library(parallel)
 library(abind)
 library(sitmo)
 library(patchwork)
+library(BH)
+Sys.setenv("PKG_LIBS" = "-lgmp")
 
 ## source Rcpp PF code
 sourceCpp("../TPF.cpp")
@@ -33,7 +35,7 @@ u1 <- readRDS("../outputs/u1.rds")
 u1_moves <- readRDS("../outputs/u1_moves.rds")
 
 ## set seed for reproducibility
-set.seed(666)
+set.seed(42)
 
 ## set up plot data
 plot_data <- pivot_longer(filter(data, t <= 100), !t, names_to = "var", values_to = "n") %>%
@@ -48,27 +50,133 @@ plot_data <- pivot_longer(filter(data, t <= 100), !t, names_to = "var", values_t
     
 ## run model with model discrepancy
 runs_md <- IAPF(pars[6, ], C = contact, data = data, u1_moves = u1_moves,
-    u1 = u1, ndays = 50, npart = 10, a_dis = 0.05, b_dis = 0.05, 
-    a1 = 0.01, a2 = 0.2, b = 0.001, saveAll = TRUE, tau = 2)
+    u1 = u1, ndays = 100, npart = 10, a_dis = 0.05, b_dis = 0.05, 
+    a1 = 0.01, a2 = 0.2, b = 0.001, saveAll = TRUE, writeExt = TRUE, tau = 1.5)
 
-## plot particle estimates of states (unweighted)
-sims_md <- map(runs_md$particles[[1]], ~{
-        map(., function(y) {
-            x <- matrix(y, prod(dim(y)[c(1, 3)]), dim(y)[2])
-            colnames(x) <- paste0("age", 1:ncol(x))
-            as_tibble(x) %>%
-            mutate(var = rep(c("S", "E", "A", "RA", "P", "Ione", "DI", "Itwo", "RI", "H", "RH", "DH"), times = dim(y)[3])) %>%
-            mutate(LAD = rep(1:dim(y)[3], each = dim(y)[1]))
-        }) %>%
-        bind_rows(.id = "particle")
-    }) %>%
-    bind_rows(.id = "t") %>%
-    pivot_longer(!c(particle, t, var, LAD), names_to = "age", values_to = "n") %>%
-    mutate(age = as.numeric(gsub("age", "", age))) %>%
-    mutate(t = as.numeric(t) - 1) %>%
-    mutate(LAD = as.character(LAD)) %>%
-    mutate(var = gsub("one", "1", var)) %>%
-    mutate(var = gsub("two", "2", var))
+## extract file names
+folder <- "saveOut"
+files <- list.files(folder)
+
+## lookup table
+lookup <- data.frame(var = c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "RI", "H", "RH", "DH")) %>%
+    mutate(class = 0:(n() - 1))
+    
+## plot particle estimates of states at the national level
+sims_md <- map(files[1:20], function(y, folder, lookup) {
+        read.csv(paste0(folder, "/", y), header = TRUE) %>%
+            inner_join(lookup, by = "class") %>%
+            select(!class) %>%
+            rename(t = time) %>%
+            pivot_longer(!c(t, var, lad), names_to = "age", values_to = "n") %>%
+            mutate(age = as.numeric(gsub("age", "", age))) %>%
+            rename(LAD = lad) %>%
+            mutate(LAD = as.character(LAD))
+    }, folder = folder, lookup = lookup) %>%
+    bind_rows(.id = "particle") %>%
+    group_by(particle, t, var, age) %>%
+    summarise(n = sum(n), .groups = "drop")    
+    
+## aggregate data
+p <- select(data, !ends_with("obs")) %>%
+    pivot_longer(!t, names_to = "var", values_to = "n") %>%
+    mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
+    mutate(LAD = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
+    mutate(age = gsub('(.*)_[0-9]*', '\\1', age)) %>%
+    mutate(var = gsub('^(.*)_[0-9]*_.*', '\\1', var)) %>%
+    group_by(t, var, age) %>%
+    summarise(n = sum(n), .groups = "drop")
+
+## aggregate observed data   
+p_obs <- select(data, t, ends_with("obs")) %>%
+    pivot_longer(!t, names_to = "var", values_to = "n") %>%
+    mutate(var = gsub("obs", "", var)) %>%
+    mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
+    mutate(LAD = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
+    mutate(age = gsub('(.*)_[0-9]*', '\\1', age)) %>%
+    mutate(var = gsub('^(.*)_[0-9]*_.*', '\\1', var)) %>%
+    group_by(t, var, age) %>%
+    summarise(n = sum(n), .groups = "drop")
+
+## summarise simulations
+sims_obs <- filter(sims_md, var %in% unique(pobs$var)) %>%
+    group_by(var, age, t) %>%
+    summarise(
+        LCI = quantile(n, probs = 0.025),
+        LQ = quantile(n, probs = 0.25),
+        Median = quantile(n, probs = 0.5),
+        UQ = quantile(n, probs = 0.75),
+        UCI = quantile(n, probs = 0.975),
+        .groups = "drop"
+    )
+    
+## summarise simulations
+sims_md <- group_by(sims_md, var, age, t) %>%
+    summarise(
+        LCI = quantile(n, probs = 0.025),
+        LQ = quantile(n, probs = 0.25),
+        Median = quantile(n, probs = 0.5),
+        UQ = quantile(n, probs = 0.75),
+        UCI = quantile(n, probs = 0.975),
+        .groups = "drop"
+    )
+
+## produce particle trajectories plots
+p1 <- list()
+p1[[1]] <- ggplot(sims_md, aes(x = t)) +
+    geom_ribbon(aes(ymin = LCI, ymax = UCI), alpha = 0.3, colour = NA) +
+    geom_ribbon(aes(ymin = LQ, ymax = UQ), alpha = 0.3, colour = NA) +
+    geom_line(aes(y = Median)) +
+    geom_line(aes(y = n), data = p, linetype = "dashed") +
+    facet_grid(var ~ age, scales = "free") +
+    xlab("Days") + 
+    ylab("Counts") +
+    ggtitle("Truth")
+p1[[2]] <- ggplot(sims_obs, aes(x = t)) +
+    geom_ribbon(aes(ymin = LCI, ymax = UCI), alpha = 0.3, colour = NA) +
+    geom_ribbon(aes(ymin = LQ, ymax = UQ), alpha = 0.3, colour = NA) +
+    geom_line(aes(y = Median)) +
+    geom_line(aes(y = n), data = pobs, linetype = "dashed") +
+    facet_grid(var ~ age, scales = "free") +
+    xlab("Days") + 
+    ylab("Counts") +
+    ggtitle("Observed")
+p1 <- wrap_plots(p1, nrow = 2, heights = c(0.8, 0.2))
+ggsave("simsTPF.pdf", p1, width = 10, height = 10)
+
+## plot particle estimates of states at the national level
+sims_md <- map(files[1:20], function(y, folder, lookup) {
+        read.csv(paste0(folder, "/", y), header = TRUE) %>%
+            inner_join(lookup, by = "class") %>%
+            select(!class) %>%
+            rename(t = time) %>%
+            pivot_longer(!c(t, var, lad), names_to = "age", values_to = "n") %>%
+            mutate(age = as.numeric(gsub("age", "", age))) %>%
+            rename(LAD = lad) %>%
+            mutate(LAD = as.character(LAD))
+    }, folder = folder, lookup = lookup) %>%
+    bind_rows(.id = "particle")
+   
+
+
+
+### plot particle estimates of states (unweighted)
+#sims_md <- map(runs_md$particles[[1]], ~{
+#        map(., function(y) {
+#            x <- matrix(y, prod(dim(y)[c(1, 3)]), dim(y)[2])
+#            colnames(x) <- paste0("age", 1:ncol(x))
+#            as_tibble(x) %>%
+#            mutate(var = rep(c("S", "E", "A", "RA", "P", "Ione", "DI", "Itwo", "RI", "H", "RH", "DH"), times = dim(y)[3])) %>%
+#            mutate(LAD = rep(1:dim(y)[3], each = dim(y)[1]))
+#        }) %>%
+#        bind_rows(.id = "particle")
+#    }) %>%
+#    bind_rows(.id = "t") %>%
+#    pivot_longer(!c(particle, t, var, LAD), names_to = "age", values_to = "n") %>%
+#    mutate(age = as.numeric(gsub("age", "", age))) %>%
+#    mutate(t = as.numeric(t) - 1) %>%
+#    mutate(LAD = as.character(LAD)) %>%
+#    mutate(var = gsub("one", "1", var)) %>%
+#    mutate(var = gsub("two", "2", var))
 
 ## extract LADs with largest epidemic load at day 100
 p <- select(data, t, !ends_with("obs") & starts_with("DI")) %>%
@@ -77,7 +185,7 @@ p <- select(data, t, !ends_with("obs") & starts_with("DI")) %>%
     mutate(LAD = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
     mutate(age = gsub('(.*)_[0-9]*', '\\1', age)) %>%
     mutate(var = gsub('^(.*)_[0-9]*_.*', '\\1', var)) %>%
-    filter(t == 100) %>%
+    filter(t == 50) %>%
     group_by(LAD) %>%
     summarise(n = sum(n), .groups = "drop") %>%
     arrange(desc(n)) %>%
@@ -141,6 +249,6 @@ p1[[2]] <- ggplot(sims_obs, aes(x = t)) +
     ggtitle("Observed")
 p1 <- wrap_plots(p1, nrow = 2, heights = c(0.8, 0.2)) +
     plot_layout(guides = "collect")
-ggsave("simsTopLADs.pdf", p1, width = 10, height = 10)
+ggsave("simsTopLADsTPF.pdf", p1, width = 10, height = 10)
 
 
