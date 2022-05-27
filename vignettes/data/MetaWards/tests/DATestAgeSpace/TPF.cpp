@@ -1411,8 +1411,24 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         // simulator density
                         tempdensx[i][w](s) = R::dbinom(s, u1_night(5, j, l), pI1pI1D, 1);
                         
-                        // integrate over y values
+                        // Gaussian correction
                         sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(5, j, l) * pI1pI1D;
+                        tempdensx[i][w](s) -= 0.5 * pow(s - munorm(t, w), 2.0) / (sigma2y + varnorm(t, w));
+                        
+                        // target normalising constant correction
+                        temp1 = R::pnorm(-0.5, s, sqrt(sigma2y), 1, 1);
+                        temp2 = R::pnorm(u1_night(5, j, l) + 0.5, s, sqrt(sigma2y), 1, 1);
+                        temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                        if(!arma::is_finite(temp1)) {
+                            mp::mpf_float::default_precision(1000);
+                            mp::mpf_float temp1_mpfr = R::pnorm(-0.5, s, sqrt(sigma2y), 1, 1);
+                            mp::mpf_float temp2_mpfr = R::pnorm(u1_night(5, j, l) + 0.5, s, sqrt(sigma2y), 1, 1);
+                            temp1_mpfr = temp2_mpfr + mp::log(1.0 - mp::exp(temp1_mpfr - temp2_mpfr));
+                            temp1 = temp1_mpfr.convert_to<double>();
+                        }
+                        tempdensx[i][w](s) -= temp1;
+                        
+                        // integrate over twisting function densities
                         muy = varnorm(t, w) * s + sigma2y * munorm(t, w);
                         muy /= (varnorm(t, w) + sigma2y);
                         sigma2y = sigma2y * varnorm(t, w) / (varnorm(t, w) + sigma2y);
@@ -1420,6 +1436,13 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         temp1 = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
                         temp2 = R::pnorm(u1_night(5, j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
                         temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                        if(!arma::is_finite(temp1)) {
+                            mp::mpf_float::default_precision(1000);
+                            mp::mpf_float temp1_mpfr = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
+                            mp::mpf_float temp2_mpfr = R::pnorm(u1_night(5, j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
+                            temp1_mpfr = temp2_mpfr + mp::log(1.0 - mp::exp(temp1_mpfr - temp2_mpfr));
+                            temp1 = temp1_mpfr.convert_to<double>();
+                        }
                         tempdensx[i][w](s) += temp1;
                     }
                     
@@ -1446,9 +1469,25 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         
                         // simulator density
                         tempdensx[i][w](s) = R::dbinom(s, u1_night(9, j, l), pHpHD, 1);
-                    
-                        // integrate over y values
+                        
+                        // Gaussian correction
                         sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(9, j, l) * pHpHD;
+                        tempdensx[i][w](s) -= 0.5 * pow(s - munorm(t, w), 2.0) / (sigma2y + varnorm(t, w));
+                        
+                        // target normalising constant correction
+                        temp1 = R::pnorm(-0.5, s, sqrt(sigma2y), 1, 1);
+                        temp2 = R::pnorm(u1_night(9, j, l) + 0.5, s, sqrt(sigma2y), 1, 1);
+                        temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                        if(!arma::is_finite(temp1)) {
+                            mp::mpf_float::default_precision(1000);
+                            mp::mpf_float temp1_mpfr = R::pnorm(-0.5, s, sqrt(sigma2y), 1, 1);
+                            mp::mpf_float temp2_mpfr = R::pnorm(u1_night(9, j, l) + 0.5, s, sqrt(sigma2y), 1, 1);
+                            temp1_mpfr = temp2_mpfr + mp::log(1.0 - mp::exp(temp1_mpfr - temp2_mpfr));
+                            temp1 = temp1_mpfr.convert_to<double>();
+                        }
+                        tempdensx[i][w](s) -= temp1;
+                        
+                        // integrate over twisting function densities
                         muy = varnorm(t, w) * s + sigma2y * munorm(t, w);
                         muy /= (varnorm(t, w) + sigma2y);
                         sigma2y = sigma2y * varnorm(t, w) / (varnorm(t, w) + sigma2y);
@@ -1456,6 +1495,13 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         temp1 = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
                         temp2 = R::pnorm(u1_night(9, j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
                         temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                        if(!arma::is_finite(temp1)) {
+                            mp::mpf_float::default_precision(1000);
+                            mp::mpf_float temp1_mpfr = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
+                            mp::mpf_float temp2_mpfr = R::pnorm(u1_night(9, j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
+                            temp1_mpfr = temp2_mpfr + mp::log(1.0 - mp::exp(temp1_mpfr - temp2_mpfr));
+                            temp1 = temp1_mpfr.convert_to<double>();
+                        }
                         tempdensx[i][w](s) += temp1;
                     }
                     
@@ -1573,13 +1619,24 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             0
                         );
                         
-                        // adjust weights for proposal
+                        // adjust weights for twisting functions
                         temp1 = R::pnorm(DIinc(j, l) - 0.5, muy, sqrt(sigma2y), 1, 1);
                         temp2 = R::pnorm(DIinc(j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
                         temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                        if(!arma::is_finite(temp1)) {
+                            mp::mpf_float::default_precision(1000);
+                            mp::mpf_float temp1_mpfr = R::pnorm(DIinc(j, l) - 0.5, muy, sqrt(sigma2y), 1, 1);
+                            mp::mpf_float temp2_mpfr = R::pnorm(DIinc(j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
+                            temp1_mpfr = temp2_mpfr + mp::log(1.0 - mp::exp(temp1_mpfr - temp2_mpfr));
+                            temp1 = temp1_mpfr.convert_to<double>();
+//                            Rprintf("temp1 = %f\n", temp1);
+                        }
                         weights(i) -= temp1;
                         
                         sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(5, j, l) * pI1pI1D;
+                        weights(i) += 0.5 * pow(DIinc1(j, l) - munorm(t, w), 2.0) / (sigma2y + varnorm(t, w));
+                        
+                        // adjust weights for target
                         temp1 = R::pnorm(DIinc(j, l) - 0.5, DIinc1(j, l), sqrt(sigma2y), 1, 1);
                         temp2 = R::pnorm(DIinc(j, l) + 0.5, DIinc1(j, l), sqrt(sigma2y), 1, 1);
                         temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
@@ -1590,13 +1647,8 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             temp1_mpfr = temp2_mpfr + mp::log(1.0 - mp::exp(temp1_mpfr - temp2_mpfr));
                             temp1 = temp1_mpfr.convert_to<double>();
 //                            Rprintf("temp1 = %f\n", temp1);
-                        }                            
+                        }
                         weights(i) += temp1;
-                        
-                        temp1 = R::pnorm(-0.5, DIinc1(j, l), sqrt(sigma2y), 1, 1);
-                        temp2 = R::pnorm(u1_night(5, j, l) + 0.5, DIinc1(j, l), sqrt(sigma2y), 1, 1);
-                        temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
-                        weights(i) -= temp1;
                         if(t == 0) weights(i) += twistnorm[i](w);
                         
                         // store incidence for redistribution
@@ -1641,13 +1693,23 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             0
                         );
                         
-                        // adjust weights for proposal
+                        // adjust weights for twisting functions
                         temp1 = R::pnorm(DHinc(j, l) - 0.5, muy, sqrt(sigma2y), 1, 1);
                         temp2 = R::pnorm(DHinc(j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
-                        temp1 = temp2 + log(1.0 - exp(temp1 - temp2));                  
+                        temp1 = temp2 + log(1.0 - exp(temp1 - temp2)); 
+                        if(!arma::is_finite(temp1)) {
+                            mp::mpf_float::default_precision(1000);
+                            mp::mpf_float temp1_mpfr = R::pnorm(DHinc(j, l) - 0.5, muy, sqrt(sigma2y), 1, 1);
+                            mp::mpf_float temp2_mpfr = R::pnorm(DHinc(j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
+                            temp1_mpfr = temp2_mpfr + mp::log(1.0 - mp::exp(temp1_mpfr - temp2_mpfr));
+                            temp1 = temp1_mpfr.convert_to<double>();
+                        }                 
                         weights(i) -= temp1;
                         
                         sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(9, j, l) * pHpHD;
+                        weights(i) += 0.5 * pow(DHinc1(j, l) - munorm(t, w), 2.0) / (sigma2y + varnorm(t, w));
+                        
+                        // adjust weights for target
                         temp1 = R::pnorm(DHinc(j, l) - 0.5, DHinc1(j, l), sqrt(sigma2y), 1, 1);
                         temp2 = R::pnorm(DHinc(j, l) + 0.5, DHinc1(j, l), sqrt(sigma2y), 1, 1);
                         temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
@@ -1659,11 +1721,6 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             temp1 = temp1_mpfr.convert_to<double>();
                         }
                         weights(i) += temp1;
-                        
-                        temp1 = R::pnorm(-0.5, DHinc1(j, l), sqrt(sigma2y), 1, 1);
-                        temp2 = R::pnorm(u1_night(9, j, l) + 0.5, DHinc1(j, l), sqrt(sigma2y), 1, 1);
-                        temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
-                        weights(i) -= temp1;
                         if(t == 0) weights(i) += twistnorm[i](w);
                         
                         // store incidence for redistribution
@@ -2048,9 +2105,25 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             
                             // simulator density
                             tempdensx[i][w](s) = R::dbinom(s, u1_night(5, j, l), pI1pI1D, 1);
-                            
-                            // integrate over y values
+                        
+                            // Gaussian correction
                             sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(5, j, l) * pI1pI1D;
+                            tempdensx[i][w](s) -= 0.5 * pow(s - munorm(t + 1, w), 2.0) / (sigma2y + varnorm(t + 1, w));
+                        
+                            // target normalising constant correction
+                            temp1 = R::pnorm(-0.5, s, sqrt(sigma2y), 1, 1);
+                            temp2 = R::pnorm(u1_night(5, j, l) + 0.5, s, sqrt(sigma2y), 1, 1);
+                            temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                            if(!arma::is_finite(temp1)) {
+                                mp::mpf_float::default_precision(1000);
+                                mp::mpf_float temp1_mpfr = R::pnorm(-0.5, s, sqrt(sigma2y), 1, 1);
+                                mp::mpf_float temp2_mpfr = R::pnorm(u1_night(5, j, l) + 0.5, s, sqrt(sigma2y), 1, 1);
+                                temp1_mpfr = temp2_mpfr + mp::log(1.0 - mp::exp(temp1_mpfr - temp2_mpfr));
+                                temp1 = temp1_mpfr.convert_to<double>();
+                            }
+                            tempdensx[i][w](s) -= temp1;
+                            
+                            // integrate over twisting function densities
                             muy = varnorm(t + 1, w) * s + sigma2y * munorm(t + 1, w);
                             muy /= (varnorm(t + 1, w) + sigma2y);
                             sigma2y = sigma2y * varnorm(t + 1, w) / (varnorm(t + 1, w) + sigma2y);
@@ -2058,6 +2131,13 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             temp1 = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
                             temp2 = R::pnorm(u1_night(5, j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
                             temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                            if(!arma::is_finite(temp1)) {
+                                mp::mpf_float::default_precision(1000);
+                                mp::mpf_float temp1_mpfr = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
+                                mp::mpf_float temp2_mpfr = R::pnorm(u1_night(5, j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
+                                temp1_mpfr = temp2_mpfr + mp::log(1.0 - mp::exp(temp1_mpfr - temp2_mpfr));
+                                temp1 = temp1_mpfr.convert_to<double>();
+                            }
                             tempdensx[i][w](s) += temp1;
                         }
                         
@@ -2088,8 +2168,24 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             // simulator density
                             tempdensx[i][w](s) = R::dbinom(s, u1_night(9, j, l), pHpHD, 1);
                         
-                            // integrate over y values
+                            // Gaussian correction
                             sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(9, j, l) * pHpHD;
+                            tempdensx[i][w](s) -= 0.5 * pow(s - munorm(t + 1, w), 2.0) / (sigma2y + varnorm(t + 1, w));
+                        
+                            // target normalising constant correction
+                            temp1 = R::pnorm(-0.5, s, sqrt(sigma2y), 1, 1);
+                            temp2 = R::pnorm(u1_night(9, j, l) + 0.5, s, sqrt(sigma2y), 1, 1);
+                            temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                            if(!arma::is_finite(temp1)) {
+                                mp::mpf_float::default_precision(1000);
+                                mp::mpf_float temp1_mpfr = R::pnorm(-0.5, s, sqrt(sigma2y), 1, 1);
+                                mp::mpf_float temp2_mpfr = R::pnorm(u1_night(9, j, l) + 0.5, s, sqrt(sigma2y), 1, 1);
+                                temp1_mpfr = temp2_mpfr + mp::log(1.0 - mp::exp(temp1_mpfr - temp2_mpfr));
+                                temp1 = temp1_mpfr.convert_to<double>();
+                            }
+                            tempdensx[i][w](s) -= temp1;    
+                        
+                            // integrate over twisting densities
                             muy = varnorm(t + 1, w) * s + sigma2y * munorm(t + 1, w);
                             muy /= (varnorm(t + 1, w) + sigma2y);
                             sigma2y = sigma2y * varnorm(t + 1, w) / (varnorm(t + 1, w) + sigma2y);
@@ -2097,6 +2193,13 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             temp1 = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
                             temp2 = R::pnorm(u1_night(9, j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
                             temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                            if(!arma::is_finite(temp1)) {
+                                mp::mpf_float::default_precision(1000);
+                                mp::mpf_float temp1_mpfr = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
+                                mp::mpf_float temp2_mpfr = R::pnorm(u1_night(9, j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
+                                temp1_mpfr = temp2_mpfr + mp::log(1.0 - mp::exp(temp1_mpfr - temp2_mpfr));
+                                temp1 = temp1_mpfr.convert_to<double>();
+                            }
                             tempdensx[i][w](s) += temp1;
                         }
                         
@@ -2348,9 +2451,25 @@ arma::mat TPF_rates_cpp (arma::vec pars, arma::ivec data, arma::uword nages, arm
                     
                     // simulator density
                     tempdensx(s) = R::dbinom(s, psi(i * 4 + 2, j, l), pI1pI1D, 1);
-                    
-                    // integrate over y values
+                        
+                    // Gaussian correction
                     sigma2y = 2.0 * a_dis + 2.0 * b_dis * psi(i * 4 + 2, j, l) * pI1pI1D;
+                    tempdensx(s) -= 0.5 * pow(s - munorm(w), 2.0) / (sigma2y + varnorm(w));
+                        
+                    // target normalising constant correction
+                    temp1 = R::pnorm(-0.5, s, sqrt(sigma2y), 1, 1);
+                    temp2 = R::pnorm(psi(i * 4 + 2, j, l) + 0.5, s, sqrt(sigma2y), 1, 1);
+                    temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                    if(!arma::is_finite(temp1)) {
+                        mp::mpf_float::default_precision(1000);
+                        mp::mpf_float temp1_mpfr = R::pnorm(-0.5, s, sqrt(sigma2y), 1, 1);
+                        mp::mpf_float temp2_mpfr = R::pnorm(psi(i * 4 + 2, j, l) + 0.5, s, sqrt(sigma2y), 1, 1);
+                        temp1_mpfr = temp2_mpfr + mp::log(1.0 - mp::exp(temp1_mpfr - temp2_mpfr));
+                        temp1 = temp1_mpfr.convert_to<double>();
+                    }
+                    tempdensx(s) -= temp1;
+                    
+                    // integrate over twisting densities
                     muy = varnorm(w) * s + sigma2y * munorm(w);
                     muy /= (varnorm(w) + sigma2y);
                     sigma2y = sigma2y * varnorm(w) / (varnorm(w) + sigma2y);
@@ -2358,6 +2477,13 @@ arma::mat TPF_rates_cpp (arma::vec pars, arma::ivec data, arma::uword nages, arm
                     temp1 = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
                     temp2 = R::pnorm(psi(i * 4 + 2, j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
                     temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                    if(!arma::is_finite(temp1)) {
+                        mp::mpf_float::default_precision(1000);
+                        mp::mpf_float temp1_mpfr = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
+                        mp::mpf_float temp2_mpfr = R::pnorm(psi(i * 4 + 2, j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
+                        temp1_mpfr = temp2_mpfr + mp::log(1.0 - mp::exp(temp1_mpfr - temp2_mpfr));
+                        temp1 = temp1_mpfr.convert_to<double>();
+                    }
                     tempdensx(s) += temp1;
                 }
                 
@@ -2398,9 +2524,25 @@ arma::mat TPF_rates_cpp (arma::vec pars, arma::ivec data, arma::uword nages, arm
                     
                     // simulator density
                     tempdensx(s) = R::dbinom(s, psi(i * 4 + 3, j, l), pHpHD, 1);
-                
-                    // integrate over y values
+                        
+                    // Gaussian correction
                     sigma2y = 2.0 * a_dis + 2.0 * b_dis * psi(i * 4 + 3, j, l) * pHpHD;
+                    tempdensx(s) -= 0.5 * pow(s - munorm(w), 2.0) / (sigma2y + varnorm(w));
+                        
+                    // target normalising constant correction
+                    temp1 = R::pnorm(-0.5, s, sqrt(sigma2y), 1, 1);
+                    temp2 = R::pnorm(psi(i * 4 + 3, j, l) + 0.5, s, sqrt(sigma2y), 1, 1);
+                    temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                    if(!arma::is_finite(temp1)) {
+                        mp::mpf_float::default_precision(1000);
+                        mp::mpf_float temp1_mpfr = R::pnorm(-0.5, s, sqrt(sigma2y), 1, 1);
+                        mp::mpf_float temp2_mpfr = R::pnorm(psi(i * 4 + 3, j, l) + 0.5, s, sqrt(sigma2y), 1, 1);
+                        temp1_mpfr = temp2_mpfr + mp::log(1.0 - mp::exp(temp1_mpfr - temp2_mpfr));
+                        temp1 = temp1_mpfr.convert_to<double>();
+                    }
+                    tempdensx(s) -= temp1;
+                
+                    // integrate over twisting densities
                     muy = varnorm(w) * s + sigma2y * munorm(w);
                     muy /= (varnorm(w) + sigma2y);
                     sigma2y = sigma2y * varnorm(w) / (varnorm(w) + sigma2y);
@@ -2408,6 +2550,13 @@ arma::mat TPF_rates_cpp (arma::vec pars, arma::ivec data, arma::uword nages, arm
                     temp1 = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
                     temp2 = R::pnorm(psi(i * 4 + 3, j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
                     temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                    if(!arma::is_finite(temp1)) {
+                        mp::mpf_float::default_precision(1000);
+                        mp::mpf_float temp1_mpfr = R::pnorm(-0.5, muy, sqrt(sigma2y), 1, 1);
+                        mp::mpf_float temp2_mpfr = R::pnorm(psi(i * 4 + 3, j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
+                        temp1_mpfr = temp2_mpfr + mp::log(1.0 - mp::exp(temp1_mpfr - temp2_mpfr));
+                        temp1 = temp1_mpfr.convert_to<double>();
+                    }
                     tempdensx(s) += temp1;
                 }
                 
