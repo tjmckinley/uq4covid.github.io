@@ -117,9 +117,8 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
         ## set regularised Gaussian functions
         regNorm <- function(pars, eta, psi_it) {
             if(any(pars[-1] <= 0)) return(NA)
-            x1 <- pnorm(eta + 0.5, mean = pars[1], sd = pars[2])
-            x1 <- x1 - pnorm(eta - 0.5, mean = pars[1], sd = pars[2])
-            x2 <- pars[3] * psi_it
+            x1 <- dnorm(eta, mean = pars[1], sd = pars[2])
+            x2 <- pars[3] * exp(psi_it)
             sum((x1 - x2)^2)
         }
         
@@ -214,13 +213,20 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, tau 
                     ## generate filter rates
                     temp <- particles[(npart[kcurr] * (t - 1)  * 4 + 1):(npart[kcurr] * t * 4), , ]
                     temp <- TPF_rates_cpp(pars, data[t, ], 8, 339, temp, npart[kcurr], munorm, varnorm, a1, a2, b, a_dis, b_dis, ncores)
+                    
+                    if(any(!is.finite(temp))) browser()
                 
                     ## optimise twisting functions
                     output <- mclapply(1:ncol(temp), function(i, x, fn) {
                         x <- x[, i]
                         eta <- x[seq(1, length(x) - 1, by = 2)]
                         psi_it <- x[seq(2, length(x), by = 2)]
-                        temp <- optim(c(mean(eta) + 0.1, sd(eta) + 0.1, 1), fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
+                        temp <- try(optim(c(mean(eta) + 0.1, sd(eta) + 0.1, 1), fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000)), silent = TRUE)
+                        k <- 1
+                        while(class(temp) == "try-error" & k < 1000) {
+                            temp <- try(optim(c(rnorm(1, 0, 10), rexp(1, 0.1), rexp(1, 100)), fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000)), silent = TRUE)
+                            k <- k + 1
+                        }
                         k <- 1
                         while(temp$convergence != 0 & k < 10) {
                             temp <- optim(temp$par, fn, eta = eta, psi_it = psi_it, control = list(maxit = 5000))
