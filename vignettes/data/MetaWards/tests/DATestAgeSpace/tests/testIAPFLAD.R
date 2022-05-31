@@ -50,7 +50,7 @@ plot_data <- pivot_longer(filter(data, t <= 100), !t, names_to = "var", values_t
     
 ## run model with model discrepancy
 runs_md <- IAPF(pars[6, ], C = contact, data = data, u1_moves = u1_moves,
-    u1 = u1, ndays = 100, npart = 10, a_dis = 0.05, b_dis = 0.05, 
+    u1 = u1, ndays = 100, npart = 10, a_dis = 0.05, b_dis = 0.05, kmax = 15,
     a1 = 0.01, a2 = 0.2, b = 0.001, saveAll = TRUE, writeExt = TRUE, tau = 1.5)
 
 ## extract file names
@@ -62,7 +62,7 @@ lookup <- data.frame(var = c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "RI", "
     mutate(class = 0:(n() - 1))
     
 ## plot particle estimates of states at the national level
-sims_md <- map(files[1:20], function(y, folder, lookup) {
+sims_md <- map(files, function(y, folder, lookup) {
         read.csv(paste0(folder, "/", y), header = TRUE) %>%
             inner_join(lookup, by = "class") %>%
             select(!class) %>%
@@ -77,23 +77,12 @@ sims_md <- map(files[1:20], function(y, folder, lookup) {
     summarise(n = sum(n), .groups = "drop")    
     
 ## aggregate data
-p <- select(data, !ends_with("obs")) %>%
-    pivot_longer(!t, names_to = "var", values_to = "n") %>%
-    mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
-    mutate(LAD = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
-    mutate(age = gsub('(.*)_[0-9]*', '\\1', age)) %>%
-    mutate(var = gsub('^(.*)_[0-9]*_.*', '\\1', var)) %>%
+p <- filter(plot_data, !obs) %>%
     group_by(t, var, age) %>%
     summarise(n = sum(n), .groups = "drop")
 
 ## aggregate observed data   
-p_obs <- select(data, t, ends_with("obs")) %>%
-    pivot_longer(!t, names_to = "var", values_to = "n") %>%
-    mutate(var = gsub("obs", "", var)) %>%
-    mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
-    mutate(LAD = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
-    mutate(age = gsub('(.*)_[0-9]*', '\\1', age)) %>%
-    mutate(var = gsub('^(.*)_[0-9]*_.*', '\\1', var)) %>%
+pobs <- filter(plot_data, obs) %>%
     group_by(t, var, age) %>%
     summarise(n = sum(n), .groups = "drop")
 
@@ -143,8 +132,8 @@ p1[[2]] <- ggplot(sims_obs, aes(x = t)) +
 p1 <- wrap_plots(p1, nrow = 2, heights = c(0.8, 0.2))
 ggsave("simsTPF.pdf", p1, width = 10, height = 10)
 
-## plot particle estimates of states at the national level
-sims_md <- map(files[1:20], function(y, folder, lookup) {
+## plot particle estimates of states at the LAD level
+sims_md <- map(files, function(y, folder, lookup) {
         read.csv(paste0(folder, "/", y), header = TRUE) %>%
             inner_join(lookup, by = "class") %>%
             select(!class) %>%
@@ -155,28 +144,6 @@ sims_md <- map(files[1:20], function(y, folder, lookup) {
             mutate(LAD = as.character(LAD))
     }, folder = folder, lookup = lookup) %>%
     bind_rows(.id = "particle")
-   
-
-
-
-### plot particle estimates of states (unweighted)
-#sims_md <- map(runs_md$particles[[1]], ~{
-#        map(., function(y) {
-#            x <- matrix(y, prod(dim(y)[c(1, 3)]), dim(y)[2])
-#            colnames(x) <- paste0("age", 1:ncol(x))
-#            as_tibble(x) %>%
-#            mutate(var = rep(c("S", "E", "A", "RA", "P", "Ione", "DI", "Itwo", "RI", "H", "RH", "DH"), times = dim(y)[3])) %>%
-#            mutate(LAD = rep(1:dim(y)[3], each = dim(y)[1]))
-#        }) %>%
-#        bind_rows(.id = "particle")
-#    }) %>%
-#    bind_rows(.id = "t") %>%
-#    pivot_longer(!c(particle, t, var, LAD), names_to = "age", values_to = "n") %>%
-#    mutate(age = as.numeric(gsub("age", "", age))) %>%
-#    mutate(t = as.numeric(t) - 1) %>%
-#    mutate(LAD = as.character(LAD)) %>%
-#    mutate(var = gsub("one", "1", var)) %>%
-#    mutate(var = gsub("two", "2", var))
 
 ## extract LADs with largest epidemic load at day 100
 p <- select(data, t, !ends_with("obs") & starts_with("DI")) %>%
@@ -185,7 +152,7 @@ p <- select(data, t, !ends_with("obs") & starts_with("DI")) %>%
     mutate(LAD = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
     mutate(age = gsub('(.*)_[0-9]*', '\\1', age)) %>%
     mutate(var = gsub('^(.*)_[0-9]*_.*', '\\1', var)) %>%
-    filter(t == 50) %>%
+    filter(t == 100) %>%
     group_by(LAD) %>%
     summarise(n = sum(n), .groups = "drop") %>%
     arrange(desc(n)) %>%
