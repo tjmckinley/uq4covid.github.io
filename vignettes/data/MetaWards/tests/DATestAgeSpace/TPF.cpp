@@ -1211,7 +1211,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
 
 // [[Rcpp::export]]
 List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses, arma::uword nages, arma::uword nlads, arma::imat u1_moves, arma::ivec ncohorts, 
-         arma::icube u1_comb, arma::uword ndays, arma::uword npart, arma::mat munorm, arma::mat varnorm, int twist, double a1, double a2, double b, double a_dis, 
+         arma::icube u1_comb, arma::uword ndays, arma::uword npart, arma::mat munorm, arma::mat varnorm, double pmix, int twist, double a1, double a2, double b, double a_dis, 
          double b_dis, int saveAll, int writeExt, int returnPsi, int PF, int ncores) {
     
     // set counters
@@ -1527,7 +1527,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
         
         // loop over particles
 #ifdef _OPENMP
-#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, u1_moves, nages, nclasses, nlads, data, C, N_night, N_day, u1, u1_new, t, pars, weights, a_dis, b_dis, a1, a2, b, obsInc, PF, ncohorts, munorm, varnorm, twistnorm, tempdensx, condpars, twist, ndays)
+#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, u1_moves, nages, nclasses, nlads, data, C, N_night, N_day, u1, u1_new, t, pars, weights, a_dis, b_dis, a1, a2, b, obsInc, PF, ncohorts, munorm, varnorm, twistnorm, tempdensx, condpars, twist, ndays, pmix)
 #endif
         for(i = 0; i < npart; i++) {
     
@@ -1577,7 +1577,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             weights(i) = 0.0;
             
             // set auxiliary variables
-            double muy, sigma2y, pI1pI1D, pHpHD, u, temp1, temp2;
+            double muy, sigma2y, pI1pI1D, pHpHD, u, temp1, temp2, weight1, weight2, weightnorm;
             
             // if twisting, then sample new observations
             if(twist == 1) {
@@ -1591,22 +1591,48 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                     // set transition probability
                     pI1pI1D = pars(j + 4 * nages + 2) * pars(j + 6 * nages + 2);
                     for(l = 0; l < nlads; l++) {
+                    
+                        // sample from mixture density
+                        u = eng() / sitmo::prng::max();
+                        if(u < pmix) {
                         
-                        // sample simulator from twisted density
-                        tempdensx[i][w] = exp(tempdensx[i][w] - twistnorm[i](w));
-                        tempdensx[i][w] = tempdensx[i][w] / sum(tempdensx[i][w]);
-                        DIinc1(j, l) = rmultinom_cpp(tempdensx[i][w], eng);
+                            // sample simulator from twisted density
+                            tempdensx[i][w] = exp(tempdensx[i][w] - twistnorm[i](w));
+                            tempdensx[i][w] = tempdensx[i][w] / sum(tempdensx[i][w]);
+                            DIinc1(j, l) = rmultinom_cpp(tempdensx[i][w], eng);
+                            
+                            // sample MD conditional on simulator
+                            sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(5, j, l) * pI1pI1D;
+                            muy = varnorm(t, w) * DIinc1(j, l) + sigma2y * munorm(t, w);
+                            muy /= (varnorm(t, w) + sigma2y);
+                            sigma2y = sigma2y * varnorm(t, w) / (varnorm(t, w) + sigma2y);
+                            
+                            u = rtnorm_one((-0.5 - muy) / sqrt(sigma2y), (u1_night(5, j, l) + 0.5 - muy) / sqrt(sigma2y), eng);
+                            u = u * sqrt(sigma2y) + muy;
+                            DIinc(j, l) = (int) round(u);
+                            if(DIinc(j, l) < 0 || DIinc(j, l) > u1_night(5, j, l)) stop("Error in DIinc DI = %d u = %f uorig = %f LB = %f UB = %f mu = %f sigma2 = %f\n", DIinc(j, l), u, (u - muy) / sqrt(sigma2y), (-0.5 - muy) / sqrt(sigma2y), (u1_night(5, j, l) + 0.5 - muy) / sqrt(sigma2y), muy, sigma2y);
+                        } else {
+                            
+                            // sample x
+                            DIinc1(j, l) = rbinom_cpp(u1_night(5, j, l), pI1pI1D, eng);
+                            
+                            // sample y given x
+                            muy = (double) DIinc1(j, l);
+                            sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(5, j, l) * pI1pI1D;
+                            u = rtnorm_one((-0.5 - muy) / sqrt(sigma2y), (u1_night(5, j, l) + 0.5 - muy) / sqrt(sigma2y), eng);
+                            u = u * sqrt(sigma2y) + muy;
+                            DIinc(j, l) = (int) round(u);
+                            if(DIinc(j, l) < 0 || DIinc(j, l) > u1_night(5, j, l)) stop("Error in DIinc DI = %d u = %f uorig = %f LB = %f UB = %f mu = %f sigma2 = %f\n", DIinc(j, l), u, (u - muy) / sqrt(sigma2y), (-0.5 - muy) / sqrt(sigma2y), (u1_night(5, j, l) + 0.5 - muy) / sqrt(sigma2y), muy, sigma2y);
+                        }
                         
-                        // sample MD conditional on simulator
-                        sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(5, j, l) * pI1pI1D;
-                        muy = varnorm(t, w) * DIinc1(j, l) + sigma2y * munorm(t, w);
-                        muy /= (varnorm(t, w) + sigma2y);
-                        sigma2y = sigma2y * varnorm(t, w) / (varnorm(t, w) + sigma2y);
-                        
-                        u = rtnorm_one((-0.5 - muy) / sqrt(sigma2y), (u1_night(5, j, l) + 0.5 - muy) / sqrt(sigma2y), eng);
-                        u = u * sqrt(sigma2y) + muy;
-                        DIinc(j, l) = (int) round(u);
-                        if(DIinc(j, l) < 0 || DIinc(j, l) > u1_night(5, j, l)) stop("Error in DIinc DI = %d u = %f uorig = %f LB = %f UB = %f mu = %f sigma2 = %f\n", DIinc(j, l), u, (u - muy) / sqrt(sigma2y), (-0.5 - muy) / sqrt(sigma2y), (u1_night(5, j, l) + 0.5 - muy) / sqrt(sigma2y), muy, sigma2y);
+                        // particle weights
+                        if(t == 0) {
+                            weight1 = log(pmix) + twistnorm[i](w);
+                            weight2 = log(1.0 - pmix);
+                            weightnorm = (weight1 > weight2 ? weight1:weight2);
+                            weightnorm += log(exp(weight1 - weightnorm) + exp(weight2 - weightnorm));
+                            weights(i) += weightnorm;
+                        }
                         
                         // observation error for given incidence
                         weights(i) += ldtskellam_cpp(
@@ -1619,24 +1645,8 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             0
                         );
                         
-                        // adjust weights for twisting functions
-                        temp1 = R::pnorm(DIinc(j, l) - 0.5, muy, sqrt(sigma2y), 1, 1);
-                        temp2 = R::pnorm(DIinc(j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
-                        temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
-                        if(!arma::is_finite(temp1)) {
-                            mp::mpf_float::default_precision(1000);
-                            mp::mpf_float temp1_mpfr = R::pnorm(DIinc(j, l) - 0.5, muy, sqrt(sigma2y), 1, 1);
-                            mp::mpf_float temp2_mpfr = R::pnorm(DIinc(j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
-                            temp1_mpfr = temp2_mpfr + mp::log(1.0 - mp::exp(temp1_mpfr - temp2_mpfr));
-                            temp1 = temp1_mpfr.convert_to<double>();
-//                            Rprintf("temp1 = %f\n", temp1);
-                        }
-                        weights(i) -= temp1;
-                        
-                        sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(5, j, l) * pI1pI1D;
-                        weights(i) += 0.5 * pow(DIinc1(j, l) - munorm(t, w), 2.0) / (sigma2y + varnorm(t, w));
-                        
                         // adjust weights for target
+                        sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(5, j, l) * pI1pI1D;
                         temp1 = R::pnorm(DIinc(j, l) - 0.5, DIinc1(j, l), sqrt(sigma2y), 1, 1);
                         temp2 = R::pnorm(DIinc(j, l) + 0.5, DIinc1(j, l), sqrt(sigma2y), 1, 1);
                         temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
@@ -1649,7 +1659,34 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
 //                            Rprintf("temp1 = %f\n", temp1);
                         }
                         weights(i) += temp1;
-                        if(t == 0) weights(i) += twistnorm[i](w);
+                        
+                        // adjust weights for twisting functions
+                        weight2 = log(1.0 - pmix);
+                        weight2 += temp1;
+                        
+                        weight1 = log(pmix);
+                        weight1 -= 0.5 * pow(DIinc1(j, l) - munorm(t, w), 2.0) / (sigma2y + varnorm(t, w));
+                        
+                        muy = varnorm(t, w) * DIinc1(j, l) + sigma2y * munorm(t, w);
+                        muy /= (varnorm(t, w) + sigma2y);
+                        sigma2y = sigma2y * varnorm(t, w) / (varnorm(t, w) + sigma2y);
+                        
+                        temp1 = R::pnorm(DIinc(j, l) - 0.5, muy, sqrt(sigma2y), 1, 1);
+                        temp2 = R::pnorm(DIinc(j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
+                        temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+                        if(!arma::is_finite(temp1)) {
+                            mp::mpf_float::default_precision(1000);
+                            mp::mpf_float temp1_mpfr = R::pnorm(DIinc(j, l) - 0.5, muy, sqrt(sigma2y), 1, 1);
+                            mp::mpf_float temp2_mpfr = R::pnorm(DIinc(j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
+                            temp1_mpfr = temp2_mpfr + mp::log(1.0 - mp::exp(temp1_mpfr - temp2_mpfr));
+                            temp1 = temp1_mpfr.convert_to<double>();
+//                            Rprintf("temp1 = %f\n", temp1);
+                        }
+                        weight1 += temp1;
+                        
+                        weightnorm = (weight1 > weight2 ? weight1:weight2);
+                        weightnorm += log(exp(weight1 - weightnorm) + exp(weight2 - weightnorm));
+                        weights(i) -= weightnorm;
                         
                         // store incidence for redistribution
                         tempMD(6, j, l) = DIinc1(j, l);
@@ -1665,22 +1702,48 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                     // extract transition probabilities
                     pHpHD = pars(j + 8 * nages + 2) * pars(j + 9 * nages + 2);
                     for(l = 0; l < nlads; l++) {
+                    
+                        // sample from mixture density
+                        u = eng() / sitmo::prng::max();
+                        if(u < pmix) {
                         
-                        // sample simulator from twisted density
-                        tempdensx[i][w] = exp(tempdensx[i][w] - twistnorm[i](w));
-                        tempdensx[i][w] = tempdensx[i][w] / sum(tempdensx[i][w]);
-                        DHinc1(j, l) = rmultinom_cpp(tempdensx[i][w], eng);
+                            // sample simulator from twisted density
+                            tempdensx[i][w] = exp(tempdensx[i][w] - twistnorm[i](w));
+                            tempdensx[i][w] = tempdensx[i][w] / sum(tempdensx[i][w]);
+                            DHinc1(j, l) = rmultinom_cpp(tempdensx[i][w], eng);
+                            
+                            // sample MD conditional on simulator
+                            sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(9, j, l) * pHpHD;
+                            muy = varnorm(t, w) * DHinc1(j, l) + sigma2y * munorm(t, w);
+                            muy /= (varnorm(t, w) + sigma2y);
+                            sigma2y = sigma2y * varnorm(t, w) / (varnorm(t, w) + sigma2y);
+                            
+                            u = rtnorm_one((-0.5 - muy) / sqrt(sigma2y), (u1_night(9, j, l) + 0.5 - muy) / sqrt(sigma2y), eng);
+                            u = u * sqrt(sigma2y) + muy;
+                            DHinc(j, l) = (int) round(u);
+                            if(DHinc(j, l) < 0 || DHinc(j, l) > u1_night(9, j, l)) stop("Error in DHinc\n");
+                        } else {
+                            
+                            // sample x
+                            DHinc1(j, l) = rbinom_cpp(u1_night(9, j, l), pHpHD, eng);
+                            
+                            // sample y given x
+                            muy = (double) DHinc1(j, l);
+                            sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(9, j, l) * pHpHD;
+                            u = rtnorm_one((-0.5 - muy) / sqrt(sigma2y), (u1_night(9, j, l) + 0.5 - muy) / sqrt(sigma2y), eng);
+                            u = u * sqrt(sigma2y) + muy;
+                            DHinc(j, l) = (int) round(u);
+                            if(DHinc(j, l) < 0 || DHinc(j, l) > u1_night(9, j, l)) stop("Error in DHinc\n");
+                        }
                         
-                        // sample MD conditional on simulator
-                        sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(9, j, l) * pHpHD;
-                        muy = varnorm(t, w) * DHinc1(j, l) + sigma2y * munorm(t, w);
-                        muy /= (varnorm(t, w) + sigma2y);
-                        sigma2y = sigma2y * varnorm(t, w) / (varnorm(t, w) + sigma2y);
-                        
-                        u = rtnorm_one((-0.5 - muy) / sqrt(sigma2y), (u1_night(9, j, l) + 0.5 - muy) / sqrt(sigma2y), eng);
-                        u = u * sqrt(sigma2y) + muy;
-                        DHinc(j, l) = (int) round(u);
-                        if(DHinc(j, l) < 0 || DHinc(j, l) > u1_night(9, j, l)) stop("Error in DHinc\n");
+                        // particle weights
+                        if(t == 0) {
+                            weight1 = log(pmix) + twistnorm[i](w);
+                            weight2 = log(1.0 - pmix);
+                            weightnorm = (weight1 > weight2 ? weight1:weight2);
+                            weightnorm += log(exp(weight1 - weightnorm) + exp(weight2 - weightnorm));
+                            weights(i) += weightnorm;
+                        }
                         
                         // observation error for given incidence
                         weights(i) += ldtskellam_cpp(
@@ -1693,23 +1756,8 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             0
                         );
                         
-                        // adjust weights for twisting functions
-                        temp1 = R::pnorm(DHinc(j, l) - 0.5, muy, sqrt(sigma2y), 1, 1);
-                        temp2 = R::pnorm(DHinc(j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
-                        temp1 = temp2 + log(1.0 - exp(temp1 - temp2)); 
-                        if(!arma::is_finite(temp1)) {
-                            mp::mpf_float::default_precision(1000);
-                            mp::mpf_float temp1_mpfr = R::pnorm(DHinc(j, l) - 0.5, muy, sqrt(sigma2y), 1, 1);
-                            mp::mpf_float temp2_mpfr = R::pnorm(DHinc(j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
-                            temp1_mpfr = temp2_mpfr + mp::log(1.0 - mp::exp(temp1_mpfr - temp2_mpfr));
-                            temp1 = temp1_mpfr.convert_to<double>();
-                        }                 
-                        weights(i) -= temp1;
-                        
-                        sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(9, j, l) * pHpHD;
-                        weights(i) += 0.5 * pow(DHinc1(j, l) - munorm(t, w), 2.0) / (sigma2y + varnorm(t, w));
-                        
                         // adjust weights for target
+                        sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(9, j, l) * pHpHD;
                         temp1 = R::pnorm(DHinc(j, l) - 0.5, DHinc1(j, l), sqrt(sigma2y), 1, 1);
                         temp2 = R::pnorm(DHinc(j, l) + 0.5, DHinc1(j, l), sqrt(sigma2y), 1, 1);
                         temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
@@ -1721,7 +1769,33 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             temp1 = temp1_mpfr.convert_to<double>();
                         }
                         weights(i) += temp1;
-                        if(t == 0) weights(i) += twistnorm[i](w);
+                        
+                        // adjust weights for twisting functions
+                        weight2 = log(1.0 - pmix);
+                        weight2 += temp1;
+                        
+                        weight1 = log(pmix);
+                        weight1 -= 0.5 * pow(DHinc1(j, l) - munorm(t, w), 2.0) / (sigma2y + varnorm(t, w));
+                        
+                        muy = varnorm(t, w) * DHinc1(j, l) + sigma2y * munorm(t, w);
+                        muy /= (varnorm(t, w) + sigma2y);
+                        sigma2y = sigma2y * varnorm(t, w) / (varnorm(t, w) + sigma2y);
+                        
+                        temp1 = R::pnorm(DHinc(j, l) - 0.5, muy, sqrt(sigma2y), 1, 1);
+                        temp2 = R::pnorm(DHinc(j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
+                        temp1 = temp2 + log(1.0 - exp(temp1 - temp2)); 
+                        if(!arma::is_finite(temp1)) {
+                            mp::mpf_float::default_precision(1000);
+                            mp::mpf_float temp1_mpfr = R::pnorm(DHinc(j, l) - 0.5, muy, sqrt(sigma2y), 1, 1);
+                            mp::mpf_float temp2_mpfr = R::pnorm(DHinc(j, l) + 0.5, muy, sqrt(sigma2y), 1, 1);
+                            temp1_mpfr = temp2_mpfr + mp::log(1.0 - mp::exp(temp1_mpfr - temp2_mpfr));
+                            temp1 = temp1_mpfr.convert_to<double>();
+                        }                 
+                        weight1 += temp1;
+                        
+                        weightnorm = (weight1 > weight2 ? weight1:weight2);
+                        weightnorm += log(exp(weight1 - weightnorm) + exp(weight2 - weightnorm));
+                        weights(i) -= weightnorm;
                         
                         // store incidence for redistribution
                         tempMD(11, j, l) = DHinc1(j, l);
@@ -2088,7 +2162,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                 int w = 0;
                 
                 // set auxiliary variables
-                double muy, sigma2y, temp1, temp2, pI1pI1D, pHpHD;
+                double muy, sigma2y, temp1, temp2, pI1pI1D, pHpHD, weights1, weights2, weightnorm;
                 
                 // DI      
                 for(j = 0; j < nages; j++) {
@@ -2145,7 +2219,11 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         twistnorm[i](w) = log_sum_exp(tempdensx[i][w], 0);
                         
                         // update weights
-                        weights(i) += twistnorm[i](w);
+                        weight1 = log(pmix) + twistnorm[i](w);
+                        weight2 = log(1.0 - pmix);
+                        weightnorm = (weight1 > weight2 ? weight1:weight2);
+                        weightnorm += log(exp(weight1 - weightnorm) + exp(weight2 - weightnorm));
+                        weights(i) += weightnorm;
                         
                         // increment counter
                         w++;
@@ -2207,7 +2285,11 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         twistnorm[i](w) = log_sum_exp(tempdensx[i][w], 0);
                         
                         // update weights
-                        weights(i) += twistnorm[i](w);
+                        weight1 = log(pmix) + twistnorm[i](w);
+                        weight2 = log(1.0 - pmix);
+                        weightnorm = (weight1 > weight2 ? weight1:weight2);
+                        weightnorm += log(exp(weight1 - weightnorm) + exp(weight2 - weightnorm));
+                        weights(i) += weightnorm;
                         
                         // increment counter
                         w++;
@@ -2395,7 +2477,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
 
 // [[Rcpp::export]]
 arma::mat TPF_rates_cpp (arma::vec pars, arma::ivec data, arma::uword nages, arma::uword nlads, arma::cube psi, 
-    arma::uword npart, arma::vec munorm, arma::vec varnorm, double a1, double a2, double b, double a_dis, double b_dis, int ncores) {
+    arma::uword npart, arma::vec munorm, arma::vec varnorm, double pmix, double a1, double a2, double b, double a_dis, double b_dis, int ncores) {
     
     // set counters
     arma::uword i, j, l;
@@ -2415,7 +2497,7 @@ arma::mat TPF_rates_cpp (arma::vec pars, arma::ivec data, arma::uword nages, arm
     sitmo::prng engSerial(coreseedSerial);
 
 #ifdef _OPENMP
-#pragma omp parallel for default(none) private(j, l) shared(seeds, npart, nages, nlads, pars, a1, a2, b, a_dis, b_dis, munorm, varnorm, twistnorm, psi, data)
+#pragma omp parallel for default(none) private(j, l) shared(seeds, npart, nages, nlads, pars, a1, a2, b, a_dis, b_dis, munorm, varnorm, twistnorm, psi, data, pmix)
 #endif
     for(i = 0; i < npart; i++) {
 
@@ -2488,7 +2570,10 @@ arma::mat TPF_rates_cpp (arma::vec pars, arma::ivec data, arma::uword nages, arm
                 }
                 
                 // calculate normalising constant
-                twistnorm(i * 2 + 1, w) = log_sum_exp(tempdensx, 0);
+                temp1 = log(pmix) + log_sum_exp(tempdensx, 0);
+                temp2 = log(1.0 - pmix);
+                twistnorm(i * 2 + 1, w) = (temp1 > temp2 ? temp1:temp2);
+                twistnorm(i * 2 + 1, w) += log(exp(temp1 - twistnorm(i * 2 + 1, w)) + exp(temp2 - twistnorm(i * 2 + 1, w)));
                 
                 // observation error for given incidence
                 twistnorm(i * 2 + 1, w) += ldtskellam_cpp(
@@ -2561,7 +2646,10 @@ arma::mat TPF_rates_cpp (arma::vec pars, arma::ivec data, arma::uword nages, arm
                 }
                 
                 // calculate normalising constant
-                twistnorm(i * 2 + 1, w) = log_sum_exp(tempdensx, 0);
+                temp1 = log(pmix) + log_sum_exp(tempdensx, 0);
+                temp2 = log(1.0 - pmix);
+                twistnorm(i * 2 + 1, w) = (temp1 > temp2 ? temp1:temp2);
+                twistnorm(i * 2 + 1, w) += log(exp(temp1 - twistnorm(i * 2 + 1, w)) + exp(temp2 - twistnorm(i * 2 + 1, w)));
                 
                 // observation error for given incidence
                 twistnorm(i * 2 + 1, w) += ldtskellam_cpp(

@@ -23,13 +23,14 @@ log_sum_exp <- function(x, mn = FALSE) {
 ## kstop: stopping criteria for IAPF
 ## obsScale: scaling parameter for Skellam observation process (see code)
 ## a1, a2, b: parameters for Skellam observation process
+## pmix: mixing proportion for twisting functions
 ## saveAll: a logical specifying whether to return all states (if FALSE then returns just observed states))
 ## writeExt: a logical denoting whether to save particles externally or not
 ## PF:      a logical denoting whether to run a particle filter, or just simulate from the model
 ## ncores:  the number of cores for OpenMP parallelisation (if NA then defaults to all available cores)
 
 IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, kmax = 3, tau = 1, a1 = 0.01, a2 = 0.2, b = 0.1, 
-               a_dis = 0.05, b_dis = 0.5, saveAll = NA, writeExt = FALSE, PF = TRUE, ncores = NA) {
+               a_dis = 0.05, b_dis = 0.5, pmix = 0.9, saveAll = NA, writeExt = FALSE, PF = TRUE, ncores = NA) {
                
     ## set default for saveAll if PF = FALSE
     if(!PF & is.na(saveAll)) saveAll <- TRUE
@@ -71,7 +72,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, kmax
     }
     
     ## run particle filter for each set of inputs
-    runs <- lapply(1:nrow(pars), function(k, pars, C, u1_moves, ncohorts, u1, npart, kstop, tau, ndays, data, a1, a2, b, a_dis, b_dis, saveAll, writeExt, PF, ncores) {
+    runs <- lapply(1:nrow(pars), function(k, pars, C, u1_moves, ncohorts, u1, npart, kstop, tau, ndays, data, a1, a2, b, a_dis, b_dis, pmix, saveAll, writeExt, PF, ncores) {
         
         if(PF == 1) {
             ## extract observations
@@ -101,13 +102,13 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, kmax
             
             ## run particle filter
             particles <- TPF_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
-                npart, matrix(0, 1, 1), matrix(1, 1, 1), 0, a1, a2, b, a_dis, b_dis, saveAll, writeExt, 0, PF, ncores)
+                npart, matrix(0, 1, 1), matrix(1, 1, 1), pmix, 0, a1, a2, b, a_dis, b_dis, saveAll, writeExt, 0, PF, ncores)
             return(particles)
         }
         
         ## run particle filter
         particles <- TPF_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
-            npart, matrix(0, 1, 1), matrix(1, 1, 1), 0, a1, a2, b, a_dis, b_dis, saveAll, writeExt, 1, PF, ncores)
+            npart, matrix(0, 1, 1), matrix(1, 1, 1), pmix, 0, a1, a2, b, a_dis, b_dis, saveAll, writeExt, 1, PF, ncores)
             
         ## extract particles
         ll <- particles$ll
@@ -212,7 +213,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, kmax
                 
                     ## generate filter rates
                     temp <- particles[(npart[kcurr] * (t - 1)  * 4 + 1):(npart[kcurr] * t * 4), , ]
-                    temp <- TPF_rates_cpp(pars, data[t, ], 8, 339, temp, npart[kcurr], munorm, varnorm, a1, a2, b, a_dis, b_dis, ncores)
+                    temp <- TPF_rates_cpp(pars, data[t, ], 8, 339, temp, npart[kcurr], munorm, varnorm, pmix, a1, a2, b, a_dis, b_dis, ncores)
                     
                     if(any(!is.finite(temp))) browser()
                 
@@ -277,7 +278,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, kmax
                 ## run particle filter
                 cat(paste0("\nRunning model (npart = ", npart[kcurr], ")\n"))
                 particles <- TPF_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
-                    npart[kcurr], psimu, psivar, 1, a1, a2, b, a_dis, b_dis, saveAll, writeExt, 1, PF, ncores)
+                    npart[kcurr], psimu, psivar, pmix, 1, a1, a2, b, a_dis, b_dis, saveAll, writeExt, 1, PF, ncores)
             
                 ## extract particles
                 ll <- c(ll, particles$ll)
@@ -295,7 +296,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, kmax
         } else {
             return(list(ll = ll[length(ll)]))
         }
-    }, pars = pars, C = C, u1_moves = u1_moves, ncohorts = ncohorts, u1 = u1, npart = npart, kstop = kstop, tau = tau, ndays = ndays, data = data, a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis, saveAll = saveAllint, writeExt = writeExtint, PF = PFint, ncores = ncores)
+    }, pars = pars, C = C, u1_moves = u1_moves, ncohorts = ncohorts, u1 = u1, npart = npart, kstop = kstop, tau = tau, ndays = ndays, data = data, a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis, pmix = pmix, saveAll = saveAllint, writeExt = writeExtint, PF = PFint, ncores = ncores)
     if(!is.na(saveAll)) {
         if(!writeExt) {
             if(PF) {
