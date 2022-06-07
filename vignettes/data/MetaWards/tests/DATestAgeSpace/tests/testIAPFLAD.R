@@ -64,17 +64,15 @@ lookup <- data.frame(var = c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "RI", "
 ## plot particle estimates of states at the national level
 sims_md <- map(files, function(y, folder, lookup) {
         read.csv(paste0(folder, "/", y), header = TRUE) %>%
+            group_by(time, class) %>%
+            summarise(across(!lad, sum), .groups = "drop") %>%
             inner_join(lookup, by = "class") %>%
             select(!class) %>%
             rename(t = time) %>%
-            pivot_longer(!c(t, var, lad), names_to = "age", values_to = "n") %>%
-            mutate(age = as.numeric(gsub("age", "", age))) %>%
-            rename(LAD = lad) %>%
-            mutate(LAD = as.character(LAD))
+            pivot_longer(!c(t, var), names_to = "age", values_to = "n") %>%
+            mutate(age = as.numeric(gsub("age", "", age)))
     }, folder = folder, lookup = lookup) %>%
-    bind_rows(.id = "particle") %>%
-    group_by(particle, t, var, age) %>%
-    summarise(n = sum(n), .groups = "drop")    
+    bind_rows(.id = "particle")   
     
 ## aggregate data
 p <- filter(plot_data, !obs) %>%
@@ -132,19 +130,6 @@ p1[[2]] <- ggplot(sims_obs, aes(x = t)) +
 p1 <- wrap_plots(p1, nrow = 2, heights = c(0.8, 0.2))
 ggsave("simsTPF.pdf", p1, width = 10, height = 10)
 
-## plot particle estimates of states at the LAD level
-sims_md <- map(files, function(y, folder, lookup) {
-        read.csv(paste0(folder, "/", y), header = TRUE) %>%
-            inner_join(lookup, by = "class") %>%
-            select(!class) %>%
-            rename(t = time) %>%
-            pivot_longer(!c(t, var, lad), names_to = "age", values_to = "n") %>%
-            mutate(age = as.numeric(gsub("age", "", age))) %>%
-            rename(LAD = lad) %>%
-            mutate(LAD = as.character(LAD))
-    }, folder = folder, lookup = lookup) %>%
-    bind_rows(.id = "particle")
-
 ## extract LADs with largest epidemic load at day 100
 p <- select(data, t, !ends_with("obs") & starts_with("DI")) %>%
     pivot_longer(!t, names_to = "var", values_to = "n") %>%
@@ -165,6 +150,20 @@ pobs <- inner_join(p,
         mutate(LAD = gsub("obs", "", LAD)),
     by = "LAD"
 )
+
+## plot particle estimates of states at the LAD level
+sims_md <- map(files, function(y, folder, lookup, toplads) {
+        read.csv(paste0(folder, "/", y), header = TRUE) %>%
+            inner_join(toplads, by = c("lad" = "LAD")) %>%
+            inner_join(lookup, by = "class") %>%
+            select(!class) %>%
+            rename(t = time) %>%
+            pivot_longer(!c(t, var, lad), names_to = "age", values_to = "n") %>%
+            mutate(age = as.numeric(gsub("age", "", age))) %>%
+            rename(LAD = lad) %>%
+            mutate(LAD = as.character(LAD))
+    }, folder = folder, lookup = lookup, toplads = mutate(p, LAD = as.numeric(LAD))) %>%
+    bind_rows(.id = "particle")
 
 ## extract simulations for observed states
 sims_obs <- inner_join(p, sims_md, by = "LAD") %>%
