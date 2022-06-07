@@ -58,8 +58,18 @@ folder <- "saveOut"
 files <- list.files(folder)
 
 ## lookup table
-lookup <- data.frame(var = c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "RI", "H", "RH", "DH")) %>%
+lookup <- data.frame(var = c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "RI", "H", "RH", "DH", "DIobs", "DHobs")) %>%
     mutate(class = 0:(n() - 1))
+    
+## aggregate data
+p <- filter(plot_data, !obs) %>%
+    group_by(t, var, age) %>%
+    summarise(n = sum(n), .groups = "drop")
+
+## aggregate observed data   
+pobs <- filter(plot_data, obs) %>%
+    group_by(t, var, age) %>%
+    summarise(n = sum(n), .groups = "drop")
     
 ## plot particle estimates of states at the national level
 sims_md <- map(files, function(y, folder, lookup) {
@@ -72,20 +82,10 @@ sims_md <- map(files, function(y, folder, lookup) {
             pivot_longer(!c(t, var), names_to = "age", values_to = "n") %>%
             mutate(age = as.numeric(gsub("age", "", age)))
     }, folder = folder, lookup = lookup) %>%
-    bind_rows(.id = "particle")   
-    
-## aggregate data
-p <- filter(plot_data, !obs) %>%
-    group_by(t, var, age) %>%
-    summarise(n = sum(n), .groups = "drop")
-
-## aggregate observed data   
-pobs <- filter(plot_data, obs) %>%
-    group_by(t, var, age) %>%
-    summarise(n = sum(n), .groups = "drop")
+    bind_rows(.id = "particle")
 
 ## summarise simulations
-sims_obs <- filter(sims_md, var %in% unique(pobs$var)) %>%
+sims_obs <- filter(sims_md, var %in% paste0(unique(pobs$var), "obs")) %>%
     group_by(var, age, t) %>%
     summarise(
         LCI = quantile(n, probs = 0.025),
@@ -94,10 +94,12 @@ sims_obs <- filter(sims_md, var %in% unique(pobs$var)) %>%
         UQ = quantile(n, probs = 0.75),
         UCI = quantile(n, probs = 0.975),
         .groups = "drop"
-    )
+    ) %>%
+    mutate(var = gsub("obs", "", var))
     
 ## summarise simulations
-sims_md <- group_by(sims_md, var, age, t) %>%
+sims_md <- filter(sims_md, !(var %in% paste0(unique(pobs$var), "obs"))) %>%
+    group_by(var, age, t) %>%
     summarise(
         LCI = quantile(n, probs = 0.025),
         LQ = quantile(n, probs = 0.25),
@@ -167,7 +169,7 @@ sims_md <- map(files, function(y, folder, lookup, toplads) {
 
 ## extract simulations for observed states
 sims_obs <- inner_join(p, sims_md, by = "LAD") %>%
-    filter(var %in% unique(pobs$var)) %>%
+    filter(var %in% paste0(unique(pobs$var), "obs")) %>%
     group_by(var, LAD, age, t) %>%
     summarise(
         LCI = quantile(n, probs = 0.025),
@@ -176,10 +178,12 @@ sims_obs <- inner_join(p, sims_md, by = "LAD") %>%
         UQ = quantile(n, probs = 0.75),
         UCI = quantile(n, probs = 0.975),
         .groups = "drop"
-    )
+    ) %>%
+    mutate(var = gsub("obs", "", var))
     
 ## extract simulations for all states
 sims_md <- inner_join(p, sims_md, by = "LAD") %>%
+    filter(!(var %in% paste0(unique(pobs$var), "obs"))) %>%
     group_by(var, LAD, age, t) %>%
     summarise(
         LCI = quantile(n, probs = 0.025),

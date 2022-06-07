@@ -1230,8 +1230,13 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
         tempdensx[i] = std::vector<arma::vec> (munorm.n_cols);
         tempdensx1[i] = std::vector<arma::vec> (munorm.n_cols);
     }
-    arma::icube u1_night_full(nclasses, nages, nlads); u1_night_full.zeros();
-    arma::icube u1_night_reduced(2, nages, nlads); u1_night_reduced.zeros();
+    arma::icube u1_night_full(nclasses + 2, nages, nlads); u1_night_full.zeros();
+    arma::icube u1_night_reduced(4, nages, nlads); u1_night_reduced.zeros();
+    std::vector<arma::icube> u1_night_obs(npart);
+    std::vector<arma::icube> u1_night_obs1(npart);
+    for(i = 0; i < npart; i++) {
+        u1_night_obs[i] = arma::icube (2, nages, nlads); u1_night_obs[i].zeros();
+    }
     arma::icube psi(4 * npart * ndays, nages, nlads); psi.zeros();
     arma::imat N_day(nages, nlads); N_day.zeros();
     arma::imat N_night(nages, nlads); N_night.zeros();
@@ -1257,11 +1262,25 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
     // set up auxiliary objects    
     arma::ivec obsInc (data.n_cols); obsInc.zeros();
     
+    // sample seeds to set up thread-safe PRNGs
+#ifdef _OPENMP
+    omp_set_num_threads(ncores);
+#endif
+    arma::vec seeds(ncores);
+    for(i = 0; i < ncores; i++) {
+        seeds(i) = R::rnorm(0.0, 100.0);
+    }
+    uint32_t coreseedSerial = static_cast<uint32_t>(R::rnorm(0.0, 100.0));
+    sitmo::prng engSerial(coreseedSerial);
+    
     // check which output required
     List out (npart * (ndays + 1));
     std::ofstream file;
     char file_name[128];
     if(saveAll != 0) {
+        // set up print string for debugging
+        char str1[80];
+        std::strcpy(str1, "save");
         if(saveAll == 1) {
             for(i = 0; i < npart; i++) {
                 // extract just counts for DI and DH
@@ -1270,6 +1289,30 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                     for(j = 0; j < nages; j++) {
                         u1_night_reduced(0, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](6, j, l);
                         u1_night_reduced(1, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](11, j, l);
+                        // incidence
+                        u1_night_reduced(2, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](6, j, l);
+                        u1_night_reduced(3, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](11, j, l);
+                    }
+                }
+                // apply observation error
+                for(l = 0; l < nlads; l++) {
+                    for(j = 0; j < nages; j++) {
+                        u1_night_reduced(2, j, l) += rtskellam_cpp(
+                            a1 + b * u1_night_reduced(2, j, l),
+                            a1 + b * u1_night_reduced(2, j, l),
+                            str1,
+                            engSerial,
+                            -u1_night_reduced(2, j, l),
+                            obsInc(j * nlads + l));
+                        u1_night_reduced(3, j, l) += rtskellam_cpp(
+                            a1 + b * u1_night_reduced(3, j, l),
+                            a1 + b * u1_night_reduced(3, j, l),
+                            str1,
+                            engSerial,
+                            -u1_night_reduced(3, j, l),
+                            obsInc(nlads * nages + j * nlads + l));
+                        u1_night_obs[i](0, j, l) = u1_night_reduced(2, j, l);
+                        u1_night_obs[i](1, j, l) = u1_night_reduced(3, j, l);
                     }
                 }
                 if(writeExt == 0) {
@@ -1281,7 +1324,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                     for(j = 0; j < nages; j++) file << "age" << j + 1 << ", ";
                     file << "lad\n";
                     for(l = 0; l < nlads; l++) {
-                        for(arma::uword r = 0; r < 2; r++) {
+                        for(arma::uword r = 0; r < 4; r++) {
                             file << t << ", " << r << ", ";
                             for(j = 0; j < nages; j++) {
                                 file << u1_night_reduced(r, j, l) << ", ";
@@ -1300,6 +1343,30 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         for(k = 0; k < nclasses; k++) {
                             u1_night_full(k, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](k, j, l);
                         }
+                        // incidence
+                        u1_night_full(nclasses, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](6, j, l);
+                        u1_night_full(nclasses + 1, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](11, j, l);
+                    }
+                }
+                // apply observation error
+                for(l = 0; l < nlads; l++) {
+                    for(j = 0; j < nages; j++) {
+                        u1_night_full(nclasses, j, l) += rtskellam_cpp(
+                            a1 + b * u1_night_full(nclasses, j, l),
+                            a1 + b * u1_night_full(nclasses, j, l),
+                            str1,
+                            engSerial,
+                            -u1_night_full(nclasses, j, l),
+                            obsInc(j * nlads + l));
+                        u1_night_full(nclasses + 1, j, l) += rtskellam_cpp(
+                            a1 + b * u1_night_full(nclasses + 1, j, l),
+                            a1 + b * u1_night_full(nclasses + 1, j, l),
+                            str1,
+                            engSerial,
+                            -u1_night_full(nclasses + 1, j, l),
+                            obsInc(nlads * nages + j * nlads + l));
+                        u1_night_obs[i](0, j, l) = u1_night_full(nclasses, j, l);
+                        u1_night_obs[i](1, j, l) = u1_night_full(nclasses + 1, j, l);
                     }
                 }
                 if(writeExt == 0) {
@@ -1311,7 +1378,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                     for(j = 0; j < nages; j++) file << "age" << j + 1 << ", ";
                     file << "lad\n";
                     for(l = 0; l < nlads; l++) {
-                        for(arma::uword r = 0; r < nclasses; r++) {
+                        for(arma::uword r = 0; r < (nclasses + 2); r++) {
                             file << t << ", " << r << ", ";
                             for(j = 0; j < nages; j++) {
                                 file << u1_night_full(r, j, l) << ", ";
@@ -1344,17 +1411,6 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
         condpars(j + 8 * nages + 2) /= (1.0 - pars(j + 8 * nages + 2) * pars(j + 9 * nages + 2));
         condpars(j + 9 * nages + 2) = 0.0;
     }
-    
-    // sample seeds to set up thread-safe PRNGs
-#ifdef _OPENMP
-    omp_set_num_threads(ncores);
-#endif
-    arma::vec seeds(ncores);
-    for(i = 0; i < ncores; i++) {
-        seeds(i) = R::rnorm(0.0, 100.0);
-    }
-    uint32_t coreseedSerial = static_cast<uint32_t>(R::rnorm(0.0, 100.0));
-    sitmo::prng engSerial(coreseedSerial);
             
     // if twisting, then calculate first normalising constants
     if(twist == 1) {
@@ -2301,6 +2357,121 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             seeds((arma::uword) omp_get_thread_num()) = eng();
         }
         
+        // save particles if necessary
+        if(saveAll != 0) {
+            // set up print string for debugging
+            char str1[80];
+            std::strcpy(str1, "save");
+            if(saveAll == 1) {
+                for(i = 0; i < npart; i++) {
+                    // extract just counts for DI and DH
+                    u1_night_reduced.zeros();
+                    for(l = 0; l < u1_moves.n_rows; l++) {
+                        for(j = 0; j < nages; j++) {
+                            u1_night_reduced(0, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](6, j, l);
+                            u1_night_reduced(1, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](11, j, l);
+                            // incidence
+                            u1_night_reduced(2, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](6, j, l) - u1[i](6, j, l));
+                            u1_night_reduced(3, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](11, j, l) - u1[i](11, j, l));
+                        }
+                    }
+                    // adjust for observation error
+                    for(l = 0; l < nlads; l++) {
+                        for(j = 0; j < nages; j++) {
+                            u1_night_reduced(2, j, l) += rtskellam_cpp(
+                                a1 + b * u1_night_reduced(2, j, l),
+                                a1 + b * u1_night_reduced(2, j, l),
+                                str1,
+                                engSerial,
+                                -u1_night_reduced(2, j, l),
+                                obsInc(j * nlads + l));
+                            u1_night_reduced(3, j, l) += rtskellam_cpp(
+                                a1 + b * u1_night_reduced(3, j, l),
+                                a1 + b * u1_night_reduced(3, j, l),
+                                str1,
+                                engSerial,
+                                -u1_night_reduced(3, j, l),
+                                obsInc(nlads * nages + j * nlads + l));
+                            // cumulate
+                            u1_night_reduced(2, j, l) += u1_night_obs[i](0, j, l);
+                            u1_night_reduced(3, j, l) += u1_night_obs[i](1, j, l);
+                            u1_night_obs[i](0, j, l) = u1_night_reduced(2, j, l);
+                            u1_night_obs[i](1, j, l) = u1_night_reduced(3, j, l);
+                        }
+                    }
+                    if(writeExt == 0) {
+                        out[i + npart * (t + 1)] = u1_night_reduced;
+                    } else {
+                        std::sprintf(file_name, "saveOut/p_%u.csv", i);
+                        file.open(file_name, std::ios::app);
+                        for(l = 0; l < nlads; l++) {
+                            for(arma::uword r = 0; r < 4; r++) {
+                                file << t << ", " << r << ", ";
+                                for(j = 0; j < nages; j++) {
+                                    file << u1_night_reduced(r, j, l) << ", ";
+                                }
+                                file << l + 1 << "\n";
+                            }
+                        }
+                        file.close();
+                    }
+                }
+            } else {
+                for(i = 0; i < npart; i++) {
+                    u1_night_full.zeros();
+                    for(l = 0; l < u1_moves.n_rows; l++) {
+                        for(j = 0; j < nages; j++) {
+                            for(k = 0; k < nclasses; k++) {
+                                u1_night_full(k, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](k, j, l);
+                            }
+                            // incidence
+                            u1_night_full(nclasses, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](6, j, l) - u1[i](6, j, l));
+                            u1_night_full(nclasses + 1, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](11, j, l) - u1[i](11, j, l));
+                        }
+                    }
+                    for(l = 0; l < nlads; l++) {
+                        for(j = 0; j < nages; j++) {
+                            u1_night_full(nclasses, j, l) += rtskellam_cpp(
+                                a1 + b * u1_night_full(nclasses, j, l),
+                                a1 + b * u1_night_full(nclasses, j, l),
+                                str1,
+                                engSerial,
+                                -u1_night_full(nclasses, j, l),
+                                obsInc(j * nlads + l));
+                            u1_night_full(nclasses + 1, j, l) += rtskellam_cpp(
+                                a1 + b * u1_night_full(nclasses + 1, j, l),
+                                a1 + b * u1_night_full(nclasses + 1, j, l),
+                                str1,
+                                engSerial,
+                                -u1_night_full(nclasses + 1, j, l),
+                                obsInc(nlads * nages + j * nlads + l));
+                            // cumulate
+                            u1_night_full(nclasses, j, l) += u1_night_obs[i](0, j, l);
+                            u1_night_full(nclasses + 1, j, l) += u1_night_obs[i](1, j, l);
+                            u1_night_obs[i](0, j, l) = u1_night_full(nclasses, j, l);
+                            u1_night_obs[i](1, j, l) = u1_night_full(nclasses + 1, j, l);
+                        }
+                    }
+                    if(writeExt == 0) {
+                        out[i + npart * (t + 1)] = u1_night_full;
+                    } else {
+                        std::sprintf(file_name, "saveOut/p_%u.csv", i);
+                        file.open(file_name, std::ios::app);
+                        for(l = 0; l < nlads; l++) {
+                            for(arma::uword r = 0; r < (nclasses + 2); r++) {
+                                file << t << ", " << r << ", ";
+                                for(j = 0; j < nages; j++) {
+                                    file << u1_night_full(r, j, l) << ", ";
+                                }
+                                file << l + 1 << "\n";
+                            }
+                        }
+                        file.close();
+                    }
+                }
+            }
+        }
+        
         if(PF == 1) {
             // calculate log-likelihood contribution
             ll += log_sum_exp(weights, 1);
@@ -2338,6 +2509,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             }
             for(i = 0; i < npart; i++) {
                 u1[i] = u1_new[inds(i)];
+                u1_night_obs1[i] = u1_night_obs[inds(i)];
                 if(twist == 1) {
                     twistnorm1[i] = twistnorm[inds(i)];
                     tempdensx1[i] = tempdensx[inds(i)];
@@ -2346,6 +2518,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             // copy in order to pass by reference
             for(i = 0; i < npart; i++) {
                 u1_new[i] = u1[i];
+                u1_night_obs[i] = u1_night_obs1[i];
                 if(twist == 1) {
                     twistnorm[i] = twistnorm1[i];
                     tempdensx[i] = tempdensx1[i];
@@ -2354,65 +2527,6 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
         } else {
             for(i = 0; i < npart; i++) {
                 u1[i] = u1_new[i];
-            }
-        }
-        
-        // save particles if necessary
-        if(saveAll != 0) {
-            if(saveAll == 1) {
-                for(i = 0; i < npart; i++) {
-                    // extract just counts for DI and DH
-                    u1_night_reduced.zeros();
-                    for(l = 0; l < u1_moves.n_rows; l++) {
-                        for(j = 0; j < nages; j++) {
-                            u1_night_reduced(0, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](6, j, l);
-                            u1_night_reduced(1, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](11, j, l);
-                        }
-                    }
-                    if(writeExt == 0) {
-                        out[i + npart * (t + 1)] = u1_night_reduced;
-                    } else {
-                        std::sprintf(file_name, "saveOut/p_%u.csv", i);
-                        file.open(file_name, std::ios::app);
-                        for(l = 0; l < nlads; l++) {
-                            for(arma::uword r = 0; r < 2; r++) {
-                                file << t << ", " << r << ", ";
-                                for(j = 0; j < nages; j++) {
-                                    file << u1_night_reduced(r, j, l) << ", ";
-                                }
-                                file << l + 1 << "\n";
-                            }
-                        }
-                        file.close();
-                    }
-                }
-            } else {
-                for(i = 0; i < npart; i++) {
-                    u1_night_full.zeros();
-                    for(l = 0; l < u1_moves.n_rows; l++) {
-                        for(j = 0; j < nages; j++) {
-                            for(k = 0; k < nclasses; k++) {
-                                u1_night_full(k, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](k, j, l);
-                            }
-                        }
-                    }
-                    if(writeExt == 0) {
-                        out[i + npart * (t + 1)] = u1_night_full;
-                    } else {
-                        std::sprintf(file_name, "saveOut/p_%u.csv", i);
-                        file.open(file_name, std::ios::app);
-                        for(l = 0; l < nlads; l++) {
-                            for(arma::uword r = 0; r < nclasses; r++) {
-                                file << t << ", " << r << ", ";
-                                for(j = 0; j < nages; j++) {
-                                    file << u1_night_full(r, j, l) << ", ";
-                                }
-                                file << l + 1 << "\n";
-                            }
-                        }
-                        file.close();
-                    }
-                }
             }
         }
         
