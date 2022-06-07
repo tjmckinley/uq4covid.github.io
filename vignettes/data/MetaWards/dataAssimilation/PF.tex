@@ -540,13 +540,15 @@ To choose the twisting functions we do the following recursive algorithm:
 For $t=T,\dots,1$:
 \begin{enumerate}
     \item Set $\psi^i_t = \pi\left(z_t \mid y^i_t\right) \bar{\psi}_t\left(y^i_t\right)$ for $i = 1,\dots, N$.
-    \item Choose $\psi_t$ as a member of $\Psi$ on the basis of $\left(y^{1:N}_t\right)$ and $\psi^{1:N}_t$.
+    \item Choose $\psi_t$ as a member of $\Psi$ on the basis of $y^{1:N}_t$ and $\psi^{1:N}_t$.
 \end{enumerate}
 
 To do the latter, we choose $\psi_t\left(y_t\right)$ as the p.d.f. of a Gaussian distribution with parameters $\mu_{\psi t}$ and $\sigma^2_{\psi t}$, where
 \begin{equation}
-    \left(\mu_{\psi t}, \sigma^2_{\psi t}\right) = \mbox{argmin}_{\mu, \sigma^2, \lambda} \sum_{i = 1}^N \left(\right)^2
+    \left(\mu_{\psi t}, \sigma^2_{\psi t}\right) = \mbox{argmin}_{\mu, \sigma^2, \lambda} \left(\sum_{i = 1}^N \left[N\left(\mu, \sigma^2\right) - \lambda\psi^i_t\right]^2\right)
 \end{equation}
+
+The form of $\psi^i_t$ is chosen such that it approximates a theoretical optimum (see \citealp{guarnieroetal:2017}).
 
 \textcolor{red}{NEED TO TIDY UP BELOW AND REMOVE INTEGRALS ETC.}
 
