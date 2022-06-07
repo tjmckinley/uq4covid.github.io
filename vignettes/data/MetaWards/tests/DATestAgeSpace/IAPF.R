@@ -66,7 +66,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, kmax
     ## set up output folder
     if(writeExt) {
         print("Reminder to write code to pass save folder out")
-        if(dir.exists("saveOut")) unlink("saveOut")
+        if(dir.exists("saveOut")) system("rm -rf saveOut")
         dir.create("saveOut")
     }
     
@@ -282,6 +282,10 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, kmax
                 ## extract particles
                 ll <- c(ll, particles$ll)
                 if(saveAll != 0 & writeExt == 0) saveParticles <- particles$particles
+                if(saveAll != 0 & writeExt == 1) {
+                    if(dir.exists(paste0("saveOut_", kcurr))) system(paste0("rm -r saveOut_", kcurr))
+                    system(paste0("cp -rf saveOut saveOut_", kcurr))
+                }
                 particles <- particles$psi
                 print(ll)
             }
@@ -291,7 +295,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, kmax
         } else {
             return(list(ll = ll[length(ll)]))
         }
-    }, pars = pars, C = C, u1_moves = u1_moves, ncohorts = ncohorts, u1 = u1, npart = npart, kstop = kstop, tau = tau, ndays = ndays, data = data, a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis, saveAll = saveAllint, writeExt = writeExtint, PF = PFint, ncores = ncores)    
+    }, pars = pars, C = C, u1_moves = u1_moves, ncohorts = ncohorts, u1 = u1, npart = npart, kstop = kstop, tau = tau, ndays = ndays, data = data, a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis, saveAll = saveAllint, writeExt = writeExtint, PF = PFint, ncores = ncores)
     if(!is.na(saveAll)) {
         if(!writeExt) {
             if(PF) {
