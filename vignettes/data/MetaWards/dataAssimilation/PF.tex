@@ -473,11 +473,17 @@ We could employ a twisting function on $y_t$, denoted $\psi_t\left(y_t\right)$, 
 \end{equation}
 This can be slow to evaluate, since the normalising constant requires $O([n + 1]^2)$ operations to compute. Instead, we will choose $\tilde{\psi}_t\left(y_t\right)$ to be a continuous positive function for \textit{continuous} $y_t$, and instead target
 \begin{equation}
-    \pi^{\psi}\left(x_t, y_t \mid y^k_{t - 1}\right) = \frac{\pi\left(x_t \mid y^k_{t - 1}\right)A^{-1}_{x_t}\int_{y_t - 0.5}^{y_t + 0.5}\tilde{\pi}\left(y \mid x_t, y^k_{t - 1}\right)\tilde{\psi}_t\left(y\right) dy}{\sum_{x_t = 0}^n \pi\left(x_t \mid y^k_{t - 1}\right)A^{-1}_{x_t}\int_{-0.5}^{n + 0.5} \tilde{\pi}\left(y\mid x_t, y^k_{t - 1}\right)\tilde{\psi}_t\left(y\right)dy},\label{eq:twisttarget}
+    \pi^{\psi}\left(x_t, y_t \mid y^k_{t - 1}\right) = \frac{\pi\left(x_t \mid y^k_{t - 1}\right)A^{-1}_{x_t}\int_{y_t - 0.5}^{y_t + 0.5}\tilde{\pi}\left(y \mid x_t, y^k_{t - 1}\right)\tilde{\psi}_t\left(y\right) dy}{\sum_{x_t = 0}^n \pi\left(x_t \mid y^k_{t - 1}\right)A^{-1}_{x_t}\int_{-0.5}^{n + 0.5} \tilde{\pi}\left(y\mid x_t, y^k_{t - 1}\right)\tilde{\psi}_t\left(y\right)dy},\label{eq:twisttarget0}
 \end{equation}
 where $A_{x_t} = \int_{-0.5}^{n + 0.5} \tilde{\pi}\left(y \mid x_t, y^k_{t - 1}\right) dy$.
 
-The denominator here can be computed in $O(n + 1)$ operations, which is much faster to evaluate. As a functional form for $\tilde{\psi}(\cdot)$, we will choose a Gaussian p.d.f., with parameters $\mu_{\psi}$ and $\sigma^2_{\psi}$. Hence:
+The denominator here can be computed in $O(n + 1)$ operations, which is much faster to evaluate. In fact, we will use a mixture distribution of the form:
+\begin{equation}
+    \pi^{\psi}\left(x_t, y_t \mid y^k_{t - 1}\right) = \frac{\pi\left(x_t \mid y^k_{t - 1}\right)A^{-1}_{x_t}\left[p_m\int_{y_t - 0.5}^{y_t + 0.5}\tilde{\pi}\left(y \mid x_t, y^k_{t - 1}\right)\tilde{\psi}_t\left(y\right) dy + \left(1 - p_m\right)\int_{y_t - 0.5}^{y_t + 0.5}\tilde{\pi}\left(y \mid x_t, y^k_{t - 1}\right) dy\right]}{\sum_{x_t = 0}^n \pi\left(x_t \mid y^k_{t - 1}\right)A^{-1}_{x_t}\left[p_m\int_{-0.5}^{n + 0.5} \tilde{\pi}\left(y\mid x_t, y^k_{t - 1}\right)\tilde{\psi}_t\left(y\right)dy + \left(1 - p_m\right)\int_{-0.5}^{n + 0.5} \tilde{\pi}\left(y\mid x_t, y^k_{t - 1}\right)dy\right]},\label{eq:twisttarget}
+\end{equation}
+where $p_m$ is a mixing proportion such that $0 < p_m < 1$. This is to protect against the variance of the log-likelihood estimates becoming very large or unbounded~\citep[see][]{guarnieroetal:2017}. We choose $p_m = 0.9$.
+
+As a functional form for $\tilde{\psi}(\cdot)$, we will choose a Gaussian p.d.f., with parameters $\mu_{\psi}$ and $\sigma^2_{\psi}$. Hence:
 \begin{align}
     \tilde{\psi}_t\left(y\right)\tilde{\pi}\left(y \mid x_t, y^k_{t - 1}\right) &= \frac{1}{\sigma_y\sqrt{2\pi}} \exp\left(-\frac{1}{2\sigma^2_y}\left[y - x_t\right]^2\right)\frac{1}{\sigma_{\psi}\sqrt{2\pi}} \exp\left(-\frac{1}{2\sigma^2_{\psi}}\left[y - \mu_{\psi}\right]^2\right)\nonumber\\
      &= \frac{1}{2\pi\sigma_y\sigma_{\psi}} \exp\left(-\frac{1}{2}\left[\frac{1}{\sigma^2_y}\left(y^2_t - 2yx_t + x^2_t\right) + \frac{1}{\sigma^2_{\psi}}\left(y^2_t - 2 y \mu_{\psi} + \mu^2_{\psi}\right)\right]\right)\nonumber\\
@@ -499,15 +505,17 @@ The denominator here can be computed in $O(n + 1)$ operations, which is much fas
 \end{align}
 The final term in (\ref{eq:twistdens1}) is the p.d.f. of a Gaussian distribution, which we leverage below to perform efficient updating of $y_t$ given $x_t$. Hence, from (\ref{eq:twisttarget}) and (\ref{eq:twistdens1}) we target the twisted transition density:
 \begin{align}
-    \pi^{\psi}\left(x_t, y_t \mid y^k_{t - 1}\right) &\propto \pi\left(x_t \mid y^k_{t - 1}\right)\exp\left(-\frac{\left[x_t - \mu_{\psi}\right]^2}{2\left[\sigma^2_y + \sigma^2_{\psi}\right]}\right)A^{-1}_{x_t}\nonumber \\
-    & \qquad \qquad \times \int_{y_t - 0.5}^{y_t + 0.5} \frac{\sqrt{\sigma^2_y + \sigma^2_{\psi}}}{\sigma_y\sigma_{\psi}\sqrt{2\pi}} \exp\left(-\frac{1}{2}\left[\frac{\sigma^2_y + \sigma^2_{\psi}}{\sigma^2_y\sigma^2_{\psi}}\right]\left[y - \left(\frac{\sigma^2_{\psi}x_t + \sigma^2_y\mu_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right)\right]^2\right) dy.\label{eq:twistdens2}
+    \pi^{\psi}\left(x_t, y_t \mid y^k_{t - 1}\right) &\propto \pi\left(x_t \mid y^k_{t - 1}\right)A^{-1}_{x_t}\Bigg[p_m \exp\left(-\frac{\left[x_t - \mu_{\psi}\right]^2}{2\left[\sigma^2_y + \sigma^2_{\psi}\right]}\right)\nonumber \\
+    & \qquad \qquad \times \int_{y_t - 0.5}^{y_t + 0.5} \frac{\sqrt{\sigma^2_y + \sigma^2_{\psi}}}{\sigma_y\sigma_{\psi}\sqrt{2\pi}} \exp\left(-\frac{1}{2}\left[\frac{\sigma^2_y + \sigma^2_{\psi}}{\sigma^2_y\sigma^2_{\psi}}\right]\left[y - \left(\frac{\sigma^2_{\psi}x_t + \sigma^2_y\mu_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right)\right]^2\right) dy\nonumber\\
+    & \qquad \qquad \qquad \qquad + \left(1 - p_m\right)\int_{y_t - 0.5}^{y_t + 0.5} \tilde{\pi}\left(y \mid x_t, y^k_{t - 1}\right) dy\Bigg].\label{eq:twistdens2}
 \end{align}
 Following the notation of \cite{guarnieroetal:2017}, the normalising constant is given by:
 \begin{align}
-    \bar{\psi}_{t - 1}\left(y^k_{t - 1}\right) &= \sum_{x_t = 0}^n \pi\left(x_t \mid y^k_{t - 1}\right)\exp\left(-\frac{\left[x_t - \mu_{\psi}\right]^2}{2\left[\sigma^2_y + \sigma^2_{\psi}\right]}\right)A^{-1}_{x_t}\nonumber \\
-    & \qquad \qquad \times \int_{-0.5}^{n + 0.5} \frac{\sqrt{\sigma^2_y + \sigma^2_{\psi}}}{\sigma_y\sigma_{\psi}\sqrt{2\pi}} \exp\left(-\frac{1}{2}\left[\frac{\sigma^2_y + \sigma^2_{\psi}}{\sigma^2_y\sigma^2_{\psi}}\right]\left[y - \left(\frac{\sigma^2_{\psi}x_t + \sigma^2_y\mu_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right)\right]^2\right) dy.\label{eq:twistnorm}
+    \bar{\psi}_{t - 1}\left(y^k_{t - 1}\right) &= \sum_{x_t = 0}^n \pi\left(x_t \mid y^k_{t - 1}\right)A^{-1}_{x_t}\Bigg[ p_m\exp\left(-\frac{\left[x_t - \mu_{\psi}\right]^2}{2\left[\sigma^2_y + \sigma^2_{\psi}\right]}\right)\nonumber \\
+    & \qquad \qquad \times \int_{-0.5}^{n + 0.5} \frac{\sqrt{\sigma^2_y + \sigma^2_{\psi}}}{\sigma_y\sigma_{\psi}\sqrt{2\pi}} \exp\left(-\frac{1}{2}\left[\frac{\sigma^2_y + \sigma^2_{\psi}}{\sigma^2_y\sigma^2_{\psi}}\right]\left[y - \left(\frac{\sigma^2_{\psi}x_t + \sigma^2_y\mu_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right)\right]^2\right) dy\nonumber\\
+    & \qquad \qquad \qquad \qquad + \left(1 - p_m\right)\int_{-0.5}^{n + 0.5} \tilde{\pi}\left(y \mid x_t, y^k_{t - 1}\right) dy\Bigg].\label{eq:twistnorm}
 \end{align}
-Since the integral in (\ref{eq:twistnorm}) is for a Gaussian p.d.f., we can evaluate this efficiently using standard Gaussian c.d.f. functions.
+Since the integrals in (\ref{eq:twistnorm}) are for Gaussian p.d.f.s, we can evaluate these efficiently using standard Gaussian c.d.f. functions.
 
 To sample from (\ref{eq:twistdens2}) we can sample first from $\pi^{\psi}\left(x_t \mid y^k_{t - 1}\right)$, and then from $\pi^\psi\left(y_t \mid x_t, y^k_{t - 1}\right)$, where:
 \begin{align}
