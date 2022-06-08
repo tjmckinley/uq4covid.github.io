@@ -80,15 +80,14 @@ saveRDS(u1, "outputs/u1.rds")
 saveRDS(u1_moves, "outputs/u1_moves.rds")
 
 ## set up stage names
-stageNms <- map(c("S", "E", "A", "RA", "P", "Ione", "DI", "Itwo", "RI", "H", "RH", "DH"), ~paste0(., "_", 1:8)) %>%
+stageNms <- map(c("S", "E", "A", "RA", "P", "Ione", "DI", "Itwo", "RI", "H", "RH", "DH", "DIobs", "DHobs"), ~paste0(., "_", 1:8)) %>%
     map(~map(., ~paste0(., "_", 1:max(EW19[, 1])))) %>%
     reduce(c) %>%
     reduce(c)
 
 ## simulate discrete-time model
 disSims <- PF(pars, C = contact, data = data, u1_moves = u1_moves,
-    u1 = u1, ndays = 100, npart = 24, MD = TRUE, PF = FALSE,
-    a_dis = 0.05, b_dis = 0.05)
+    u1 = u1, ndays = 100, npart = 24, PF = FALSE)
         
 ## collapse to data frame
 disSims <- map(1:length(disSims$particles[[1]]), function(i, x) {
@@ -107,7 +106,8 @@ colnames(disSims) <- c(stageNms, "rep", "t")
 disSims <- as_tibble(disSims)
 
 ## extract simulation closest to median
-medRep <- pivot_longer(disSims, !c(rep, t), names_to = "var", values_to = "n") %>%
+medRep <- select(disSims, !contains("obs")) %>%
+    pivot_longer(!c(rep, t), names_to = "var", values_to = "n") %>%
     group_by(t, var) %>%
     summarise(
         median = median(n),
@@ -124,23 +124,6 @@ medRep <- pivot_longer(disSims, !c(rep, t), names_to = "var", values_to = "n") %
     slice(1) %>%
     inner_join(disSims, by = "rep") %>%
     select(!c(diff, rep))
-
-## Skellam noise model for observations
-a1 <- 0.01
-a2 <- 0.2
-b <- 0.001
-skelNoise <- function(count, a1, a2, b1, b2) {
-    ## create incidence over time
-    inc <- diff(c(0, count))
-    ## add observation noise
-    for(i in 1:length(inc)) {
-        inc[i] <- inc[i] + rtskellam(1, a1 + b1 * inc[i], a2 + b2 * inc[i], -inc[i])
-    }
-    ## return cumulative counts
-    cumsum(inc)
-}
-medRep <- mutate(medRep, across(starts_with("DI"), skelNoise, a1 = a1, a2 = a2, b1 = b, b2 = b, .names = "{.col}obs")) %>%
-    mutate(across(starts_with("DH"), skelNoise, a1 = a1, a2 = a2, b1 = b, b2 = b, .names = "{.col}obs"))
 
 ## plot replicates at national level
 p <- pivot_longer(disSims, !c(rep, t), names_to = "var", values_to = "n") %>%
@@ -159,14 +142,17 @@ p <- pivot_longer(disSims, !c(rep, t), names_to = "var", values_to = "n") %>%
     mutate(age = gsub("[^0-9]", "", var)) %>%
     mutate(var = gsub("[^a-zA-Z]", "", var)) %>%
     mutate(var = gsub("one", "1", var)) %>%
-    mutate(var = gsub("two", "2", var)) %>%
+    mutate(var = gsub("two", "2", var))
+    
+p1 <- list()     
+p1[[1]] <- filter(p, !(var %in% c("DHobs", "DIobs"))) %>%
     ggplot(aes(x = t)) +
         geom_ribbon(aes(ymin = LCI, ymax = UCI), alpha = 0.5) +
         geom_ribbon(aes(ymin = LQ, ymax = UQ), alpha = 0.5) +
         geom_line(aes(y = median)) +
         geom_line(
             aes(y = n), 
-            data = pivot_longer(select(medRep, !ends_with("obs")), !t, names_to = "var", values_to = "n") %>%
+            data = pivot_longer(select(medRep, !contains("obs")), !t, names_to = "var", values_to = "n") %>%
                 mutate(var = gsub("_[0-9]*$", "", var)) %>%
                 group_by(t, var) %>%
                 summarise(n = sum(n), .groups = "drop") %>%
@@ -176,9 +162,19 @@ p <- pivot_longer(disSims, !c(rep, t), names_to = "var", values_to = "n") %>%
                 mutate(var = gsub("two", "2", var)),
             col = "red", linetype = "dashed"
         ) +
+        facet_grid(var ~ age, scales = "free") +
+        xlab("Days") + 
+        ylab("Counts") +
+        ggtitle("Truth")
+p1[[2]] <- filter(p, var %in% c("DHobs", "DIobs")) %>%
+    mutate(var = gsub("obs", "", var)) %>%
+    ggplot(aes(x = t)) +
+        geom_ribbon(aes(ymin = LCI, ymax = UCI), alpha = 0.5) +
+        geom_ribbon(aes(ymin = LQ, ymax = UQ), alpha = 0.5) +
+        geom_line(aes(y = median)) +
         geom_line(
             aes(y = n), 
-            data = pivot_longer(select(medRep, t, ends_with("obs")), !t, names_to = "var", values_to = "n") %>%
+            data = pivot_longer(select(medRep, t, contains("obs")), !t, names_to = "var", values_to = "n") %>%
                 mutate(var = gsub("obs", "", var)) %>%
                 mutate(var = gsub("_[0-9]*$", "", var)) %>%
                 group_by(t, var) %>%
@@ -187,15 +183,18 @@ p <- pivot_longer(disSims, !c(rep, t), names_to = "var", values_to = "n") %>%
                 mutate(var = gsub("[^a-zA-Z]", "", var)) %>%
                 mutate(var = gsub("one", "1", var)) %>%
                 mutate(var = gsub("two", "2", var)),
-            col = "blue", linetype = "dashed"
+            col = "red", linetype = "dashed"
         ) +
         facet_grid(var ~ age, scales = "free") +
         xlab("Days") + 
-        ylab("Counts")
-ggsave("outputs/simsNational.pdf", p, width = 10, height = 10)
+        ylab("Counts") + 
+        ggtitle("Observed")
+p1 <- wrap_plots(p1, nrow = 2, heights = c(0.8, 0.2)) +
+    plot_layout(guides = "collect")
+ggsave("outputs/simsNational.pdf", p1, width = 10, height = 10)
 
 ## plot medRep at LAD level for LADs with largest epidemic load
-p <- select(medRep, !ends_with("obs")) %>%
+p <- select(medRep, !contains("obs")) %>%
     pivot_longer(!t, names_to = "var", values_to = "n") %>%
     mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
     mutate(LAD = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
@@ -209,7 +208,7 @@ p <- select(medRep, !ends_with("obs")) %>%
     slice(1:5) %>%
     select(-n)
 pobs <- inner_join(p,
-        select(medRep, t, ends_with("obs")) %>%
+        select(medRep, t, contains("obs")) %>%
             pivot_longer(!t, names_to = "var", values_to = "n") %>%
             mutate(var = gsub("obs", "", var)) %>%
             mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
@@ -221,7 +220,7 @@ pobs <- inner_join(p,
     mutate(var = gsub("one", "1", var)) %>%
     mutate(var = gsub("two", "2", var)) 
 p <- inner_join(p,
-        select(medRep, !ends_with("obs")) %>%
+        select(medRep, !contains("obs")) %>%
             pivot_longer(!t, names_to = "var", values_to = "n") %>%
             mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
             mutate(LAD = gsub('^(?:[^_]*_)(.*)', '\\1', age)),
@@ -259,8 +258,8 @@ lad19 <- st_read("inputs/LAD19_shapefile/LAD19_shapefile.shp")
 
 ## extract cases over time in each age-group
 p <- select(medRep, t, starts_with("DH_")) %>%
-    select(!ends_with("obs")) %>%
-    filter(t <= 50) %>%
+    select(!contains("obs")) %>%
+    filter(t <= 100) %>%
     pivot_longer(!t, values_to = "counts", names_to = "var") %>%
     separate(var, c("var", "age", "lad"), sep = "_") %>%
     select(!var) %>%
@@ -292,7 +291,7 @@ anim_save("outputs/simsSpatialDH.gif", spatial_gif)
 
 ## extract cases over time in each age-group
 p <- select(medRep, t, starts_with("E")) %>%
-    filter(t <= 50) %>%
+    filter(t <= 100) %>%
     pivot_longer(!t, values_to = "counts", names_to = "var") %>%
     separate(var, c("var", "age", "lad"), sep = "_") %>%
     select(!var) %>%

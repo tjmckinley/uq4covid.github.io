@@ -1,12 +1,12 @@
-// [[Rcpp::depends(RcppArmadillo)]]
+// [[Rcpp::depends(RcppArmadillo, sitmo)]]
 
 // [[Rcpp::plugins(openmp)]]
-
-// [[Rcpp::depends(sitmo)]]
 
 #include <RcppArmadillo.h>
 #include <Rcpp/Benchmark/Timer.h>
 #include <sitmo.h>
+#include <iostream>
+#include <fstream>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -29,6 +29,236 @@ double bessel_k_ex_new(double x, double alpha, double expo, double *bk);
 double Rf_gamma_cody(double x);
 
 using namespace Rcpp;
+
+// BEGIN declaring external constants
+
+#include "tnormConsts.h"
+
+// END declaring external constants
+
+const double invroot2pi = {
+  1/pow(2*M_PI, 0.5)
+};
+
+double devroye(double a, sitmo::prng &eng){
+  bool accept = false;
+  double x = 0;
+  double mx = sitmo::prng::max();
+  while(!accept){
+    arma::vec u(2);
+    u(0) = eng() / mx;
+    u(1) = eng() / mx;
+    x = -(1/a)*log(u(0)) + a;
+    accept = u(1)*exp(a*(a/2 - x)) <= exp(-0.5*pow(x,2));
+  }
+  return x;
+}
+
+double devroye_ab(double a, double b, sitmo::prng &eng){
+  if(a >= b){
+    stop("'a' must be less than 'b'");
+  }
+  double lambda = ( (b>0) ? a : b);
+  double eal = exp(-a*lambda);
+  double ebl = exp(-b*lambda);
+  double mx = sitmo::prng::max();
+  bool accept = false;
+  double x = 0;
+  while(!accept){
+    arma::vec u(2);
+    u(0) = eng() / mx;
+    u(1) = eng() / mx;
+    x = -(1/lambda)*log(eal - u(0)*(eal-ebl));
+    accept = u(1)*exp(a*(a/2 - x)) <= exp(-0.5*pow(x,2));
+  }
+  return x;
+}
+
+double Direct(double a, double b, sitmo::prng &eng){
+  double x = 0;
+  bool accept = false;
+  double mx = sitmo::prng::max();
+  while(!accept){
+    int i = rand() % (2*tN+2) + 1;
+    if(i < (2*tN + 2) && i > 1){
+      double u = eng() / mx;
+      double y = yVec[i-2]*u;
+      if(y <= ybar[i-2]){
+        accept = true;
+        x = xVec[i-2] + delta[i-2]*u;
+      }
+      else{
+        double v = eng() / mx;
+        x = xVec[i-2] + d[i-2]*v;
+        accept = y <= invroot2pi * exp(-0.5*pow(x,2));
+      }
+    }
+    else{
+      arma::vec u(2);
+      u(0) = eng() / mx;
+      u(1) = eng() / mx;
+      double lambda = xVec[2*tN];
+      x = -(1/lambda)*log(u(0)) + lambda;
+      accept = u(1)*exp(lambda*(lambda/2 - x)) <= exp(-0.5*pow(x,2));
+      if(accept){
+        if(i<2){
+          x = -x;
+        }
+      }
+    }
+    if(accept){
+      accept = (x >= a) && (x <= b);
+    } 
+  }
+  return x;
+}
+
+double rtnorm_lower_one(double a, sitmo::prng &eng){
+  //TN(0,1,a, Inf)
+  if(a <= amin){
+    return Direct(a, std::numeric_limits<double>::infinity(), eng);
+  }
+  else if(a >= amax){
+    return devroye(a, eng);
+  }
+  int ia = ja[static_cast<int>(floor(a/h)) - static_cast<int>(ceil(amin/h))];
+  double x = 0;
+  bool accept = false;
+  double mx = sitmo::prng::max();
+  while(!accept){
+    int i = rand() %  (2*tN+1) + 1  - ia;
+    i = i+ia;
+    if(i > 2*tN ){
+      x = devroye(xVec[2*tN], eng);
+      accept = true;
+    }
+    else if(i < ia+2){
+      double u = eng() / mx;
+      x = xVec[i-1] + d[i-1]*u;
+      if(x >= a){
+        double v = eng() / mx;
+        double y = yVec[i-1]*v;
+        accept = y <= invroot2pi * exp(-0.5*pow(x,2));
+      }
+    }
+    else{
+      double u = eng() / mx;
+      double y = u*yVec[i-1];
+      if(y <= ybar[i-1]){
+        accept = true;
+        x = xVec[i-1] + u*delta[i-1];
+      }
+      else{
+        double v = eng() / mx;
+        x = xVec[i-1] + d[i-1]*v;
+        accept = y <= invroot2pi * exp(-0.5*pow(x,2));
+      }
+    }
+  }
+  return x;
+}
+
+double rtnorm_upper_one(double b, sitmo::prng &eng){
+  //TN(0,1,-Inf, b)
+  return (-rtnorm_lower_one(-b, eng));
+}
+
+double Direct_b(double a, double b, sitmo::prng &eng){
+  bool accept = false;
+  double x;
+  while(!accept){
+    x = rtnorm_upper_one(b, eng);
+    accept = x >= a;
+  }
+  return x;
+}
+
+double Direct_a(double a, double b, sitmo::prng &eng){
+  bool accept = false;
+  double x;
+  while(!accept){
+    x = rtnorm_lower_one(a, eng);
+    accept = x <= b;
+  }
+  return x;
+}
+
+double rtnorm_one(double a, double b, sitmo::prng &eng){
+  //n number of samples of TN(0,1, a, b)
+  if(a >= b){
+    stop("'a' must be less than 'b'");
+  }
+  if(std::isinf(a)){
+    if(std::isinf(b)){
+      return Direct(a,b, eng);
+    }
+    else{
+      return rtnorm_upper_one(b, eng);
+    }
+  }
+  else if(std::isinf(b)){
+    return rtnorm_lower_one(a, eng);
+  }
+  else{
+    if(a <= amin){
+      if(b < amax){
+        return Direct_b(a, b, eng);
+      }
+      else{
+        return Direct(a,b, eng);
+      }
+    }
+    else if(a >= amax){
+      return Direct_a(a,b, eng);
+    }
+    else if(b >= amax){
+      return Direct_a(a, b, eng);
+    }
+  }
+  int ia = ja[static_cast<int>(floor(a/h)) - static_cast<int>(ceil(amin/h))];
+  int ib = ja[static_cast<int>(ceil(b/h)) - static_cast<int>(ceil(amin/h))];
+  if(ib-ia < 5){
+    return devroye_ab(a, b, eng);
+  }
+  bool accept=false;
+  double mx = sitmo::prng::max();
+  double x;
+  while(!accept){
+    int i = rand() %  ib + 1  - ia;
+    i = i+ia;
+    if((i < ia+2) || (i > ib-2)){
+      double u = eng() / mx;
+      x = xVec[i-1] + d[i-1]*u;
+      if(x >= a && x<=b){
+        double v = eng() / mx;
+        double y = yVec[i-1]*v;
+        accept = y <= invroot2pi * exp(-0.5*pow(x,2));
+      }
+    }
+    else{
+      double u = eng() / mx;
+      double y = u*yVec[i-1];
+      if(y <= ybar[i-1]){
+        accept = true;
+        x = xVec[i-1] + u*delta[i-1];
+      }
+      else{
+        double v = eng() / mx;
+        x = xVec[i-1] + d[i-1]*v;
+        accept = y <= invroot2pi * exp(-0.5*pow(x,2));
+      }
+    }
+  }
+  return x;
+}
+
+arma::vec rtnorm(int n, double a, double b, sitmo::prng &eng){
+  arma::vec x(n);
+  for(int i=0; i < n; ++i){
+    x(i) = rtnorm_one(a, b, eng);
+  }
+  return x;
+}
 
 // log-sum-exp function to prevent numerical overflow
 double log_sum_exp(arma::vec &x, int mn = 0) {
@@ -89,7 +319,7 @@ int rbinom_cpp (int n, double p, sitmo::prng &eng) {
         k++;
         if(k > n) {
             // check for rounding errors
-            if(fabs(temp) < 1e-15 && fabs(u) < 1e-15) return(n);
+            if(fabs(temp) < 1e-10 && fabs(u) < 1e-10) return(n);
             stop("Error in binomial sampling: lcum = %e lu = %e k = %d n = %d\n", temp, u, k, n);
         }
         lx += log(k);
@@ -133,23 +363,16 @@ double lpskellam_cpp(int x, double lambda1, double lambda2) {
     } else {
         ldens = R::pnchisq(2.0 * lambda1, 2.0 * (x + 1), 2.0 * lambda2, 0, 1);
     }
-    if(!arma::is_finite(ldens)) {
-        Rprintf("Non-finite pdensity in lpskellam = %f x = %d lambda1 = %f lambda2 = %f\n", ldens, x, lambda1, lambda2);
-    }
+//    if(!arma::is_finite(ldens)) {
+//        Rprintf("Non-finite pdensity in lpskellam = %f x = %d lambda1 = %f lambda2 = %f\n", ldens, x, lambda1, lambda2);
+//    }
     return ldens;
 }
 
 // log truncated Skellam density (note, no checks on inputs)
 // adapted from "dskellam" source code by Patrick Brown (mistakes are mine)
 double ldtskellam_cpp(int x, double lambda1, double lambda2, char *str, int LB = 0, int UB = -1, int print = 0) {
-    
-    // if UB < LB then returns untruncated density
-    
-    // check for this instance only
-    if(LB > UB) {
-        stop("ldt LB > UB\n");
-    }
-    
+        
     if(print == 1) Rprintf("State: %s\n", str);
     
     // create array for Bessel (trying to deal with recursive
@@ -202,6 +425,21 @@ double ldtskellam_cpp(int x, double lambda1, double lambda2, char *str, int LB =
                 ldens = 0.0;
             }
         }
+    } else {
+        // if UB < LB then calculate lower truncated only
+        if(x < LB) {
+            Rprintf("'x' must be in bounds in dtskellam_cpp: x = %d LB = %d\n", x, LB);
+            stop("");
+        }
+        if(arma::is_finite(ldens)) {
+            // declare variables
+            double norm0 = lpskellam_cpp(LB - 1, lambda1, lambda2);
+            if(!arma::is_finite(norm0)) {
+                stop("Issue with truncation bounds in Skellam LB\n");
+            }
+            norm0 = log(1.0 - exp(norm0));
+            ldens -= norm0;
+        }
     }
 //    if(!arma::is_finite(ldens)) {
 //        Rprintf("Non-finite density in ldtskellam = %f x = %d l1 = %f l2 = %f LB = %d UB = %d\n", ldens, x, lambda1, lambda2, LB, UB);
@@ -211,13 +449,6 @@ double ldtskellam_cpp(int x, double lambda1, double lambda2, char *str, int LB =
 
 // truncated Skellam sampler
 int rtskellam_cpp(double lambda1, double lambda2, char *str, sitmo::prng &eng, int LB = 0, int UB = -1) {
-    
-    // if UB < LB then returns untruncated density
-    
-    // check in this setting:
-    if(LB > UB) {
-        stop("rdt LB > UB\n");
-    }
     
     // declare variables
     int x = 0;
@@ -254,6 +485,29 @@ int rtskellam_cpp(double lambda1, double lambda2, char *str, sitmo::prng &eng, i
                 }
                 if(k == (UB - LB + 1) && u > xdens) {
                     stop("Something wrong in truncated Skellam sampling\n");
+                }
+                x = LB + k;
+            }
+        } else {
+            // draw from lower-truncated distribution
+            int k = 0;
+            int ntries = 1000;
+            while(x < LB && k < ntries) {
+                x = rpois_cpp(lambda1, eng) - rpois_cpp(lambda2, eng);
+                k++;
+            }
+            // if rejection sampling doesn't work
+            // then try inverse transform sampling
+            if(k == ntries) {
+                // Rprintf("LB = %d UB = %d\n", LB, UB);
+                double u = eng() / mx;
+                k = 0;
+                double xdens = exp(ldtskellam_cpp(LB + k, lambda1, lambda2, str, LB, UB, 0));
+                if(!arma::is_finite(xdens)) xdens = 0.0;
+                while(u > xdens) {
+                    k++;
+                    xdens += exp(ldtskellam_cpp(LB + k, lambda1, lambda2, str, LB, UB, 0));
+                    if(!arma::is_finite(xdens)) xdens += 0.0;
                 }
                 x = LB + k;
             }
@@ -529,7 +783,7 @@ void discreteStochModel(int ipart, arma::vec &pars, int tstart, int tstop,
 void moveEvent (int ipart, int MDfrom, int stagefrom, int stageto, 
     int age, int lad, arma::icube &MD, 
     arma::vec &tempinc, arma::vec &tempinc1, arma::ivec &ncohorts,
-    std::vector<arma::icube> &u1_new, sitmo::prng &eng) {
+    std::vector<arma::icube> &u1_new, sitmo::prng &eng, int posonly) {
     
     // set counters
     int k;
@@ -541,6 +795,8 @@ void moveEvent (int ipart, int MDfrom, int stagefrom, int stageto,
         MDstageto = stagefrom;
     }
     int add = (MD(MDstagefrom, age, lad) < 0 ? 0:1);
+    
+    if(posonly == 1 && add != 1) stop("Incorrect inputs for moveEvent\n");
     
     // stratified sampling across cohorts
     tempDenom = sum(tempinc);
@@ -565,7 +821,7 @@ void moveEvent (int ipart, int MDfrom, int stagefrom, int stageto,
             MD(MDstageto, age, lad)--;
         } else {
             MD(MDstagefrom, age, lad)--;
-            MD(MDstageto, age, lad)++;
+            if(posonly != 1) MD(MDstageto, age, lad)++;
         }
     }
     return;
@@ -573,7 +829,7 @@ void moveEvent (int ipart, int MDfrom, int stagefrom, int stageto,
 
 // function to distribute incidence across cohorts
 void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::ivec &ncohorts,
-    std::vector<arma::icube> &u1, std::vector<arma::icube> &u1_new, sitmo::prng &eng) {
+    std::vector<arma::icube> &u1, std::vector<arma::icube> &u1_new, sitmo::prng &eng, int posonly) {
     
     // set counters
     int j, l, k, MD;
@@ -597,7 +853,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
                     tempinc(k - ncohorts(l)) = u1_new[ipart](11, j, k) - u1[ipart](11, j, k);
                     if(tempinc(k - ncohorts(l)) < 0) stop("Error in redistribution\n");
                 }
-                moveEvent(ipart, 1, 11, 9, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng);
+                moveEvent(ipart, 1, 11, 9, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng, posonly);
             }
             // negative moves out of RH
             MD = inc(10, j, l);
@@ -607,7 +863,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
                     tempinc(k - ncohorts(l)) = u1_new[ipart](10, j, k) - u1[ipart](10, j, k);
                     if(tempinc(k - ncohorts(l)) < 0) stop("Error in redistribution\n");
                 }
-                moveEvent(ipart, 1, 10, 9, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng);
+                moveEvent(ipart, 1, 10, 9, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng, posonly);
             }
             // positive moves into DH
             MD = inc(11, j, l);
@@ -619,7 +875,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
                     tempinc(k - ncohorts(l)) -= (u1_new[ipart](10, j, k) - u1[ipart](10, j, k));
                     if(tempinc(k - ncohorts(l)) < 0) stop("Error in redistribution\n");
                 }
-                moveEvent(ipart, 0, 9, 11, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng);
+                moveEvent(ipart, 0, 9, 11, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng, posonly);
             }
             // positive moves into RH
             MD = inc(10, j, l);
@@ -631,7 +887,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
                     tempinc(k - ncohorts(l)) -= (u1_new[ipart](10, j, k) - u1[ipart](10, j, k));
                     if(tempinc(k - ncohorts(l)) < 0) stop("Error in redistribution\n");
                 }
-                moveEvent(ipart, 0, 9, 10, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng);
+                moveEvent(ipart, 0, 9, 10, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng, posonly);
             }
             
             // classes are: S, E, A, RA, P, I1, DI, I2, RI, H, RH, DH
@@ -645,7 +901,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
                     tempinc(k - ncohorts(l)) = u1_new[ipart](8, j, k) - u1[ipart](8, j, k);
                     if(tempinc(k - ncohorts(l)) < 0) stop("Error in redistribution\n");
                 }
-                moveEvent(ipart, 1, 8, 7, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng);
+                moveEvent(ipart, 1, 8, 7, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng, posonly);
             }
             // positive moves into RI
             MD = inc(8, j, l);
@@ -656,7 +912,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
                     tempinc(k - ncohorts(l)) -= (u1_new[ipart](8, j, k) - u1[ipart](8, j, k));
                     if(tempinc(k - ncohorts(l)) < 0) stop("Error in redistribution\n");
                 }
-                moveEvent(ipart, 0, 7, 8, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng);
+                moveEvent(ipart, 0, 7, 8, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng, posonly);
             }
             
             // classes are: S, E, A, RA, P, I1, DI, I2, RI, H, RH, DH
@@ -670,7 +926,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
                     tempinc(k - ncohorts(l)) = u1_new[ipart](6, j, k) - u1[ipart](6, j, k);
                     if(tempinc(k - ncohorts(l)) < 0) stop("Error in redistribution\n");
                 }
-                moveEvent(ipart, 1, 6, 5, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng);
+                moveEvent(ipart, 1, 6, 5, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng, posonly);
             }
             // negative moves out of H
             MD = inc(9, j, l);
@@ -682,7 +938,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
                     tempinc(k - ncohorts(l)) += u1_new[ipart](10, j, k) - u1[ipart](10, j, k);
                     if(tempinc(k - ncohorts(l)) < 0) stop("Error in redistribution\n");
                 }
-                moveEvent(ipart, 1, 9, 5, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng);
+                moveEvent(ipart, 1, 9, 5, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng, posonly);
             }
             // negative moves out of I2
             MD = inc(7, j, l);
@@ -693,7 +949,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
                     tempinc(k - ncohorts(l)) += u1_new[ipart](8, j, k) - u1[ipart](8, j, k);
                     if(tempinc(k - ncohorts(l)) < 0) stop("Error in redistribution\n");
                 }
-                moveEvent(ipart, 1, 7, 5, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng);
+                moveEvent(ipart, 1, 7, 5, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng, posonly);
             }
             // positive moves into DI
             MD = inc(6, j, l);
@@ -709,7 +965,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
                     tempinc(k - ncohorts(l)) -= u1_new[ipart](11, j, k) - u1[ipart](11, j, k);
                     if(tempinc(k - ncohorts(l)) < 0) stop("Error in redistribution\n");
                 }
-                moveEvent(ipart, 0, 5, 6, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng);
+                moveEvent(ipart, 0, 5, 6, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng, posonly);
             }
             // positive moves into H
             MD = inc(9, j, l);
@@ -725,7 +981,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
                     tempinc(k - ncohorts(l)) -= u1_new[ipart](11, j, k) - u1[ipart](11, j, k);
                     if(tempinc(k - ncohorts(l)) < 0) stop("Error in redistribution\n");
                 }
-                moveEvent(ipart, 0, 5, 9, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng);
+                moveEvent(ipart, 0, 5, 9, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng, posonly);
             }
             // positive moves into I2
             MD = inc(7, j, l);
@@ -741,7 +997,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
                     tempinc(k - ncohorts(l)) -= u1_new[ipart](11, j, k) - u1[ipart](11, j, k);
                     if(tempinc(k - ncohorts(l)) < 0) stop("Error in redistribution\n");
                 }
-                moveEvent(ipart, 0, 5, 7, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng);
+                moveEvent(ipart, 0, 5, 7, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng, posonly);
             }
             
             // classes are: S, E, A, RA, P, I1, DI, I2, RI, H, RH, DH
@@ -761,7 +1017,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
                     tempinc(k - ncohorts(l)) += u1_new[ipart](10, j, k) - u1[ipart](10, j, k);
                     if(tempinc(k - ncohorts(l)) < 0) stop("Error in redistribution\n");
                 }
-                moveEvent(ipart, 1, 5, 4, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng);
+                moveEvent(ipart, 1, 5, 4, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng, posonly);
             }
             // positive moves into I1
             MD = inc(5, j, l);
@@ -778,7 +1034,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
                     tempinc(k - ncohorts(l)) -= u1_new[ipart](10, j, k) - u1[ipart](10, j, k);
                     if(tempinc(k - ncohorts(l)) < 0) stop("Error in redistribution\n");
                 }
-                moveEvent(ipart, 0, 4, 5, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng);
+                moveEvent(ipart, 0, 4, 5, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng, posonly);
             }
             
             // classes are: S, E, A, RA, P, I1, DI, I2, RI, H, RH, DH
@@ -792,7 +1048,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
                     tempinc(k - ncohorts(l)) = u1_new[ipart](3, j, k) - u1[ipart](3, j, k);
                     if(tempinc(k - ncohorts(l)) < 0) stop("Error in redistribution\n");
                 }
-                moveEvent(ipart, 1, 3, 2, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng);
+                moveEvent(ipart, 1, 3, 2, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng, posonly);
             }
             // positive moves into RA
             MD = inc(3, j, l);
@@ -803,7 +1059,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
                     tempinc(k - ncohorts(l)) -= (u1_new[ipart](3, j, k) - u1[ipart](3, j, k));
                     if(tempinc(k - ncohorts(l)) < 0) stop("Error in redistribution\n");
                 }
-                moveEvent(ipart, 0, 2, 3, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng);
+                moveEvent(ipart, 0, 2, 3, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng, posonly);
             }
             
             // classes are: S, E, A, RA, P, I1, DI, I2, RI, H, RH, DH
@@ -824,7 +1080,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
                     tempinc(k - ncohorts(l)) += u1_new[ipart](10, j, k) - u1[ipart](10, j, k);
                     if(tempinc(k - ncohorts(l)) < 0) stop("Error in redistribution\n");
                 }
-                moveEvent(ipart, 1, 4, 1, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng);
+                moveEvent(ipart, 1, 4, 1, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng, posonly);
             }
             // negative moves out of A
             MD = inc(2, j, l);
@@ -835,7 +1091,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
                     tempinc(k - ncohorts(l)) += u1_new[ipart](3, j, k) - u1[ipart](3, j, k);
                     if(tempinc(k - ncohorts(l)) < 0) stop("Error in redistribution\n");
                 }
-                moveEvent(ipart, 1, 2, 1, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng);
+                moveEvent(ipart, 1, 2, 1, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng, posonly);
             }
             // positive moves into P
             MD = inc(4, j, l);
@@ -855,7 +1111,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
                     tempinc(k - ncohorts(l)) -= u1_new[ipart](10, j, k) - u1[ipart](10, j, k);
                     if(tempinc(k - ncohorts(l)) < 0) stop("Error in redistribution\n");
                 }
-                moveEvent(ipart, 0, 1, 4, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng);
+                moveEvent(ipart, 0, 1, 4, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng, posonly);
             }
             // positive moves into A
             MD = inc(2, j, l);
@@ -875,7 +1131,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
                     tempinc(k - ncohorts(l)) -= u1_new[ipart](10, j, k) - u1[ipart](10, j, k);
                     if(tempinc(k - ncohorts(l)) < 0) stop("Error in redistribution\n");
                 }
-                moveEvent(ipart, 0, 1, 2, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng);
+                moveEvent(ipart, 0, 1, 2, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng, posonly);
             }
             
             // classes are: S, E, A, RA, P, I1, DI, I2, RI, H, RH, DH
@@ -899,7 +1155,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
                     tempinc(k - ncohorts(l)) += u1_new[ipart](10, j, k) - u1[ipart](10, j, k);
                     if(tempinc(k - ncohorts(l)) < 0) stop("Error in redistribution\n");
                 }
-                moveEvent(ipart, 1, 1, 0, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng);
+                moveEvent(ipart, 1, 1, 0, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng, posonly);
             }
             // positive moves into E
             MD = inc(1, j, l);
@@ -920,7 +1176,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
                     tempinc(k - ncohorts(l)) -= u1_new[ipart](10, j, k) - u1[ipart](10, j, k);
                     if(tempinc(k - ncohorts(l)) < 0) stop("Error in redistribution\n");
                 }
-                moveEvent(ipart, 0, 0, 1, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng);
+                moveEvent(ipart, 0, 0, 1, j, l, inc, tempinc, tempinc1, ncohorts, u1_new, eng, posonly);
             }
         }
     }
@@ -976,9 +1232,10 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
 //}
 
 // [[Rcpp::export]]
-List PF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses, arma::uword nages, arma::uword nlads, arma::imat u1_moves, arma::ivec ncohorts, 
-         arma::icube u1_comb, arma::uword ndays, arma::uword npart, int MD, double a1, double a2, double b, double a_dis, 
-         double b_dis, int saveAll, int PF, int ncores) {
+List PF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses, 
+    arma::uword nages, arma::uword nlads, arma::imat u1_moves, arma::ivec ncohorts, 
+    arma::icube u1_comb, arma::uword ndays, arma::uword npart, double a1, double a2, 
+    double b, double a_dis, double b_dis, int saveAll, int writeExt, int PF, int ncores) {
     
     // set counters
     arma::uword i, j, l, k, t;
@@ -986,8 +1243,13 @@ List PF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses,
     // split u1 up into different LADs
     std::vector<arma::icube> u1(npart);
     std::vector<arma::icube> u1_new(npart);
-    arma::icube u1_night_full(nclasses, nages, nlads); u1_night_full.zeros();
-    arma::icube u1_night_reduced(2, nages, nlads); u1_night_reduced.zeros();
+    arma::icube u1_night_full(nclasses + 2, nages, nlads); u1_night_full.zeros();
+    arma::icube u1_night_reduced(4, nages, nlads); u1_night_reduced.zeros();
+    std::vector<arma::icube> u1_night_obs(npart);
+    std::vector<arma::icube> u1_night_obs1(npart);
+    for(i = 0; i < npart; i++) {
+        u1_night_obs[i] = arma::icube (2, nages, nlads); u1_night_obs[i].zeros();
+    }
     arma::imat N_day(nages, nlads); N_day.zeros();
     arma::imat N_night(nages, nlads); N_night.zeros();
     for(i = 0; i < u1_moves.n_rows; i++) {
@@ -1012,41 +1274,6 @@ List PF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses,
     // set up auxiliary objects    
     arma::ivec obsInc (data.n_cols); obsInc.zeros();
     
-    // check which output required
-    List out (npart * (ndays + 1));
-    if(saveAll != 0) {
-        if(saveAll == 1) {
-            for(i = 0; i < npart; i++) {
-                // extract just counts for DI and DH
-                u1_night_reduced.zeros();
-                for(l = 0; l < u1_moves.n_rows; l++) {
-                    for(j = 0; j < nages; j++) {
-                        u1_night_reduced(0, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](6, j, l);
-                        u1_night_reduced(1, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](11, j, l);
-                    }
-                }
-                out[i] = u1_night_reduced;
-            }
-        } else {
-            for(i = 0; i < npart; i++) {
-                u1_night_full.zeros();
-                for(l = 0; l < u1_moves.n_rows; l++) {
-                    for(j = 0; j < nages; j++) {
-                        for(k = 0; k < nclasses; k++) {
-                            u1_night_full(k, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](k, j, l);
-                        }
-                    }
-                }
-                out[i] = u1_night_full;
-            }
-        }
-    }
-    
-    // initialise timer
-    Timer timer;
-    int timer_cnt = 0;
-    double prev_time = 0.0;
-    
     // sample seeds to set up thread-safe PRNGs
 #ifdef _OPENMP
     omp_set_num_threads(ncores);
@@ -1057,6 +1284,130 @@ List PF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses,
     }
     uint32_t coreseedSerial = static_cast<uint32_t>(R::rnorm(0.0, 100.0));
     sitmo::prng engSerial(coreseedSerial);
+    
+    // check which output required
+    List out (npart * (ndays + 1));
+    std::ofstream file;
+    char file_name[128];
+    if(saveAll != 0) {
+        // set up print string for debugging
+        char str1[80];
+        std::strcpy(str1, "save");
+        if(saveAll == 1) {
+            for(i = 0; i < npart; i++) {
+                // extract just counts for DI and DH
+                u1_night_reduced.zeros();
+                for(l = 0; l < u1_moves.n_rows; l++) {
+                    for(j = 0; j < nages; j++) {
+                        u1_night_reduced(0, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](6, j, l);
+                        u1_night_reduced(1, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](11, j, l);
+                        // incidence
+                        u1_night_reduced(2, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](6, j, l);
+                        u1_night_reduced(3, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](11, j, l);
+                    }
+                }
+                // apply observation error
+                for(l = 0; l < nlads; l++) {
+                    for(j = 0; j < nages; j++) {
+                        u1_night_reduced(2, j, l) += rtskellam_cpp(
+                            a1 + b * u1_night_reduced(2, j, l),
+                            a2 + b * u1_night_reduced(2, j, l),
+                            str1,
+                            engSerial,
+                            -u1_night_reduced(2, j, l),
+                            -u1_night_reduced(2, j, l) - 1);
+                        u1_night_reduced(3, j, l) += rtskellam_cpp(
+                            a1 + b * u1_night_reduced(3, j, l),
+                            a2 + b * u1_night_reduced(3, j, l),
+                            str1,
+                            engSerial,
+                            -u1_night_reduced(3, j, l),
+                            -u1_night_reduced(3, j, l) - 1);
+                        u1_night_obs[i](0, j, l) = u1_night_reduced(2, j, l);
+                        u1_night_obs[i](1, j, l) = u1_night_reduced(3, j, l);
+                    }
+                }
+                if(writeExt == 0) {
+                    out[i] = u1_night_reduced;
+                } else {
+                    std::sprintf(file_name, "saveOut/p_%u.csv", i);
+                    file.open(file_name);
+                    file << "time, class, ";
+                    for(j = 0; j < nages; j++) file << "age" << j + 1 << ", ";
+                    file << "lad\n";
+                    for(l = 0; l < nlads; l++) {
+                        for(arma::uword r = 0; r < 4; r++) {
+                            file << t << ", " << r << ", ";
+                            for(j = 0; j < nages; j++) {
+                                file << u1_night_reduced(r, j, l) << ", ";
+                            }
+                            file << l + 1 << "\n";
+                        }
+                    }
+                    file.close();
+                }
+            }
+        } else {
+            for(i = 0; i < npart; i++) {
+                u1_night_full.zeros();
+                for(l = 0; l < u1_moves.n_rows; l++) {
+                    for(j = 0; j < nages; j++) {
+                        for(k = 0; k < nclasses; k++) {
+                            u1_night_full(k, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](k, j, l);
+                        }
+                        // incidence
+                        u1_night_full(nclasses, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](6, j, l);
+                        u1_night_full(nclasses + 1, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](11, j, l);
+                    }
+                }
+                // apply observation error
+                for(l = 0; l < nlads; l++) {
+                    for(j = 0; j < nages; j++) {
+                        u1_night_full(nclasses, j, l) += rtskellam_cpp(
+                            a1 + b * u1_night_full(nclasses, j, l),
+                            a2 + b * u1_night_full(nclasses, j, l),
+                            str1,
+                            engSerial,
+                            -u1_night_full(nclasses, j, l),
+                            -u1_night_full(nclasses, j, l) - 1);
+                        u1_night_full(nclasses + 1, j, l) += rtskellam_cpp(
+                            a1 + b * u1_night_full(nclasses + 1, j, l),
+                            a2 + b * u1_night_full(nclasses + 1, j, l),
+                            str1,
+                            engSerial,
+                            -u1_night_full(nclasses + 1, j, l),
+                            -u1_night_full(nclasses + 1, j, l) - 1);
+                        u1_night_obs[i](0, j, l) = u1_night_full(nclasses, j, l);
+                        u1_night_obs[i](1, j, l) = u1_night_full(nclasses + 1, j, l);
+                    }
+                }
+                if(writeExt == 0) {
+                    out[i] = u1_night_full;
+                } else {
+                    std::sprintf(file_name, "saveOut/p_%u.csv", i);
+                    file.open(file_name);
+                    file << "time, class, ";
+                    for(j = 0; j < nages; j++) file << "age" << j + 1 << ", ";
+                    file << "lad\n";
+                    for(l = 0; l < nlads; l++) {
+                        for(arma::uword r = 0; r < (nclasses + 2); r++) {
+                            file << t << ", " << r << ", ";
+                            for(j = 0; j < nages; j++) {
+                                file << u1_night_full(r, j, l) << ", ";
+                            }
+                            file << l + 1 << "\n";
+                        }
+                    }
+                    file.close();
+                }
+            }
+        }
+    }
+    
+    // initialise timer
+    Timer timer;
+    int timer_cnt = 0;
+    double prev_time = 0.0;    
     
     // loop over time
     double ll = 0.0;
@@ -1070,7 +1421,7 @@ List PF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses,
         
         // loop over particles
 #ifdef _OPENMP
-#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, u1_moves, nages, nclasses, nlads, data, C, N_night, N_day, u1, u1_new, t, pars, weights, MD, a_dis, b_dis, a1, a2, b, obsInc, PF, ncohorts)
+#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, u1_moves, nages, nclasses, nlads, data, C, N_night, N_day, u1, u1_new, t, pars, weights, a_dis, b_dis, a1, a2, b, obsInc, PF, ncohorts, ndays)
 #endif
         for(i = 0; i < npart; i++) {
     
@@ -1088,389 +1439,369 @@ List PF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses,
             // set up auxiliary objects
             arma::imat DHinc (nages, nlads); DHinc.zeros();
             arma::imat DIinc (nages, nlads); DIinc.zeros();
-            
-            arma::ivec Dtempinc (data.n_cols); Dtempinc.zeros();
-            arma::vec tempdens (data.n_cols); tempdens.zeros();
+            arma::imat DHinc1 (nages, nlads); DHinc1.zeros();
+            arma::imat DIinc1 (nages, nlads); DIinc1.zeros();
+            arma::imat RHinc (nages, nlads); RHinc.zeros();
+            arma::imat Hinc (nages, nlads); Hinc.zeros();
+            arma::imat RIinc (nages, nlads); RIinc.zeros();
+            arma::imat I2inc (nages, nlads); I2inc.zeros();
+            arma::imat I1inc (nages, nlads); I1inc.zeros();
+            arma::imat Pinc (nages, nlads); Pinc.zeros();
+            arma::imat RAinc (nages, nlads); RAinc.zeros();
+            arma::imat Ainc (nages, nlads); Ainc.zeros();
+            arma::imat Einc (nages, nlads); Einc.zeros();
+            arma::icube tempMD (nclasses, nages, nlads); tempMD.zeros();
             
             arma::mat pinf(nages, nlads); pinf.zeros();
             arma::imat origE(nages, u1_moves.n_rows); origE.zeros();
             arma::icube u1_day(nclasses, nages, nlads); u1_day.zeros();
             arma::icube u1_night(nclasses, nages, nlads); u1_night.zeros();
+            arma::icube u1_night1(nclasses, nages, nlads); u1_night1.zeros();
             
-            // run model and return u1
-            discreteStochModel((int) i, pars, t - 1, t, u1_moves, u1_new, u1_day, u1_night, N_day, N_night, pinf, origE, C, eng);
-            
-            // cols: c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "RI", "H", "RH", "DH")
-            //          0,   1,   2,   3,    4,   5,    6,    7,    8,    9,   10,   11
+            // aggregate counts to LAD-level
+            for(j = 0; j < nages; j++) {                    
+                for(l = 0; l < u1_moves.n_rows; l++) {
+                    for(int s = 0; s < nclasses; s++) {
+                        u1_night(s, j, u1_moves(l, 0) - 1) += u1[i](s, j, l);
+                    }
+                }
+            }
             
             // set weights
             weights(i) = 0.0;
             
+            // set auxiliary variables
+            double muy, sigma2y, pI1pI1D, pHpHD, u;
+            
+            // run model and return u1
+            discreteStochModel((int) i, pars, t - 1, t, u1_moves, u1_new, u1_day, u1_night1, N_day, N_night, pinf, origE, C, eng);
+        
+            // cols: c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "RI", "H", "RH", "DH")
+            //          0,   1,   2,   3,    4,   5,    6,    7,    8,    9,   10,   11
+            
             // adjust states according to model discrepancy
-            if(MD == 1) {
-                // create auxiliary objects
-                arma::imat RHinc (nages, nlads); RHinc.zeros();
-                arma::imat Hinc (nages, nlads); Hinc.zeros();
-                arma::imat RIinc (nages, nlads); RIinc.zeros();
-                arma::imat I2inc (nages, nlads); I2inc.zeros();
-                arma::imat I1inc (nages, nlads); I1inc.zeros();
-                arma::imat Pinc (nages, nlads); Pinc.zeros();
-                arma::imat RAinc (nages, nlads); RAinc.zeros();
-                arma::imat Ainc (nages, nlads); Ainc.zeros();
-                arma::imat Einc (nages, nlads); Einc.zeros();
-                arma::icube tempMD (nclasses, nages, nlads); tempMD.zeros();
-                
-                // reset u1_night to use as correct lad-level counter
-                u1_night.zeros();
-                                
-                // DH (MD on incidence)
-                std::strcpy(str1, "DHinc");
-                // aggregate incidence to LAD-level
-                for(j = 0; j < nages; j++) {                    
-                    for(l = 0; l < u1_moves.n_rows; l++) {
-                        DHinc(j, u1_moves(l, 0) - 1) += (u1_new[i](11, j, l) - u1[i](11, j, l));
-                        u1_night(9, j, u1_moves(l, 0) - 1) += u1[i](9, j, l);
-                    }
+                            
+            // DH (MD on incidence)
+            std::strcpy(str1, "DHinc");
+            // aggregate incidence to LAD-level
+            for(j = 0; j < nages; j++) {                    
+                for(l = 0; l < u1_moves.n_rows; l++) {
+                    DHinc(j, u1_moves(l, 0) - 1) += (u1_new[i](11, j, l) - u1[i](11, j, l));
                 }
-                for(j = 0; j < nages; j++) {
-                    for(l = 0; l < nlads; l++) {
-                        // calculate MD
-                        tempMD(11, j, l) = rtskellam_cpp(
-                            a_dis + b_dis * DHinc(j, l),
-                            a_dis + b_dis * DHinc(j, l),
+            }
+            for(j = 0; j < nages; j++) {
+            
+                // extract transition probabilities
+                pHpHD = pars(j + 8 * nages + 2) * pars(j + 9 * nages + 2);
+                for(l = 0; l < nlads; l++) {
+                
+                    // sample MD conditional on simulator
+                    sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(9, j, l) * pHpHD;
+                    muy = (double) DHinc(j, l);
+                    
+                    u = rtnorm_one((-0.5 - muy) / sqrt(sigma2y), (u1_night(9, j, l) + 0.5 - muy) / sqrt(sigma2y), eng);
+                    u = u * sqrt(sigma2y) + muy;
+                    int s = (int) round(u);
+                    tempMD(11, j, l) = s - DHinc(j, l);
+                    DHinc(j, l) = s;
+                    if(DHinc(j, l) < 0 || DHinc(j, l) > u1_night(9, j, l)) stop("DHinc error\n");
+                    
+                    // observation error for given incidence
+                    if(PF == 1) {
+                        weights(i) += ldtskellam_cpp(
+                            obsInc(nlads * nages + j * nlads + l) - DHinc(j, l),
+                            a1 + b * DHinc(j, l),
+                            a2 + b * DHinc(j, l),
                             str1,
-                            eng,
                             -DHinc(j, l),
-                            u1_night(9, j, l) - DHinc(j, l)
+                            -DHinc(j, l) - 1,
+                            0
                         );
-                        DHinc(j, l) += tempMD(11, j, l);
-                        if(DHinc(j, l) < 0 || DHinc(j, l) > u1_night(9, j, l)) stop("DHinc error\n");
-                    }
-                }
-                
-                // RH given DH (MD on incidence)
-                std::strcpy(str1, "RHinc");
-                // aggregate incidence to LAD-level
-                for(j = 0; j < nages; j++) {                    
-                    for(l = 0; l < u1_moves.n_rows; l++) {
-                        RHinc(j, u1_moves(l, 0) - 1) += u1_new[i](10, j, l) - u1[i](10, j, l);
-                        // u1_night(9, j, u1_moves(l, 0) - 1) += u1[i](9, j, l);
-                    }
-                }
-                for(j = 0; j < nages; j++) {
-                    for(l = 0; l < nlads; l++) {
-                        tempMD(10, j, l) = rtskellam_cpp(
-                            a_dis + b_dis * RHinc(j, l),
-                            a_dis + b_dis * RHinc(j, l),
-                            str1,
-                            eng,
-                            -RHinc(j, l),
-                            u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l)
-                        );
-                        RHinc(j, l) += tempMD(10, j, l);
-                        if(RHinc(j, l) < 0 || RHinc(j, l) > u1_night(9, j, l) - DHinc(j, l)) stop("RHinc error\n");
-                    }
-                }
-                    
-                // H given later
-                std::strcpy(str1, "H");
-                // aggregate count to LAD-level
-                for(j = 0; j < nages; j++) {
-                    for(l = 0; l < u1_moves.n_rows; l++) {
-                        Hinc(j, u1_moves(l, 0) - 1) += u1_new[i](9, j, l);
-                        u1_night(5, j, u1_moves(l, 0) - 1) += u1[i](5, j, l);
-                        // u1_night(9, j, u1_moves(l, 0) - 1) += u1[i](9, j, l);
-                    }
-                }
-                for(j = 0; j < nages; j++) {
-                    for(l = 0; l < nlads; l++) {
-                        // let Hinc be count MD
-                        tempMD(9, j, l) = rtskellam_cpp(
-                            a_dis + b_dis * Hinc(j, l),
-                            a_dis + b_dis * Hinc(j, l),
-                            str1,
-                            eng,
-                            -Hinc(j, l) + u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l),
-                            u1_night(5, j, l) - Hinc(j, l) + u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l)
-                        );
-                        Hinc(j, l) += tempMD(9, j, l);
-                        if(Hinc(j, l) < 0) stop("Hinc error\n");
-                    }
-                }
-                for(j = 0; j < nages; j++) {
-                    for(l = 0; l < nlads; l++) {
-                        Hinc(j, l) = Hinc(j, l) - u1_night(9, j, l) + DHinc(j, l) + RHinc(j, l);
-                        if(Hinc(j, l) < 0 || Hinc(j, l) > u1_night(5, j, l)) stop("Hinc error1 %d\n", Hinc(j, l));
-                    }
-                }
-                    
-                // DI given H (MD on incidence)
-                std::strcpy(str1, "DIinc");
-                // aggregate incidence to LAD-level
-                for(j = 0; j < nages; j++) {                    
-                    for(l = 0; l < u1_moves.n_rows; l++) {
-                        DIinc(j, u1_moves(l, 0) - 1) += u1_new[i](6, j, l) - u1[i](6, j, l);
-                        // u1_night(5, j, u1_moves(l, 0) - 1) += u1[i](5, j, l);
-                    }
-                }
-                for(j = 0; j < nages; j++) {
-                    for(l = 0; l < nlads; l++) {
-                        tempMD(6, j, l) = rtskellam_cpp(
-                            a_dis + b_dis * DIinc(j, l),
-                            a_dis + b_dis * DIinc(j, l),
-                            str1,
-                            eng,
-                            -DIinc(j, l),
-                            u1_night(5, j, l) - Hinc(j, l) - DIinc(j, l)
-                        );
-                        DIinc(j, l) += tempMD(6, j, l);
-                        if(DIinc(j, l) < 0 || DIinc(j, l) > u1_night(5, j, l) - Hinc(j, l)) stop("DIinc error\n");
-                    }
-                }
-                    
-                // RI (MD on incidence)
-                std::strcpy(str1, "RIinc");
-                // aggregate incidence to LAD-level
-                for(j = 0; j < nages; j++) {                    
-                    for(l = 0; l < u1_moves.n_rows; l++) {
-                        RIinc(j, u1_moves(l, 0) - 1) += u1_new[i](8, j, l) - u1[i](8, j, l);
-                        u1_night(7, j, u1_moves(l, 0) - 1) += u1[i](7, j, l);
-                    }
-                }
-                for(j = 0; j < nages; j++) {
-                    for(l = 0; l < nlads; l++) {
-                        tempMD(8, j, l) = rtskellam_cpp(
-                            a_dis + b_dis * RIinc(j, l),
-                            a_dis + b_dis * RIinc(j, l),
-                            str1,
-                            eng,
-                            -RIinc(j, l),
-                            u1_night(7, j, l) - RIinc(j, l)
-                        );
-                        RIinc(j, l) += tempMD(8, j, l);
-                        if(RIinc(j, l) < 0 || RIinc(j, l) > u1_night(7, j, l)) stop("RIinc error\n");
-                    }
-                }
-                    
-                // I2 given later
-                std::strcpy(str1, "I2inc");
-                // aggregate count to LAD-level
-                for(j = 0; j < nages; j++) {
-                    for(l = 0; l < u1_moves.n_rows; l++) {
-                        I2inc(j, u1_moves(l, 0) - 1) += u1_new[i](7, j, l);
-                        // u1_night(5, j, u1_moves(l, 0) - 1) += u1[i](5, j, l);
-                        // u1_night(7, j, u1_moves(l, 0) - 1) += u1[i](7, j, l);
-                    }
-                }
-                for(j = 0; j < nages; j++) {
-                    for(l = 0; l < nlads; l++) {
-                        tempMD(7, j, l) = rtskellam_cpp(
-                            a_dis + b_dis * I2inc(j, l),
-                            a_dis + b_dis * I2inc(j, l),
-                            str1,
-                            eng,
-                            -I2inc(j, l) + u1_night(7, j, l) - RIinc(j, l),
-                            u1_night(5, j, l) - DIinc(j, l) - Hinc(j, l) - I2inc(j, l) + u1_night(7, j, l) - RIinc(j, l)
-                        );
-                        I2inc(j, l) += tempMD(7, j, l);
-                        if(I2inc(j, l) < 0) stop("I2inc error\n");
-                    }
-                }                
-                for(j = 0; j < nages; j++) {
-                    for(l = 0; l < nlads; l++) {
-                        I2inc(j, l) = I2inc(j, l) - u1_night(7, j, l) + RIinc(j, l);
-                        if(I2inc(j, l) < 0 || I2inc(j, l) > u1_night(5, j, l) - DIinc(j, l) - Hinc(j, l)) stop("I2inc error\n");
-                    }
-                }
-                
-                // I1 given later
-                std::strcpy(str1, "I1inc");
-                // aggregate count to LAD-level
-                for(j = 0; j < nages; j++) {
-                    for(l = 0; l < u1_moves.n_rows; l++) {
-                        I1inc(j, u1_moves(l, 0) - 1) += u1_new[i](5, j, l);
-                        u1_night(4, j, u1_moves(l, 0) - 1) += u1[i](4, j, l);
-                        // u1_night(5, j, u1_moves(l, 0) - 1) += u1[i](5, j, l);
-                    }
-                }
-                for(j = 0; j < nages; j++) {
-                    for(l = 0; l < nlads; l++) {
-                        tempMD(5, j, l) = rtskellam_cpp(
-                            a_dis + b_dis * I1inc(j, l),
-                            a_dis + b_dis * I1inc(j, l),
-                            str1,
-                            eng,
-                            -I1inc(j, l) + u1_night(5, j, l) - I2inc(j, l) - DIinc(j, l) - Hinc(j, l),
-                            u1_night(4, j, l) - I1inc(j, l) + u1_night(5, j, l) - I2inc(j, l) - DIinc(j, l) - Hinc(j, l)
-                        );
-                        I1inc(j, l) += tempMD(5, j, l);
-                        if(I1inc(j, l) < 0) stop("I1inc error\n");
-                    }
-                }                
-                for(j = 0; j < nages; j++) {
-                    for(l = 0; l < nlads; l++) {
-                        I1inc(j, l) = I1inc(j, l) - u1_night(5, j, l) + I2inc(j, l) + DIinc(j, l) + Hinc(j, l);
-                        if(I1inc(j, l) < 0 || I1inc(j, l) > u1_night(4, j, l)) stop("I1inc error\n");
-                    }
-                }
-                
-                // P given later
-                std::strcpy(str1, "Pinc");
-                // aggregate count to LAD-level
-                for(j = 0; j < nages; j++) {
-                    for(l = 0; l < u1_moves.n_rows; l++) {
-                        Pinc(j, u1_moves(l, 0) - 1) += u1_new[i](4, j, l);
-                        u1_night(1, j, u1_moves(l, 0) - 1) += u1[i](1, j, l);
-                        // u1_night(4, j, u1_moves(l, 0) - 1) += u1[i](4, j, l);
-                    }
-                }
-                for(j = 0; j < nages; j++) {
-                    for(l = 0; l < nlads; l++) {
-                        tempMD(4, j, l) = rtskellam_cpp(
-                            a_dis + b_dis * Pinc(j, l),
-                            a_dis + b_dis * Pinc(j, l),
-                            str1,
-                            eng,
-                            -Pinc(j, l) + u1_night(4, j, l) - I1inc(j, l),
-                            u1_night(1, j, l) - Pinc(j, l) + u1_night(4, j, l) - I1inc(j, l)
-                        );
-                        Pinc(j, l) += tempMD(4, j, l);
-                        if(Pinc(j, l) < 0) stop("Pinc error\n");
-                    }
-                }                
-                for(j = 0; j < nages; j++) {
-                    for(l = 0; l < nlads; l++) {
-                        Pinc(j, l) = Pinc(j, l) - u1_night(4, j, l) + I1inc(j, l);
-                        if(Pinc(j, l) < 0 || Pinc(j, l) > u1_night(1, j, l)) stop("Pinc error\n");
-                    }
-                }
-                
-                // RA (MD on incidence)
-                std::strcpy(str1, "RAinc");
-                // aggregate incidence to LAD-level
-                for(j = 0; j < nages; j++) {                    
-                    for(l = 0; l < u1_moves.n_rows; l++) {
-                        RAinc(j, u1_moves(l, 0) - 1) += u1_new[i](3, j, l) - u1[i](3, j, l);
-                        u1_night(2, j, u1_moves(l, 0) - 1) += u1[i](2, j, l);
-                    }
-                }
-                for(j = 0; j < nages; j++) {
-                    for(l = 0; l < nlads; l++) {
-                        tempMD(3, j, l) = rtskellam_cpp(
-                            a_dis + b_dis * RAinc(j, l),
-                            a_dis + b_dis * RAinc(j, l),
-                            str1,
-                            eng,
-                            -RAinc(j, l),
-                            u1_night(2, j, l) - RAinc(j, l)
-                        );
-                        RAinc(j, l) += tempMD(3, j, l);
-                        if(RAinc(j, l) < 0 || RAinc(j, l) > u1_night(2, j, l)) stop("RAinc error\n");
-                    }
-                }
-                
-                // A given later
-                std::strcpy(str1, "Ainc");
-                // aggregate count to LAD-level
-                for(j = 0; j < nages; j++) {
-                    for(l = 0; l < u1_moves.n_rows; l++) {
-                        Ainc(j, u1_moves(l, 0) - 1) += u1_new[i](2, j, l);
-                        // u1_night(1, j, u1_moves(l, 0) - 1) += u1[i](1, j, l);
-                    }
-                }
-                for(j = 0; j < nages; j++) {
-                    for(l = 0; l < nlads; l++) {
-                        tempMD(2, j, l) = rtskellam_cpp(
-                            a_dis + b_dis * Ainc(j, l),
-                            a_dis + b_dis * Ainc(j, l),
-                            str1,
-                            eng,
-                            -Ainc(j, l) + u1_night(2, j, l) - RAinc(j, l),
-                            u1_night(1, j, l) - Pinc(j, l) - Ainc(j, l) + u1_night(2, j, l) - RAinc(j, l)
-                        );
-                        Ainc(j, l) += tempMD(2, j, l);
-                    }
-                }                
-                for(j = 0; j < nages; j++) {
-                    for(l = 0; l < nlads; l++) {
-                        Ainc(j, l) = Ainc(j, l) - u1_night(2, j, l) + RAinc(j, l);
-                        if(Ainc(j, l) < 0 || Ainc(j, l) > u1_night(1, j, l) - Pinc(j, l)) stop("Ainc error\n");
-                    }
-                }
-                
-                // E given later
-                std::strcpy(str1, "Einc");
-                // aggregate count to LAD-level
-                for(j = 0; j < nages; j++) {
-                    for(l = 0; l < u1_moves.n_rows; l++) {
-                        Einc(j, u1_moves(l, 0) - 1) += u1_new[i](1, j, l);
-                        u1_night(0, j, u1_moves(l, 0) - 1) += u1[i](0, j, l);
-                        // u1_night(1, j, u1_moves(l, 0) - 1) += u1[i](1, j, l);
-                    }
-                }
-                for(j = 0; j < nages; j++) {
-                    for(l = 0; l < nlads; l++) {
-                        tempMD(1, j, l) = rtskellam_cpp(
-                            a_dis + b_dis * Einc(j, l),
-                            a_dis + b_dis * Einc(j, l),
-                            str1,
-                            eng,
-                            -Einc(j, l) + u1_night(1, j, l) - Pinc(j, l) - Ainc(j, l),
-                            u1_night(0, j, l) - Einc(j, l) + u1_night(1, j, l) - Pinc(j, l) - Ainc(j, l)
-                        );
-                        Einc(j, l) += tempMD(1, j, l);
-                        if(Einc(j, l) < 0) stop("'Einc' error\n");
-                    }
-                }
-                
-                // re-distribute incidence across cohorts
-                redistribution(i, nages, nlads, tempMD, ncohorts, u1, u1_new, eng);
-                
-            } else {
-                if(PF == 1) {
-                    // DH incidence
-                    for(j = 0; j < nages; j++) {
-                        for(l = 0; l < u1_moves.n_rows; l++) {
-                            DHinc(j, u1_moves(l, 0) - 1) += u1_new[i](11, j, l) - u1[i](11, j, l);
-                            if(DHinc(j, u1_moves(l, 0) - 1) < 0) Rprintf("DHinc = %d j = %d l = %d\n", DHinc(j, l), j, l);
-                        }
-                    }
-                    
-                    // DI incidence
-                    for(j = 0; j < nages; j++) {
-                        for(l = 0; l < u1_moves.n_rows; l++) {
-                            DIinc(j, u1_moves(l, 0) - 1) += u1_new[i](6, j, l) - u1[i](6, j, l);
-                            if(DIinc(j, u1_moves(l, 0) - 1) < 0) Rprintf("DIinc = %d j = %d l = %d\n", DIinc(j, l), j, l);
-                        }
                     }
                 }
             }
             
-            if(PF == 1) {
-                // generate data in correct format for observation error weights
-                Dtempinc.zeros();
-                for(j = 0; j < nages; j++) {
-                    for(l = 0; l < nlads; l++) {
-                        Dtempinc(j * nlads + l) = DIinc(j, l);
-                        Dtempinc(nlads * nages + j * nlads + l) = DHinc(j, l);
+            // DI (MD on incidence)
+            std::strcpy(str1, "DIinc");
+            // aggregate incidence to LAD-level
+            for(j = 0; j < nages; j++) {                    
+                for(l = 0; l < u1_moves.n_rows; l++) {
+                    DIinc(j, u1_moves(l, 0) - 1) += u1_new[i](6, j, l) - u1[i](6, j, l);
+                }
+            }
+            for(j = 0; j < nages; j++) {
+                
+                // set transition probability
+                pI1pI1D = pars(j + 4 * nages + 2) * pars(j + 6 * nages + 2);
+                for(l = 0; l < nlads; l++) {
+                    
+                    // sample MD conditional on simulator
+                    sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(5, j, l) * pI1pI1D;
+                    muy = DIinc(j, l);
+                    
+                    u = rtnorm_one((-0.5 - muy) / sqrt(sigma2y), (u1_night(5, j, l) + 0.5 - muy) / sqrt(sigma2y), eng);
+                    u = u * sqrt(sigma2y) + muy;
+                    int s = (int) round(u);
+                    tempMD(6, j, l) = s - DIinc(j, l);
+                    DIinc(j, l) = s;
+                    if(DIinc(j, l) < 0 || DIinc(j, l) > u1_night(5, j, l)) stop("DIinc error\n");
+                    
+                    // observation error for given incidence
+                    if(PF == 1) {
+                        weights(i) += ldtskellam_cpp(
+                            obsInc(j * nlads + l) - DIinc(j, l),
+                            a1 + b * DIinc(j, l),
+                            a2 + b * DIinc(j, l),
+                            str1,
+                            -DIinc(j, l),
+                            -DIinc(j, l) - 1,
+                            0
+                        );
                     }
                 }
-                
-                // calculate log observation error weights
-                for(l = 0; l < Dtempinc.n_elem; l++) {
-                    tempdens(l) = ldtskellam_cpp(
-                        obsInc(l) - Dtempinc(l),
-                        a1 + b * Dtempinc(l),
-                        a2 + b * Dtempinc(l),
-                        str1,
-                        -Dtempinc(l),
-                        obsInc(l),
-                        0
-                    );
-                    if(!arma::is_finite(tempdens(l)) && tempdens(l) >= 0.0) stop("Error in OE\n");
-                }
-                weights(i) += sum(tempdens);
             }
+            
+            // calculate remaining MD terms
+            
+            // RH given DH (MD on incidence)
+            std::strcpy(str1, "RHinc");
+            // aggregate incidence to LAD-level
+            for(j = 0; j < nages; j++) {                    
+                for(l = 0; l < u1_moves.n_rows; l++) {
+                    RHinc(j, u1_moves(l, 0) - 1) += u1_new[i](10, j, l) - u1[i](10, j, l);
+                }
+            }
+            for(j = 0; j < nages; j++) {
+                for(l = 0; l < nlads; l++) {
+                    tempMD(10, j, l) = rtskellam_cpp(
+                        a_dis + b_dis * RHinc(j, l),
+                        a_dis + b_dis * RHinc(j, l),
+                        str1,
+                        eng,
+                        -RHinc(j, l),
+                        u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l)
+                    );
+                    RHinc(j, l) += tempMD(10, j, l);
+                    if(RHinc(j, l) < 0 || RHinc(j, l) > u1_night(9, j, l) - DHinc(j, l)) stop("RHinc error\n");
+                }
+            }
+                
+            // H given later
+            std::strcpy(str1, "H");
+            // aggregate count to LAD-level
+            for(j = 0; j < nages; j++) {
+                for(l = 0; l < u1_moves.n_rows; l++) {
+                    Hinc(j, u1_moves(l, 0) - 1) += u1_new[i](9, j, l);
+                }
+            }
+            for(j = 0; j < nages; j++) {
+                for(l = 0; l < nlads; l++) {
+                    // let Hinc be count MD
+                    tempMD(9, j, l) = rtskellam_cpp(
+                        a_dis + b_dis * Hinc(j, l),
+                        a_dis + b_dis * Hinc(j, l),
+                        str1,
+                        eng,
+                        -Hinc(j, l) + u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l),
+                        u1_night(5, j, l) - DIinc(j, l) - Hinc(j, l) + u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l)
+                    );
+                    Hinc(j, l) += tempMD(9, j, l);
+                    if(Hinc(j, l) < 0) stop("Hinc error\n");
+                }
+            }
+            for(j = 0; j < nages; j++) {
+                for(l = 0; l < nlads; l++) {
+                    Hinc(j, l) = Hinc(j, l) - u1_night(9, j, l) + DHinc(j, l) + RHinc(j, l);
+                    if(Hinc(j, l) < 0 || Hinc(j, l) > u1_night(5, j, l) - DIinc(j, l)) stop("Hinc error1 %d\n", Hinc(j, l));
+                }
+            }
+                
+            // RI (MD on incidence)
+            std::strcpy(str1, "RIinc");
+            // aggregate incidence to LAD-level
+            for(j = 0; j < nages; j++) {                    
+                for(l = 0; l < u1_moves.n_rows; l++) {
+                    RIinc(j, u1_moves(l, 0) - 1) += u1_new[i](8, j, l) - u1[i](8, j, l);
+                }
+            }
+            for(j = 0; j < nages; j++) {
+                for(l = 0; l < nlads; l++) {
+                    tempMD(8, j, l) = rtskellam_cpp(
+                        a_dis + b_dis * RIinc(j, l),
+                        a_dis + b_dis * RIinc(j, l),
+                        str1,
+                        eng,
+                        -RIinc(j, l),
+                        u1_night(7, j, l) - RIinc(j, l)
+                    );
+                    RIinc(j, l) += tempMD(8, j, l);
+                    if(RIinc(j, l) < 0 || RIinc(j, l) > u1_night(7, j, l)) stop("RIinc error\n");
+                }
+            }
+                
+            // I2 given later
+            std::strcpy(str1, "I2inc");
+            // aggregate count to LAD-level
+            for(j = 0; j < nages; j++) {
+                for(l = 0; l < u1_moves.n_rows; l++) {
+                    I2inc(j, u1_moves(l, 0) - 1) += u1_new[i](7, j, l);
+                }
+            }
+            for(j = 0; j < nages; j++) {
+                for(l = 0; l < nlads; l++) {
+                    tempMD(7, j, l) = rtskellam_cpp(
+                        a_dis + b_dis * I2inc(j, l),
+                        a_dis + b_dis * I2inc(j, l),
+                        str1,
+                        eng,
+                        -I2inc(j, l) + u1_night(7, j, l) - RIinc(j, l),
+                        u1_night(5, j, l) - DIinc(j, l) - Hinc(j, l) - I2inc(j, l) + u1_night(7, j, l) - RIinc(j, l)
+                    );
+                    I2inc(j, l) += tempMD(7, j, l);
+                    if(I2inc(j, l) < 0) stop("I2inc error\n");
+                }
+            }                
+            for(j = 0; j < nages; j++) {
+                for(l = 0; l < nlads; l++) {
+                    I2inc(j, l) = I2inc(j, l) - u1_night(7, j, l) + RIinc(j, l);
+                    if(I2inc(j, l) < 0 || I2inc(j, l) > u1_night(5, j, l) - DIinc(j, l) - Hinc(j, l)) stop("I2inc error\n");
+                }
+            }
+            
+            // I1 given later
+            std::strcpy(str1, "I1inc");
+            // aggregate count to LAD-level
+            for(j = 0; j < nages; j++) {
+                for(l = 0; l < u1_moves.n_rows; l++) {
+                    I1inc(j, u1_moves(l, 0) - 1) += u1_new[i](5, j, l);
+                }
+            }
+            for(j = 0; j < nages; j++) {
+                for(l = 0; l < nlads; l++) {
+                    tempMD(5, j, l) = rtskellam_cpp(
+                        a_dis + b_dis * I1inc(j, l),
+                        a_dis + b_dis * I1inc(j, l),
+                        str1,
+                        eng,
+                        -I1inc(j, l) + u1_night(5, j, l) - I2inc(j, l) - DIinc(j, l) - Hinc(j, l),
+                        u1_night(4, j, l) - I1inc(j, l) + u1_night(5, j, l) - I2inc(j, l) - DIinc(j, l) - Hinc(j, l)
+                    );
+                    I1inc(j, l) += tempMD(5, j, l);
+                    if(I1inc(j, l) < 0) stop("I1inc error\n");
+                }
+            }                
+            for(j = 0; j < nages; j++) {
+                for(l = 0; l < nlads; l++) {
+                    I1inc(j, l) = I1inc(j, l) - u1_night(5, j, l) + I2inc(j, l) + DIinc(j, l) + Hinc(j, l);
+                    if(I1inc(j, l) < 0 || I1inc(j, l) > u1_night(4, j, l)) stop("I1inc error\n");
+                }
+            }
+            
+            // P given later
+            std::strcpy(str1, "Pinc");
+            // aggregate count to LAD-level
+            for(j = 0; j < nages; j++) {
+                for(l = 0; l < u1_moves.n_rows; l++) {
+                    Pinc(j, u1_moves(l, 0) - 1) += u1_new[i](4, j, l);
+                }
+            }
+            for(j = 0; j < nages; j++) {
+                for(l = 0; l < nlads; l++) {
+                    tempMD(4, j, l) = rtskellam_cpp(
+                        a_dis + b_dis * Pinc(j, l),
+                        a_dis + b_dis * Pinc(j, l),
+                        str1,
+                        eng,
+                        -Pinc(j, l) + u1_night(4, j, l) - I1inc(j, l),
+                        u1_night(1, j, l) - Pinc(j, l) + u1_night(4, j, l) - I1inc(j, l)
+                    );
+                    Pinc(j, l) += tempMD(4, j, l);
+                    if(Pinc(j, l) < 0) stop("Pinc error\n");
+                }
+            }                
+            for(j = 0; j < nages; j++) {
+                for(l = 0; l < nlads; l++) {
+                    Pinc(j, l) = Pinc(j, l) - u1_night(4, j, l) + I1inc(j, l);
+                    if(Pinc(j, l) < 0 || Pinc(j, l) > u1_night(1, j, l)) stop("Pinc error\n");
+                }
+            }
+            
+            // RA (MD on incidence)
+            std::strcpy(str1, "RAinc");
+            // aggregate incidence to LAD-level
+            for(j = 0; j < nages; j++) {                    
+                for(l = 0; l < u1_moves.n_rows; l++) {
+                    RAinc(j, u1_moves(l, 0) - 1) += u1_new[i](3, j, l) - u1[i](3, j, l);
+                }
+            }
+            for(j = 0; j < nages; j++) {
+                for(l = 0; l < nlads; l++) {
+                    tempMD(3, j, l) = rtskellam_cpp(
+                        a_dis + b_dis * RAinc(j, l),
+                        a_dis + b_dis * RAinc(j, l),
+                        str1,
+                        eng,
+                        -RAinc(j, l),
+                        u1_night(2, j, l) - RAinc(j, l)
+                    );
+                    RAinc(j, l) += tempMD(3, j, l);
+                    if(RAinc(j, l) < 0 || RAinc(j, l) > u1_night(2, j, l)) stop("RAinc error\n");
+                }
+            }
+            
+            // A given later
+            std::strcpy(str1, "Ainc");
+            // aggregate count to LAD-level
+            for(j = 0; j < nages; j++) {
+                for(l = 0; l < u1_moves.n_rows; l++) {
+                    Ainc(j, u1_moves(l, 0) - 1) += u1_new[i](2, j, l);
+                }
+            }
+            for(j = 0; j < nages; j++) {
+                for(l = 0; l < nlads; l++) {
+                    tempMD(2, j, l) = rtskellam_cpp(
+                        a_dis + b_dis * Ainc(j, l),
+                        a_dis + b_dis * Ainc(j, l),
+                        str1,
+                        eng,
+                        -Ainc(j, l) + u1_night(2, j, l) - RAinc(j, l),
+                        u1_night(1, j, l) - Pinc(j, l) - Ainc(j, l) + u1_night(2, j, l) - RAinc(j, l)
+                    );
+                    Ainc(j, l) += tempMD(2, j, l);
+                }
+            }                
+            for(j = 0; j < nages; j++) {
+                for(l = 0; l < nlads; l++) {
+                    Ainc(j, l) = Ainc(j, l) - u1_night(2, j, l) + RAinc(j, l);
+                    if(Ainc(j, l) < 0 || Ainc(j, l) > u1_night(1, j, l) - Pinc(j, l)) stop("Ainc error\n");
+                }
+            }
+            
+            // E given later
+            std::strcpy(str1, "Einc");
+            // aggregate count to LAD-level
+            for(j = 0; j < nages; j++) {
+                for(l = 0; l < u1_moves.n_rows; l++) {
+                    Einc(j, u1_moves(l, 0) - 1) += u1_new[i](1, j, l);
+                }
+            }
+            for(j = 0; j < nages; j++) {
+                for(l = 0; l < nlads; l++) {
+                    tempMD(1, j, l) = rtskellam_cpp(
+                        a_dis + b_dis * Einc(j, l),
+                        a_dis + b_dis * Einc(j, l),
+                        str1,
+                        eng,
+                        -Einc(j, l) + u1_night(1, j, l) - Pinc(j, l) - Ainc(j, l),
+                        u1_night(0, j, l) - Einc(j, l) + u1_night(1, j, l) - Pinc(j, l) - Ainc(j, l)
+                    );
+                    Einc(j, l) += tempMD(1, j, l);
+                    if(Einc(j, l) < 0) stop("'Einc' error\n");
+                }
+            }
+            
+            // re-distribute incidence across cohorts
+            redistribution(i, nages, nlads, tempMD, ncohorts, u1, u1_new, eng, 0);
             
             // advance seed
             seeds((arma::uword) omp_get_thread_num()) = eng();
@@ -1478,6 +1809,9 @@ List PF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses,
         
         // save particles if necessary
         if(saveAll != 0) {
+            // set up print string for debugging
+            char str1[80];
+            std::strcpy(str1, "save");
             if(saveAll == 1) {
                 for(i = 0; i < npart; i++) {
                     // extract just counts for DI and DH
@@ -1486,9 +1820,51 @@ List PF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses,
                         for(j = 0; j < nages; j++) {
                             u1_night_reduced(0, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](6, j, l);
                             u1_night_reduced(1, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](11, j, l);
+                            // incidence
+                            u1_night_reduced(2, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](6, j, l) - u1[i](6, j, l));
+                            u1_night_reduced(3, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](11, j, l) - u1[i](11, j, l));
                         }
                     }
-                    out[i + npart * (t + 1)] = u1_night_reduced;
+                    // adjust for observation error
+                    for(l = 0; l < nlads; l++) {
+                        for(j = 0; j < nages; j++) {
+                            u1_night_reduced(2, j, l) += rtskellam_cpp(
+                                a1 + b * u1_night_reduced(2, j, l),
+                                a2 + b * u1_night_reduced(2, j, l),
+                                str1,
+                                engSerial,
+                                -u1_night_reduced(2, j, l),
+                                -u1_night_reduced(2, j, l) - 1);
+                            u1_night_reduced(3, j, l) += rtskellam_cpp(
+                                a1 + b * u1_night_reduced(3, j, l),
+                                a2 + b * u1_night_reduced(3, j, l),
+                                str1,
+                                engSerial,
+                                -u1_night_reduced(3, j, l),
+                                -u1_night_reduced(3, j, l) - 1);
+                            // cumulate
+                            u1_night_reduced(2, j, l) += u1_night_obs[i](0, j, l);
+                            u1_night_reduced(3, j, l) += u1_night_obs[i](1, j, l);
+                            u1_night_obs[i](0, j, l) = u1_night_reduced(2, j, l);
+                            u1_night_obs[i](1, j, l) = u1_night_reduced(3, j, l);
+                        }
+                    }
+                    if(writeExt == 0) {
+                        out[i + npart * (t + 1)] = u1_night_reduced;
+                    } else {
+                        std::sprintf(file_name, "saveOut/p_%u.csv", i);
+                        file.open(file_name, std::ios::app);
+                        for(l = 0; l < nlads; l++) {
+                            for(arma::uword r = 0; r < 4; r++) {
+                                file << t << ", " << r << ", ";
+                                for(j = 0; j < nages; j++) {
+                                    file << u1_night_reduced(r, j, l) << ", ";
+                                }
+                                file << l + 1 << "\n";
+                            }
+                        }
+                        file.close();
+                    }
                 }
             } else {
                 for(i = 0; i < npart; i++) {
@@ -1498,9 +1874,50 @@ List PF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses,
                             for(k = 0; k < nclasses; k++) {
                                 u1_night_full(k, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](k, j, l);
                             }
+                            // incidence
+                            u1_night_full(nclasses, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](6, j, l) - u1[i](6, j, l));
+                            u1_night_full(nclasses + 1, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](11, j, l) - u1[i](11, j, l));
                         }
                     }
-                    out[i + npart * (t + 1)] = u1_night_full;
+                    for(l = 0; l < nlads; l++) {
+                        for(j = 0; j < nages; j++) {
+                            u1_night_full(nclasses, j, l) += rtskellam_cpp(
+                                a1 + b * u1_night_full(nclasses, j, l),
+                                a2 + b * u1_night_full(nclasses, j, l),
+                                str1,
+                                engSerial,
+                                -u1_night_full(nclasses, j, l),
+                                -u1_night_full(nclasses, j, l) - 1);
+                            u1_night_full(nclasses + 1, j, l) += rtskellam_cpp(
+                                a1 + b * u1_night_full(nclasses + 1, j, l),
+                                a2 + b * u1_night_full(nclasses + 1, j, l),
+                                str1,
+                                engSerial,
+                                -u1_night_full(nclasses + 1, j, l),
+                                -u1_night_full(nclasses + 1, j, l) - 1);
+                            // cumulate
+                            u1_night_full(nclasses, j, l) += u1_night_obs[i](0, j, l);
+                            u1_night_full(nclasses + 1, j, l) += u1_night_obs[i](1, j, l);
+                            u1_night_obs[i](0, j, l) = u1_night_full(nclasses, j, l);
+                            u1_night_obs[i](1, j, l) = u1_night_full(nclasses + 1, j, l);
+                        }
+                    }
+                    if(writeExt == 0) {
+                        out[i + npart * (t + 1)] = u1_night_full;
+                    } else {
+                        std::sprintf(file_name, "saveOut/p_%u.csv", i);
+                        file.open(file_name, std::ios::app);
+                        for(l = 0; l < nlads; l++) {
+                            for(arma::uword r = 0; r < (nclasses + 2); r++) {
+                                file << t << ", " << r << ", ";
+                                for(j = 0; j < nages; j++) {
+                                    file << u1_night_full(r, j, l) << ", ";
+                                }
+                                file << l + 1 << "\n";
+                            }
+                        }
+                        file.close();
+                    }
                 }
             }
         }
@@ -1511,7 +1928,7 @@ List PF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses,
             
             // if zero likelihood then return
             if(!arma::is_finite(ll)) {
-                if(saveAll == 0) {
+                if(saveAll == 0 || writeExt == 1) {
                     return List::create(Named("ll") = ll);
                 } else {
                     return List::create(Named("ll") = ll, _["particles"] = out);
@@ -1525,12 +1942,16 @@ List PF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses,
             
             // resample
             for(i = 0; i < npart; i++) {
-                l = (arma::uword) rmultinom_cpp(weights, engSerial);
-                u1[i] = u1_new[l];
+                inds(i) = (arma::uword) rmultinom_cpp(weights, engSerial);
+            }
+            for(i = 0; i < npart; i++) {
+                u1[i] = u1_new[inds(i)];
+                u1_night_obs1[i] = u1_night_obs[inds(i)];
             }
             // copy in order to pass by reference
             for(i = 0; i < npart; i++) {
                 u1_new[i] = u1[i];
+                u1_night_obs[i] = u1_night_obs1[i];
             }
         } else {
             for(i = 0; i < npart; i++) {
@@ -1543,14 +1964,18 @@ List PF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses,
         NumericVector res(timer);
         
         // calculate ESS
-        double ESS = 0.0;
-        for(i = 0; i < npart; i++) {
-            ESS += pow(weights(i), 2.0);
+        if(PF == 1) {
+            double ESS = 0.0;
+            for(i = 0; i < npart; i++) {
+                ESS += pow(weights(i), 2.0);
+            }
+            ESS = 1.0 / ESS;
+            ESS = ESS / ((double) npart);
+            
+            Rprintf("t = %d / %d RESS = %.2f time = %.2f secs \n", t + 1, ndays, ESS, (res[timer_cnt] / 1e9) - prev_time);
+        } else {
+            Rprintf("t = %d / %d time = %.2f secs \n", t + 1, ndays, (res[timer_cnt] / 1e9) - prev_time);
         }
-        ESS = 1.0 / ESS;
-        ESS = ESS / ((double) npart);
-        
-        Rprintf("t = %d / %d RESS = %.2f time = %.2f secs \n", t + 1, ndays, ESS, (res[timer_cnt] / 1e9) - prev_time);
         
         //reset timer and acceptance rate counter
         prev_time = res[timer_cnt] / 1e9;
@@ -1559,13 +1984,22 @@ List PF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses,
     if(saveAll == 0) {
         return List::create(Named("ll") = ll);
     } else {
-        if(PF == 1) {
-            return List::create(Named("ll") = ll, _["particles"] = out);
+        if(writeExt == 0) {
+            if(PF == 1) {
+                return List::create(Named("ll") = ll, _["particles"] = out);
+            } else {
+                return List::create(Named("particles") = out);
+            }
         } else {
-            return List::create(Named("particles") = out);
+            if(PF == 1) {
+                return List::create(Named("ll") = ll);
+            } else {
+                return List::create(Named("particles") = NA_INTEGER);
+            }
         }
     }
 }
+
 /*
  *  Mathlib : A C Library of Special Functions
  *  Copyright (C) 1998-2014 Ross Ihaka and the R Core team.
