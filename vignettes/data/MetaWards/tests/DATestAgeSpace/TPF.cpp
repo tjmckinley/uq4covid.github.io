@@ -1892,6 +1892,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                 discreteStochModel((int) i, condpars, t - 1, t, u1_moves, u1_new, u1_day, u1_night1, N_day, N_night, pinf, origE, C, eng);
                 
                 // set model discrepancy counts for later re-distribution
+                tempMD.zeros();
                 for(l = 0; l < nlads; l++) {
                     for(j = 0; j < nages; j++) {
                         tempMD(6, j, l) = DIinc(j, l) - DIinc1(j, l);
