@@ -174,7 +174,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, kmax
                     x <- as.vector(aperm(x[1:2, , ], 3:1))
                     
                     ## calculate observation densities
-                    rbind(x, dtskellam(data - x, a1 + b * x, a2 + b * x, -x, data, log = TRUE))
+                    rbind(x, dtskellam(data - x, a1 + b * x, a2 + b * x, -x, log = TRUE))
                 }, x = temp, data = data[ndays, ], a1 = a1, a2 = a2, b = b)
                 temp <- do.call("rbind", temp)
                 

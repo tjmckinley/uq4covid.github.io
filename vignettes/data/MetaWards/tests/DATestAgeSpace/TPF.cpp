@@ -374,14 +374,7 @@ double lpskellam_cpp(int x, double lambda1, double lambda2) {
 // log truncated Skellam density (note, no checks on inputs)
 // adapted from "dskellam" source code by Patrick Brown (mistakes are mine)
 double ldtskellam_cpp(int x, double lambda1, double lambda2, char *str, int LB = 0, int UB = -1, int print = 0) {
-    
-    // if UB < LB then returns untruncated density
-    
-    // check for this instance only
-    if(LB > UB) {
-        stop("ldt LB > UB\n");
-    }
-    
+        
     if(print == 1) Rprintf("State: %s\n", str);
     
     // create array for Bessel (trying to deal with recursive
@@ -434,6 +427,21 @@ double ldtskellam_cpp(int x, double lambda1, double lambda2, char *str, int LB =
                 ldens = 0.0;
             }
         }
+    } else {
+        // if UB < LB then calculate lower truncated only
+        if(x < LB) {
+            Rprintf("'x' must be in bounds in dtskellam_cpp: x = %d LB = %d\n", x, LB);
+            stop("");
+        }
+        if(arma::is_finite(ldens)) {
+            // declare variables
+            double norm0 = lpskellam_cpp(LB - 1, lambda1, lambda2);
+            if(!arma::is_finite(norm0)) {
+                stop("Issue with truncation bounds in Skellam LB\n");
+            }
+            norm0 = log(1.0 - exp(norm0));
+            ldens -= norm0;
+        }
     }
 //    if(!arma::is_finite(ldens)) {
 //        Rprintf("Non-finite density in ldtskellam = %f x = %d l1 = %f l2 = %f LB = %d UB = %d\n", ldens, x, lambda1, lambda2, LB, UB);
@@ -443,13 +451,6 @@ double ldtskellam_cpp(int x, double lambda1, double lambda2, char *str, int LB =
 
 // truncated Skellam sampler
 int rtskellam_cpp(double lambda1, double lambda2, char *str, sitmo::prng &eng, int LB = 0, int UB = -1) {
-    
-    // if UB < LB then returns untruncated density
-    
-    // check in this setting:
-    if(LB > UB) {
-        stop("rdt LB > UB\n");
-    }
     
     // declare variables
     int x = 0;
@@ -486,6 +487,29 @@ int rtskellam_cpp(double lambda1, double lambda2, char *str, sitmo::prng &eng, i
                 }
                 if(k == (UB - LB + 1) && u > xdens) {
                     stop("Something wrong in truncated Skellam sampling\n");
+                }
+                x = LB + k;
+            }
+        } else {
+            // draw from lower-truncated distribution
+            int k = 0;
+            int ntries = 1000;
+            while(x < LB && k < ntries) {
+                x = rpois_cpp(lambda1, eng) - rpois_cpp(lambda2, eng);
+                k++;
+            }
+            // if rejection sampling doesn't work
+            // then try inverse transform sampling
+            if(k == ntries) {
+                // Rprintf("LB = %d UB = %d\n", LB, UB);
+                double u = eng() / mx;
+                k = 0;
+                double xdens = exp(ldtskellam_cpp(LB + k, lambda1, lambda2, str, LB, UB, 0));
+                if(!arma::is_finite(xdens)) xdens = 0.0;
+                while(u > xdens) {
+                    k++;
+                    xdens += exp(ldtskellam_cpp(LB + k, lambda1, lambda2, str, LB, UB, 0));
+                    if(!arma::is_finite(xdens)) xdens += 0.0;
                 }
                 x = LB + k;
             }
@@ -1299,18 +1323,18 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                     for(j = 0; j < nages; j++) {
                         u1_night_reduced(2, j, l) += rtskellam_cpp(
                             a1 + b * u1_night_reduced(2, j, l),
-                            a1 + b * u1_night_reduced(2, j, l),
+                            a2 + b * u1_night_reduced(2, j, l),
                             str1,
                             engSerial,
                             -u1_night_reduced(2, j, l),
-                            obsInc(j * nlads + l));
+                            -u1_night_reduced(2, j, l) - 1);
                         u1_night_reduced(3, j, l) += rtskellam_cpp(
                             a1 + b * u1_night_reduced(3, j, l),
-                            a1 + b * u1_night_reduced(3, j, l),
+                            a2 + b * u1_night_reduced(3, j, l),
                             str1,
                             engSerial,
                             -u1_night_reduced(3, j, l),
-                            obsInc(nlads * nages + j * nlads + l));
+                            -u1_night_reduced(3, j, l) - 1);
                         u1_night_obs[i](0, j, l) = u1_night_reduced(2, j, l);
                         u1_night_obs[i](1, j, l) = u1_night_reduced(3, j, l);
                     }
@@ -1353,18 +1377,18 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                     for(j = 0; j < nages; j++) {
                         u1_night_full(nclasses, j, l) += rtskellam_cpp(
                             a1 + b * u1_night_full(nclasses, j, l),
-                            a1 + b * u1_night_full(nclasses, j, l),
+                            a2 + b * u1_night_full(nclasses, j, l),
                             str1,
                             engSerial,
                             -u1_night_full(nclasses, j, l),
-                            obsInc(j * nlads + l));
+                            -u1_night_full(nclasses, j, l) - 1);
                         u1_night_full(nclasses + 1, j, l) += rtskellam_cpp(
                             a1 + b * u1_night_full(nclasses + 1, j, l),
-                            a1 + b * u1_night_full(nclasses + 1, j, l),
+                            a2 + b * u1_night_full(nclasses + 1, j, l),
                             str1,
                             engSerial,
                             -u1_night_full(nclasses + 1, j, l),
-                            obsInc(nlads * nages + j * nlads + l));
+                            -u1_night_full(nclasses + 1, j, l) - 1);
                         u1_night_obs[i](0, j, l) = u1_night_full(nclasses, j, l);
                         u1_night_obs[i](1, j, l) = u1_night_full(nclasses + 1, j, l);
                     }
@@ -1437,7 +1461,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             // set up auxiliary objects
             arma::icube u1_night(nclasses, nages, nlads); u1_night.zeros();
             
-            // aggregate incidence to LAD-level
+            // aggregate counts to LAD-level
             for(j = 0; j < nages; j++) {                    
                 for(l = 0; l < u1_moves.n_rows; l++) {
                     u1_night(9, j, u1_moves(l, 0) - 1) += u1[i](9, j, l);
@@ -1620,7 +1644,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             arma::icube u1_night(nclasses, nages, nlads); u1_night.zeros();
             arma::icube u1_night1(nclasses, nages, nlads); u1_night1.zeros();
             
-            // aggregate incidence to LAD-level
+            // aggregate counts to LAD-level
             for(j = 0; j < nages; j++) {                    
                 for(l = 0; l < u1_moves.n_rows; l++) {
                     for(int s = 0; s < nclasses; s++) {
@@ -1697,7 +1721,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             a2 + b * DIinc(j, l),
                             str1,
                             -DIinc(j, l),
-                            obsInc(j * nlads + l),
+                            -DIinc(j, l) - 1,
                             0
                         );
                         
@@ -1808,7 +1832,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             a2 + b * DHinc(j, l),
                             str1,
                             -DHinc(j, l),
-                            obsInc(nlads * nages + j * nlads + l),
+                            -DHinc(j, l) - 1,
                             0
                         );
                         
@@ -1900,7 +1924,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                     
                         // sample MD conditional on simulator
                         sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(9, j, l) * pHpHD;
-                        muy = DHinc(j, l);
+                        muy = (double) DHinc(j, l);
                         
                         u = rtnorm_one((-0.5 - muy) / sqrt(sigma2y), (u1_night(9, j, l) + 0.5 - muy) / sqrt(sigma2y), eng);
                         u = u * sqrt(sigma2y) + muy;
@@ -1908,6 +1932,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         tempMD(11, j, l) = s - DHinc(j, l);
                         DHinc(j, l) = s;
                         if(DHinc(j, l) < 0 || DHinc(j, l) > u1_night(9, j, l)) stop("DHinc error\n");
+                        
                         // observation error for given incidence
                         weights(i) += ldtskellam_cpp(
                             obsInc(nlads * nages + j * nlads + l) - DHinc(j, l),
@@ -1915,7 +1940,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             a2 + b * DHinc(j, l),
                             str1,
                             -DHinc(j, l),
-                            obsInc(nlads * nages + j * nlads + l),
+                            -DHinc(j, l) - 1,
                             0
                         );
                     }
@@ -1953,7 +1978,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             a2 + b * DIinc(j, l),
                             str1,
                             -DIinc(j, l),
-                            obsInc(j * nlads + l),
+                            -DIinc(j, l) - 1,
                             0
                         );
                     }
@@ -2380,18 +2405,18 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         for(j = 0; j < nages; j++) {
                             u1_night_reduced(2, j, l) += rtskellam_cpp(
                                 a1 + b * u1_night_reduced(2, j, l),
-                                a1 + b * u1_night_reduced(2, j, l),
+                                a2 + b * u1_night_reduced(2, j, l),
                                 str1,
                                 engSerial,
                                 -u1_night_reduced(2, j, l),
-                                obsInc(j * nlads + l));
+                                -u1_night_reduced(2, j, l) - 1);
                             u1_night_reduced(3, j, l) += rtskellam_cpp(
                                 a1 + b * u1_night_reduced(3, j, l),
-                                a1 + b * u1_night_reduced(3, j, l),
+                                a2 + b * u1_night_reduced(3, j, l),
                                 str1,
                                 engSerial,
                                 -u1_night_reduced(3, j, l),
-                                obsInc(nlads * nages + j * nlads + l));
+                                -u1_night_reduced(3, j, l) - 1);
                             // cumulate
                             u1_night_reduced(2, j, l) += u1_night_obs[i](0, j, l);
                             u1_night_reduced(3, j, l) += u1_night_obs[i](1, j, l);
@@ -2433,18 +2458,18 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         for(j = 0; j < nages; j++) {
                             u1_night_full(nclasses, j, l) += rtskellam_cpp(
                                 a1 + b * u1_night_full(nclasses, j, l),
-                                a1 + b * u1_night_full(nclasses, j, l),
+                                a2 + b * u1_night_full(nclasses, j, l),
                                 str1,
                                 engSerial,
                                 -u1_night_full(nclasses, j, l),
-                                obsInc(j * nlads + l));
+                                -u1_night_full(nclasses, j, l) - 1);
                             u1_night_full(nclasses + 1, j, l) += rtskellam_cpp(
                                 a1 + b * u1_night_full(nclasses + 1, j, l),
-                                a1 + b * u1_night_full(nclasses + 1, j, l),
+                                a2 + b * u1_night_full(nclasses + 1, j, l),
                                 str1,
                                 engSerial,
                                 -u1_night_full(nclasses + 1, j, l),
-                                obsInc(nlads * nages + j * nlads + l));
+                                -u1_night_full(nclasses + 1, j, l) - 1);
                             // cumulate
                             u1_night_full(nclasses, j, l) += u1_night_obs[i](0, j, l);
                             u1_night_full(nclasses + 1, j, l) += u1_night_obs[i](1, j, l);
@@ -2696,7 +2721,7 @@ arma::mat TPF_rates_cpp (arma::vec pars, arma::ivec data, arma::uword nages, arm
                     a2 + b * psi(i * 4, j, l),
                     str1,
                     -psi(i * 4, j, l),
-                    data(w),
+                    -psi(i * 4, j, l) - 1,
                     0
                 );
                 
@@ -2772,7 +2797,7 @@ arma::mat TPF_rates_cpp (arma::vec pars, arma::ivec data, arma::uword nages, arm
                     a2 + b * psi(i * 4 + 1, j, l),
                     str1,
                     -psi(i * 4 + 1, j, l),
-                    data(w),
+                    -psi(i * 4 + 1, j, l) - 1,
                     0
                 );
                 
