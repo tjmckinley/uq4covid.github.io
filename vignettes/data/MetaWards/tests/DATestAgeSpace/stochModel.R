@@ -248,6 +248,10 @@ p1 <- wrap_plots(p1, nrow = 2, heights = c(0.8, 0.2)) +
     plot_layout(guides = "collect")
 ggsave("outputs/simsTopLADs.pdf", p1, width = 10, height = 10)
 
+## save outputs
+saveRDS(medRep, "outputs/disSims.rds")
+saveRDS(pars, "outputs/pars.rds")
+
 ## spatial animation of simulation
 
 ## read in shapefile
@@ -317,6 +321,3 @@ p <- inner_join(lad19, p, by = c("objectid" = "lad")) %>%
 p <- p + transition_time(t) + ggtitle("Day = {frame_time}")
 spatial_gif <- animate(p, nframes = 50, fps = 1, renderer = gifski_renderer())
 anim_save("outputs/simsSpatialE.gif", spatial_gif)
-
-saveRDS(medRep, "outputs/disSims.rds")
-saveRDS(pars, "outputs/pars.rds")
