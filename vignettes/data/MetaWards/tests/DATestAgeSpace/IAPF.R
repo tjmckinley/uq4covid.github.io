@@ -113,6 +113,10 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, kmax
         ## extract particles
         ll <- particles$ll
         if(saveAll != 0 & writeExt == 0) saveParticles <- particles$particles
+        if(saveAll != 0 & writeExt == 1) {
+            if(dir.exists(paste0("saveOut_", 1))) system(paste0("rm -r saveOut_", 1))
+            system(paste0("cp -rf saveOut saveOut_", 1))
+        }
         particles <- particles$psi
             
         ## set regularised Gaussian functions
