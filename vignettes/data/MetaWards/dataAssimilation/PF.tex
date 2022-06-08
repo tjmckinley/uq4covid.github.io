@@ -456,9 +456,9 @@ At each time point, given a particle $k$ we target:
 \end{equation}
 where $\pi\left(x_t \mid y^k_{t - 1}\right)$ is binomial and $\pi\left(y_t \mid x_t, y^k_{t - 1}\right)$ is truncated Skellam. The first thing we do is swap to a truncated discrete Gaussian instead of the truncated Skellam model discrepancy process, hence:
 \begin{equation}
-     \left(y_t \mid x_t, y^k_{t - 1}\right) \sim N_D\left(x_t, \sigma^2_y\right)I\left[0, n\right],
+     \left(y_t \mid x_t, y^k_{t - 1}\right) \sim N_D\left(x_t, \sigma^2_{yt}\right)I\left[0, n\right],
 \end{equation}
-where $\sigma^2_y = 2 a_D + 2 b_D E\left(x_t \mid y^k_{t - 1}\right)$ and $n$ is the largest possible incidence based on $y^k_{t - 1}$. We can derive $\pi\left(y_t \mid x_t, y^k_{t - 1}\right)$ directly from an underlying continuous truncated Gaussian with p.d.f. $\tilde{\pi}\left(y_t \mid x_t, y^k_{t - 1}\right)$ as:
+where $\sigma^2_{yt} = 2 a_D + 2 b_D E\left(x_t \mid y^k_{t - 1}\right)$ and $n$ is the largest possible incidence based on $y^k_{t - 1}$. We can derive $\pi\left(y_t \mid x_t, y^k_{t - 1}\right)$ directly from an underlying continuous truncated Gaussian with p.d.f. $\tilde{\pi}\left(y \mid x_t, y^k_{t - 1}\right)$ as:
 \begin{equation}
     \pi\left(y_t \mid x_t, y^k_{t - 1}\right) = \frac{\int_{y_t - 0.5}^{y_t + 0.5} \tilde{\pi}\left(y \mid x_t, y^k_{t - 1}\right) dy}{\int_{-0.5}^{n + 0.5} \tilde{\pi}\left(y \mid x_t, y^k_{t - 1}\right) dy}.
 \end{equation}
@@ -469,91 +469,123 @@ Therefore, from (\ref{eq:target}) we target:
 \end{equation}
 We could employ a twisting function on $y_t$, denoted $\psi_t\left(y_t\right)$, where $\psi_t\left(y_t\right)$ is some positive and continuous function defined for each discrete $y_t = 0, \dots, n$. In which case the twisted target density becomes
 \begin{equation}
-    \pi^{\psi}\left(x_t, y_t \mid y^k_{t - 1}\right) = \frac{\psi_t\left(y_t\right)\pi\left(y_t \mid x_t, y^k_{t - 1}\right)\pi\left(x_t \mid y^k_{t - 1}\right)}{\sum_{x_t = 0}^n \sum_{y_t = 0}^n \psi_t\left(y_t\right)\pi\left(y_t \mid x_t, y^k_{t - 1}\right)\pi\left(x_t \mid y^k_{t - 1}\right)}.
+    \pi^{\psi}\left(x_t, y_t \mid y^k_{t - 1}\right) = \frac{\psi_t\left(y_t\right)\pi\left(y_t \mid x_t, y^k_{t - 1}\right)\pi\left(x_t \mid y^k_{t - 1}\right)}{\sum_{x = 0}^n \sum_{y = 0}^n \psi_t\left(y\right)\pi\left(y \mid x, y^k_{t - 1}\right)\pi\left(x \mid y^k_{t - 1}\right)}.
 \end{equation}
-This can be slow to evaluate, since the normalising constant requires $O([n + 1]^2)$ operations to compute. Instead, we will choose $\tilde{\psi}_t\left(y_t\right)$ to be a continuous positive function for \textit{continuous} $y_t$, and instead target
+This can be slow to evaluate, since the normalising constant requires $O(4[n + 1]^2)$ operations to compute. Instead, we will introduce a \textit{continuous} latent variable $\tilde{y}_t$, and model the target distribution as:
 \begin{equation}
-    \pi^{\psi}\left(x_t, y_t \mid y^k_{t - 1}\right) = \frac{\pi\left(x_t \mid y^k_{t - 1}\right)A^{-1}_{x_t}\int_{y_t - 0.5}^{y_t + 0.5}\tilde{\pi}\left(y \mid x_t, y^k_{t - 1}\right)\tilde{\psi}_t\left(y\right) dy}{\sum_{x_t = 0}^n \pi\left(x_t \mid y^k_{t - 1}\right)A^{-1}_{x_t}\int_{-0.5}^{n + 0.5} \tilde{\pi}\left(y\mid x_t, y^k_{t - 1}\right)\tilde{\psi}_t\left(y\right)dy},\label{eq:twisttarget0}
+    \pi\left(x_t, y_t, \tilde{y}_t \mid y^k_{t - 1}\right) = \pi\left(y_t \mid \tilde{y}_t\right)\pi\left(\tilde{y}_t \mid x_t, y^k_{t - 1}\right)\pi\left(x_t \mid y^k_{t - 1}\right),\label{eq:target1}
 \end{equation}
-where $A_{x_t} = \int_{-0.5}^{n + 0.5} \tilde{\pi}\left(y \mid x_t, y^k_{t - 1}\right) dy$.
-
-The denominator here can be computed in $O(n + 1)$ operations, which is much faster to evaluate. In fact, we will use a mixture distribution of the form:
+where $\pi\left(y_t \mid \tilde{y}_t\right)$ is a point mass distribution such that $y_t = \lfloor \tilde{y}_t + 0.5 \rfloor$ with probability 1, and 
 \begin{equation}
-    \pi^{\psi}\left(x_t, y_t \mid y^k_{t - 1}\right) = \frac{\pi\left(x_t \mid y^k_{t - 1}\right)A^{-1}_{x_t}\left[p_m\int_{y_t - 0.5}^{y_t + 0.5}\tilde{\pi}\left(y \mid x_t, y^k_{t - 1}\right)\tilde{\psi}_t\left(y\right) dy + \left(1 - p_m\right)\int_{y_t - 0.5}^{y_t + 0.5}\tilde{\pi}\left(y \mid x_t, y^k_{t - 1}\right) dy\right]}{\sum_{x_t = 0}^n \pi\left(x_t \mid y^k_{t - 1}\right)A^{-1}_{x_t}\left[p_m\int_{-0.5}^{n + 0.5} \tilde{\pi}\left(y\mid x_t, y^k_{t - 1}\right)\tilde{\psi}_t\left(y\right)dy + \left(1 - p_m\right)\int_{-0.5}^{n + 0.5} \tilde{\pi}\left(y\mid x_t, y^k_{t - 1}\right)dy\right]},\label{eq:twisttarget}
+     \left(\tilde{y}_t \mid x_t, y^k_{t - 1}\right) \sim N\left(x_t, \sigma^2_{yt}\right)I\left(-0.5, n + 0.5\right),
 \end{equation}
-where $p_m$ is a mixing proportion such that $0 < p_m < 1$. This is to protect against the variance of the log-likelihood estimates becoming very large or unbounded~\citep[see][]{guarnieroetal:2017}. We choose $p_m = 0.9$.
+where $\sigma^2_{yt} = 2 a_D + 2 b_D E\left(x_t \mid y^k_{t - 1}\right)$ and $n$ is the largest possible incidence based on $y^k_{t - 1}$ as before. 
 
-As a functional form for $\tilde{\psi}(\cdot)$, we will choose a Gaussian p.d.f., with parameters $\mu_{\psi}$ and $\sigma^2_{\psi}$. Hence:
+We can then introduce a continuous positive function, $\psi_t\left(\tilde{y}_t\right)$, and target
+\begin{equation}
+    \pi^{\psi}\left(x_t, y_t, \tilde{y}_t \mid y^k_{t - 1}\right) = \frac{\pi\left(x_t \mid y^k_{t - 1}\right)A^{-1}_{x_t, n}\tilde{\pi}\left(\tilde{y}_t \mid x_t, y^k_{t - 1}\right)\psi_t\left(\tilde{y}_t\right)\pi\left(y_t \mid \tilde{y}_t\right)}{\sum_{x = 0}^n \pi\left(x \mid y^k_{t - 1}\right)A^{-1}_{x, n}\int_{-0.5}^{n + 0.5} \tilde{\pi}\left(y\mid x, y^k_{t - 1}\right)\psi_t\left(y\right)dy},\label{eq:twisttarget0}
+\end{equation}
+where 
+\begin{equation*}
+    \pi\left(\tilde{y}_t \mid, x_t, y^k_{t - 1}\right) = A^{-1}_{x_t, n} \tilde{\pi}\left(\tilde{y}_t \mid x_t\right) \qquad \mbox{for $-0.5 < y_t < n + 0.5$},
+\end{equation*}
+thus $\tilde{\pi}\left(\tilde{y}_t \mid x_t\right)$ is an \textit{unbounded Gaussian density} function and $A_{x_t, n} = \int_{-0.5}^{n + 0.5} \tilde{\pi}\left(y \mid x_t\right) dy$ is a normalising constant. We separate the unbounded density from the normalising constant to aid the derivations below. We note also that the terms relating to $\pi\left(y_t \mid \tilde{y}_t\right)$ analytically marginalise out of the denominator in (\ref{eq:twisttarget0}). \textbf{The denominator in (\ref{eq:twisttarget0}) can be computed in $O(4[n + 1])$ operations, which is much faster to evaluate.}
+
+As a functional form for $\psi_t(\tilde{y}_t)$, we will choose:
+\begin{equation}
+    \psi_t\left(\tilde{y}_t\right) = p_m \tilde{\psi}_t\left(\tilde{y}_t\right) + \left(1 - p_m\right),\label{eq:mixdens}
+\end{equation}
+where $\tilde{\psi}_t\left(\tilde{y}_t\right)$ is a Gaussian density with parameters $\mu_{\psi t}$ and $\sigma^2_{\psi t}$, and $p_m$ is a mixing proportion such that $0 < p_m < 1$. This is to protect against the variance of the log-likelihood estimates becoming very large or unbounded~\citep[see][]{guarnieroetal:2017}. 
+
+Dropping the $t$ subscripts and dependence on $y^k_{t - 1}$ for brevity, we can now consider:
 \begin{align}
-    \tilde{\psi}_t\left(y\right)\tilde{\pi}\left(y \mid x_t, y^k_{t - 1}\right) &= \frac{1}{\sigma_y\sqrt{2\pi}} \exp\left(-\frac{1}{2\sigma^2_y}\left[y - x_t\right]^2\right)\frac{1}{\sigma_{\psi}\sqrt{2\pi}} \exp\left(-\frac{1}{2\sigma^2_{\psi}}\left[y - \mu_{\psi}\right]^2\right)\nonumber\\
-     &= \frac{1}{2\pi\sigma_y\sigma_{\psi}} \exp\left(-\frac{1}{2}\left[\frac{1}{\sigma^2_y}\left(y^2_t - 2yx_t + x^2_t\right) + \frac{1}{\sigma^2_{\psi}}\left(y^2_t - 2 y \mu_{\psi} + \mu^2_{\psi}\right)\right]\right)\nonumber\\
-     &= \frac{1}{2\pi\sigma_y\sigma_{\psi}} \exp\left(-\frac{1}{2}\left[y^2_t\left(\frac{1}{\sigma^2_y} + \frac{1}{\sigma^2_{\psi}}\right) - 2y\left(\frac{x_t}{\sigma^2_y} + \frac{\mu_{\psi}}{\sigma^2_{\psi}}\right) + \frac{x^2_t}{\sigma^2_y} + \frac{\mu^2_{\psi}}{\sigma^2_{\psi}}\right]\right)\nonumber\\
-     &= \frac{1}{2\pi\sigma_y\sigma_{\psi}} \exp\left(-\frac{1}{2}\left[\frac{x^2_t}{\sigma^2_y} + \frac{\mu^2_{\psi}}{\sigma^2_{\psi}}\right]\right)\exp\left(-\frac{1}{2}\left[\frac{\sigma^2_y + \sigma^2_{\psi}}{\sigma^2_y\sigma^2_{\psi}}\right]\left[y^2_t - 2y\left(\frac{\sigma^2_{\psi}x_t + \sigma^2_y\mu_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right)\right]\right)\nonumber\\
-     &= \frac{1}{2\pi\sigma_y\sigma_{\psi}} \exp\left(-\frac{1}{2}\left[\frac{\sigma^2_{\psi}x^2_t + \sigma^2_y\mu^2_{\psi}}{\sigma^2_y\sigma^2_{\psi}}\right]\right)\exp\left(\frac{1}{2}\left[\frac{\sigma^2_y + \sigma^2_{\psi}}{\sigma^2_y\sigma^2_{\psi}}\right]\left[\frac{\sigma^2_{\psi}x_t + \sigma^2_y\mu_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right]^2\right)\nonumber\\
-     & \qquad \qquad \times \exp\left(-\frac{1}{2}\left[\frac{\sigma^2_y + \sigma^2_{\psi}}{\sigma^2_y\sigma^2_{\psi}}\right]\left[y - \left(\frac{\sigma^2_{\psi}x_t + \sigma^2_y\mu_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right)\right]^2\right)\nonumber\\
-     &= \frac{1}{2\pi\sigma_y\sigma_{\psi}} \exp\left(-\frac{1}{2\sigma^2_y \sigma^2_{\psi}}\left[\sigma^2_{\psi}x^2_t + \sigma^2_y\mu^2_{\psi} - \left(\sigma^2_y + \sigma^2_{\psi}\right)\left(\frac{\sigma^2_{\psi}x_t + \sigma^2_y\mu_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right)^2\right]\right)\nonumber\\
-     & \qquad \qquad \times \exp\left(-\frac{1}{2}\left[\frac{\sigma^2_y + \sigma^2_{\psi}}{\sigma^2_y\sigma^2_{\psi}}\right]\left[y - \left(\frac{\sigma^2_{\psi}x_t + \sigma^2_y\mu_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right)\right]^2\right)\nonumber\\
-     &= \frac{1}{2\pi\sigma_y\sigma_{\psi}} \exp\left(-\frac{1}{2\sigma^2_y \sigma^2_{\psi}}\left[\sigma^2_{\psi}x^2_t + \sigma^2_y\mu^2_{\psi} - \left(\frac{\sigma^4_{\psi}x^2_t + 2\sigma^2_{\psi}\sigma^2_yx_t\mu_{\psi} + \sigma^4_y\mu^2_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right)\right]\right)\nonumber\\
-     & \qquad \qquad \times \exp\left(-\frac{1}{2}\left[\frac{\sigma^2_y + \sigma^2_{\psi}}{\sigma^2_y\sigma^2_{\psi}}\right]\left[y - \left(\frac{\sigma^2_{\psi}x_t + \sigma^2_y\mu_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right)\right]^2\right)\nonumber\\
-     &= \frac{1}{2\pi\sigma_y\sigma_{\psi}} \exp\Bigg(-\frac{1}{2\sigma^2_y \sigma^2_{\psi}\left(\sigma^2_y + \sigma^2_{\psi}\right)}\Bigg[\sigma^2_{\psi}\sigma^2_y x^2_t + \sigma^4_{\psi}x^2_t \nonumber\\
-     & \qquad \qquad \qquad \qquad \qquad + \sigma^4_y\mu^2_{\psi} + \sigma^2_y\sigma^2_{\psi} \mu^2_{\psi} - \sigma^4_{\psi}x^2_t - 2\sigma^2_{\psi}\sigma^2_yx_t\mu_{\psi} - \sigma^4_y\mu^2_{\psi}\Bigg]\Bigg)\nonumber\\
-     & \qquad \qquad \times \exp\left(-\frac{1}{2}\left[\frac{\sigma^2_y + \sigma^2_{\psi}}{\sigma^2_y\sigma^2_{\psi}}\right]\left[y - \left(\frac{\sigma^2_{\psi}x_t + \sigma^2_y\mu_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right)\right]^2\right)\nonumber\\
-     &= \frac{1}{2\pi\sigma_y\sigma_{\psi}} \exp\left(-\frac{1}{2\left(\sigma^2_y + \sigma^2_{\psi}\right)}\left[x^2_t - 2x_t\mu_{\psi} + \mu^2_{\psi} \right]\right)\nonumber\\
-     & \qquad \qquad \times \exp\left(-\frac{1}{2}\left[\frac{\sigma^2_y + \sigma^2_{\psi}}{\sigma^2_y\sigma^2_{\psi}}\right]\left[y - \left(\frac{\sigma^2_{\psi}x_t + \sigma^2_y\mu_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right)\right]^2\right)\nonumber\\
-     &= \frac{1}{\sqrt{2\pi\left(\sigma^2_y + \sigma^2_{\psi}\right)}} \exp\left(-\frac{\left[x_t - \mu_{\psi}\right]^2}{2\left[\sigma^2_y + \sigma^2_{\psi}\right]}\right) \nonumber\\
-     & \qquad \qquad \times \frac{\sqrt{\sigma^2_y + \sigma^2_{\psi}}}{\sigma_y\sigma_{\psi}\sqrt{2\pi}} \exp\left(-\frac{1}{2}\left[\frac{\sigma^2_y + \sigma^2_{\psi}}{\sigma^2_y\sigma^2_{\psi}}\right]\left[y - \left(\frac{\sigma^2_{\psi}x_t + \sigma^2_y\mu_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right)\right]^2\right).\label{eq:twistdens1}
+    \tilde{\psi}\left(y\right)\tilde{\pi}\left(y \mid x\right) &= \frac{1}{\sigma_y\sqrt{2\pi}} \exp\left(-\frac{1}{2\sigma^2_y}\left[y - x\right]^2\right)\frac{1}{\sigma_{\psi}\sqrt{2\pi}} \exp\left(-\frac{1}{2\sigma^2_{\psi}}\left[y - \mu_{\psi}\right]^2\right)\nonumber\\
+     &= \frac{1}{2\pi\sigma_y\sigma_{\psi}} \exp\left(-\frac{1}{2}\left[\frac{1}{\sigma^2_y}\left(y^2 - 2yx + x^2\right) + \frac{1}{\sigma^2_{\psi}}\left(y^2 - 2 y \mu_{\psi} + \mu^2_{\psi}\right)\right]\right)\nonumber\\
+     &= \frac{1}{2\pi\sigma_y\sigma_{\psi}} \exp\left(-\frac{1}{2}\left[y^2\left(\frac{1}{\sigma^2_y} + \frac{1}{\sigma^2_{\psi}}\right) - 2y\left(\frac{x}{\sigma^2_y} + \frac{\mu_{\psi}}{\sigma^2_{\psi}}\right) + \frac{x^2}{\sigma^2_y} + \frac{\mu^2_{\psi}}{\sigma^2_{\psi}}\right]\right)\nonumber\\
+     &= \frac{1}{2\pi\sigma_y\sigma_{\psi}} \exp\left(-\frac{1}{2}\left[\frac{x^2}{\sigma^2_y} + \frac{\mu^2_{\psi}}{\sigma^2_{\psi}}\right]\right)\exp\left(-\frac{1}{2}\left[\frac{\sigma^2_y + \sigma^2_{\psi}}{\sigma^2_y\sigma^2_{\psi}}\right]\left[y^2 - 2y\left(\frac{\sigma^2_{\psi}x + \sigma^2_y\mu_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right)\right]\right)\nonumber\\
+     &= \frac{1}{2\pi\sigma_y\sigma_{\psi}} \exp\left(-\frac{1}{2}\left[\frac{\sigma^2_{\psi}x^2 + \sigma^2_y\mu^2_{\psi}}{\sigma^2_y\sigma^2_{\psi}}\right]\right)\exp\left(\frac{1}{2}\left[\frac{\sigma^2_y + \sigma^2_{\psi}}{\sigma^2_y\sigma^2_{\psi}}\right]\left[\frac{\sigma^2_{\psi}x + \sigma^2_y\mu_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right]^2\right)\nonumber\\
+     & \qquad \qquad \times \exp\left(-\frac{1}{2}\left[\frac{\sigma^2_y + \sigma^2_{\psi}}{\sigma^2_y\sigma^2_{\psi}}\right]\left[y - \left(\frac{\sigma^2_{\psi}x + \sigma^2_y\mu_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right)\right]^2\right)\nonumber\\
+     &= \frac{1}{2\pi\sigma_y\sigma_{\psi}} \exp\left(-\frac{1}{2\sigma^2_y \sigma^2_{\psi}}\left[\sigma^2_{\psi}x^2 + \sigma^2_y\mu^2_{\psi} - \left(\sigma^2_y + \sigma^2_{\psi}\right)\left(\frac{\sigma^2_{\psi}x + \sigma^2_y\mu_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right)^2\right]\right)\nonumber\\
+     & \qquad \qquad \times \exp\left(-\frac{1}{2}\left[\frac{\sigma^2_y + \sigma^2_{\psi}}{\sigma^2_y\sigma^2_{\psi}}\right]\left[y - \left(\frac{\sigma^2_{\psi}x + \sigma^2_y\mu_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right)\right]^2\right)\nonumber\\
+     &= \frac{1}{2\pi\sigma_y\sigma_{\psi}} \exp\left(-\frac{1}{2\sigma^2_y \sigma^2_{\psi}}\left[\sigma^2_{\psi}x^2 + \sigma^2_y\mu^2_{\psi} - \left(\frac{\sigma^4_{\psi}x^2 + 2\sigma^2_{\psi}\sigma^2_yx\mu_{\psi} + \sigma^4_y\mu^2_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right)\right]\right)\nonumber\\
+     & \qquad \qquad \times \exp\left(-\frac{1}{2}\left[\frac{\sigma^2_y + \sigma^2_{\psi}}{\sigma^2_y\sigma^2_{\psi}}\right]\left[y - \left(\frac{\sigma^2_{\psi}x + \sigma^2_y\mu_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right)\right]^2\right)\nonumber\\
+     &= \frac{1}{2\pi\sigma_y\sigma_{\psi}} \exp\Bigg(-\frac{1}{2\sigma^2_y \sigma^2_{\psi}\left(\sigma^2_y + \sigma^2_{\psi}\right)}\Bigg[\sigma^2_{\psi}\sigma^2_y x^2 + \sigma^4_{\psi}x^2 \nonumber\\
+     & \qquad \qquad \qquad \qquad \qquad + \sigma^4_y\mu^2_{\psi} + \sigma^2_y\sigma^2_{\psi} \mu^2_{\psi} - \sigma^4_{\psi}x^2 - 2\sigma^2_{\psi}\sigma^2_yx\mu_{\psi} - \sigma^4_y\mu^2_{\psi}\Bigg]\Bigg)\nonumber\\
+     & \qquad \qquad \times \exp\left(-\frac{1}{2}\left[\frac{\sigma^2_y + \sigma^2_{\psi}}{\sigma^2_y\sigma^2_{\psi}}\right]\left[y - \left(\frac{\sigma^2_{\psi}x + \sigma^2_y\mu_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right)\right]^2\right)\nonumber\\
+     &= \frac{1}{2\pi\sigma_y\sigma_{\psi}} \exp\left(-\frac{1}{2\left(\sigma^2_y + \sigma^2_{\psi}\right)}\left[x^2 - 2x\mu_{\psi} + \mu^2_{\psi} \right]\right)\nonumber\\
+     & \qquad \qquad \times \exp\left(-\frac{1}{2}\left[\frac{\sigma^2_y + \sigma^2_{\psi}}{\sigma^2_y\sigma^2_{\psi}}\right]\left[y - \left(\frac{\sigma^2_{\psi}x + \sigma^2_y\mu_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right)\right]^2\right)\nonumber\\
+     &= \frac{1}{\sqrt{2\pi\left(\sigma^2_y + \sigma^2_{\psi}\right)}} \exp\left(-\frac{\left[x - \mu_{\psi}\right]^2}{2\left[\sigma^2_y + \sigma^2_{\psi}\right]}\right) \nonumber\\
+     & \qquad \qquad \times \frac{\sqrt{\sigma^2_y + \sigma^2_{\psi}}}{\sigma_y\sigma_{\psi}\sqrt{2\pi}} \exp\left(-\frac{1}{2}\left[\frac{\sigma^2_y + \sigma^2_{\psi}}{\sigma^2_y\sigma^2_{\psi}}\right]\left[y - \left(\frac{\sigma^2_{\psi}x + \sigma^2_y\mu_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right)\right]^2\right).\label{eq:twistdens1}
 \end{align}
-The final term in (\ref{eq:twistdens1}) is the p.d.f. of a Gaussian distribution, which we leverage below to perform efficient updating of $y_t$ given $x_t$. Hence, from (\ref{eq:twisttarget}) and (\ref{eq:twistdens1}) we target the twisted transition density:
+The final term in (\ref{eq:twistdens1}) is the p.d.f. of a Gaussian distribution, which we leverage below to perform efficient updating of $y_t$ given $x_t$. 
+
+To simplify the notation, let
+\begin{equation*}
+    B_{x_t} = \exp\left(-\frac{\left[x_t - \mu_{\psi t}\right]^2}{2\left[\sigma^2_{yt} + \sigma^2_{\psi t}\right]}\right),
+\end{equation*}
+and 
+\begin{equation*}
+    \pi_m\left(\tilde{y}_t \mid x_t, y^k_{t - 1}\right) = C^{-1}_{x_t, n} \tilde{\pi}_m\left(\tilde{y}_t \mid x_t\right),
+\end{equation*}
+denote the p.d.f. for a truncated Gaussian distribution such that
+\begin{equation}
+    \tilde{\pi}_m\left(\tilde{y}_t \mid x_t\right) = \frac{\sqrt{\sigma^2_{yt} + \sigma^2_{\psi t}}}{\sigma_{yt}\sigma_{\psi t}\sqrt{2\pi}} \exp\left(-\frac{1}{2}\left[\frac{\sigma^2_{yt} + \sigma^2_{\psi t}}{\sigma^2_{yt}\sigma^2_{\psi t}}\right]\left[\tilde{y}_t - \left(\frac{\sigma^2_{\psi t}x + \sigma^2_{yt}\mu_{\psi t}}{\sigma^2_{yt} + \sigma^2_{\psi t}}\right)\right]^2\right)
+\end{equation}
+and
+\begin{equation}
+    C_{x_t, n} = \int_{-0.5}^{n + 0.5} \tilde{\pi}_m\left(y \mid x_t\right) dy,
+\end{equation}
+for $-0.5 < \tilde{y}_t < n + 0.5$.
+
+Hence, from (\ref{eq:twisttarget0})--(\ref{eq:twistdens1}) we target the twisted transition density:
 \begin{align}
-    \pi^{\psi}\left(x_t, y_t \mid y^k_{t - 1}\right) &\propto \pi\left(x_t \mid y^k_{t - 1}\right)A^{-1}_{x_t}\Bigg[p_m \exp\left(-\frac{\left[x_t - \mu_{\psi}\right]^2}{2\left[\sigma^2_y + \sigma^2_{\psi}\right]}\right)\nonumber \\
-    & \qquad \qquad \times \int_{y_t - 0.5}^{y_t + 0.5} \frac{\sqrt{\sigma^2_y + \sigma^2_{\psi}}}{\sigma_y\sigma_{\psi}\sqrt{2\pi}} \exp\left(-\frac{1}{2}\left[\frac{\sigma^2_y + \sigma^2_{\psi}}{\sigma^2_y\sigma^2_{\psi}}\right]\left[y - \left(\frac{\sigma^2_{\psi}x_t + \sigma^2_y\mu_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right)\right]^2\right) dy\nonumber\\
-    & \qquad \qquad \qquad \qquad + \left(1 - p_m\right)\int_{y_t - 0.5}^{y_t + 0.5} \tilde{\pi}\left(y \mid x_t, y^k_{t - 1}\right) dy\Bigg].\label{eq:twistdens2}
+    \pi^{\psi}\left(x_t, y_t, \tilde{y}_t \mid y^k_{t - 1}\right) &\propto \pi\left(x_t \mid y^k_{t - 1}\right)\pi\left(y_t \mid \tilde{y}_t\right)\Big[p_m A^{-1}_{x_t, n}B_{x_t}C_{x_t, n} \pi_m\left(\tilde{y} \mid x_t, y^k_{t - 1}\right) + \left(1 - p_m\right) \pi\left(\tilde{y}_t \mid x_t, y^k_{t - 1}\right)\Big].\label{eq:twistdens2}
 \end{align}
 Following the notation of \cite{guarnieroetal:2017}, the normalising constant is given by:
 \begin{align}
-    \bar{\psi}_{t - 1}\left(y^k_{t - 1}\right) &= \sum_{x_t = 0}^n \pi\left(x_t \mid y^k_{t - 1}\right)A^{-1}_{x_t}\Bigg[ p_m\exp\left(-\frac{\left[x_t - \mu_{\psi}\right]^2}{2\left[\sigma^2_y + \sigma^2_{\psi}\right]}\right)\nonumber \\
-    & \qquad \qquad \times \int_{-0.5}^{n + 0.5} \frac{\sqrt{\sigma^2_y + \sigma^2_{\psi}}}{\sigma_y\sigma_{\psi}\sqrt{2\pi}} \exp\left(-\frac{1}{2}\left[\frac{\sigma^2_y + \sigma^2_{\psi}}{\sigma^2_y\sigma^2_{\psi}}\right]\left[y - \left(\frac{\sigma^2_{\psi}x_t + \sigma^2_y\mu_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right)\right]^2\right) dy\nonumber\\
-    & \qquad \qquad \qquad \qquad + \left(1 - p_m\right)\int_{-0.5}^{n + 0.5} \tilde{\pi}\left(y \mid x_t, y^k_{t - 1}\right) dy\Bigg].\label{eq:twistnorm}
+    \bar{\psi}_{t - 1}\left(y^k_{t - 1}\right) &= \sum_{x = 0}^n \pi\left(x \mid y^k_{t - 1}\right)\Big[ p_m A^{-1}_{x, n}B_{x} C_{x, n} + \left(1 - p_m\right)\Big].\label{eq:twistnorm}
 \end{align}
 Since the integrals in (\ref{eq:twistnorm}) are for Gaussian p.d.f.s, we can evaluate these efficiently using standard Gaussian c.d.f. functions.
 
-To sample from (\ref{eq:twistdens2}) we can sample first from $\pi^{\psi}\left(x_t \mid y^k_{t - 1}\right)$, and then from $\pi^\psi\left(y_t \mid x_t, y^k_{t - 1}\right)$, where:
+To sample from (\ref{eq:twistdens2}) we can sample first from $\pi^{\psi}\left(x_t \mid y^k_{t - 1}\right)$, and then from $\pi^\psi\left(\tilde{y}_t \mid x_t, y^k_{t - 1}\right)$, before setting $y_t = \lfloor \tilde{y}_t + 0.5 \rfloor$, where:
 \begin{align}
-    \pi^{\psi}\left(x_t \mid y^k_{t - 1}\right) &= \frac{1}{\bar{\psi}_{t - 1}\left(y^k_{t - 1}\right)}\pi\left(x_t \mid y^k_{t - 1}\right)\exp\left(-\frac{\left[x_t - \mu_{\psi}\right]^2}{2\left[\sigma^2_y + \sigma^2_{\psi}\right]}\right)A^{-1}_{x_t}\nonumber \\
-    & \qquad \qquad \times \int_{-0.5}^{n + 0.5} \frac{\sqrt{\sigma^2_y + \sigma^2_{\psi}}}{\sigma_y\sigma_{\psi}\sqrt{2\pi}} \exp\left(-\frac{1}{2}\left[\frac{\sigma^2_y + \sigma^2_{\psi}}{\sigma^2_y\sigma^2_{\psi}}\right]\left[y - \left(\frac{\sigma^2_{\psi}x_t + \sigma^2_y\mu_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right)\right]^2\right) dy,
+    \pi^{\psi}\left(x_t \mid y^k_{t - 1}\right) &= \sum_{y_t = 0}^n \int_{-0.5}^{n + 0.5} \pi^{\psi}\left(x_t, y_t, \tilde{y} \mid y^k_{t - 1}\right) d\tilde{y}\nonumber \\
+    & = \frac{1}{\bar{\psi}\left(y^k_{t - 1}\right)}\pi\left(x_t \mid y^k_{t - 1}\right)\Big[ p_m A^{-1}_{x_t, n}B_{x_t} C_{x_t, n} + \left(1 - p_m\right)\Big].
 \end{align}
-and
+Then
 \begin{align}
-    \pi^{\psi}\left(y_t \mid x_t, y^k_{t - 1}\right) &= \frac{\pi^{\psi}\left(x_t, y_t \mid y^k_{t - 1}\right)}{\pi^{\psi}\left(x_t \mid y^k_{t - 1}\right)}\nonumber\\
-     &= \frac{\int_{y_t - 0.5}^{y_t + 0.5} \frac{\sqrt{\sigma^2_y + \sigma^2_{\psi}}}{\sigma_y\sigma_{\psi}\sqrt{2\pi}} \exp\left(-\frac{1}{2}\left[\frac{\sigma^2_y + \sigma^2_{\psi}}{\sigma^2_y\sigma^2_{\psi}}\right]\left[y - \left(\frac{\sigma^2_{\psi}x_t + \sigma^2_y\mu_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right)\right]^2\right) dy}{\int_{-0.5}^{n + 0.5} \frac{\sqrt{\sigma^2_y + \sigma^2_{\psi}}}{\sigma_y\sigma_{\psi}\sqrt{2\pi}} \exp\left(-\frac{1}{2}\left[\frac{\sigma^2_y + \sigma^2_{\psi}}{\sigma^2_y\sigma^2_{\psi}}\right]\left[y - \left(\frac{\sigma^2_{\psi}x_t + \sigma^2_y\mu_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right)\right]^2\right) dy}. \label{eq:twisty}
+    \pi^{\psi}\left(\tilde{y}_t \mid x_t, y^k_{t - 1}\right) &= \sum_{y_t = 0}^n\frac{\pi^{\psi}\left(x_t, y_t, \tilde{y}_t \mid y^k_{t - 1}\right)}{\pi^{\psi}\left(x_t \mid y^k_{t - 1}\right)}\nonumber\\
+     &=  \frac{p_m A^{-1}_{x_t, n}B_{x_t}C_{x_t, n} \pi_m\left(\tilde{y}_t \mid x_t, y^k_{t - 1}\right) + \left(1 - p_m\right) \pi\left(\tilde{y}_t \mid x_t, y^k_{t - 1}\right)}{p_m A^{-1}_{x_t, n}B_{x_t}C_{x_t, n} + \left(1 - p_m\right)}\label{eq:twisty}.
 \end{align}
-Equation (\ref{eq:twisty}) defines a discrete truncated Gaussian, which can be sampled from efficiently by sampling a \textit{continuous} $y$ where
-\begin{equation}
-    \left(y | x_t, y^k_{t - 1}\right) \sim N\left(\frac{\sigma^2_{\psi}x_t + \sigma^2_y\mu_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}, \frac{\sigma^2_y\sigma^2_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right)I\left(-0.5, n + 0.5\right),
-\end{equation}
-and then setting $y_t = \lfloor y + 0.5 \rfloor$. Sampling from a truncated Gaussian can be done using e.g. Danny's magic code (via Chopin).
+To sample from this we can draw  a random sample from $\tilde{y} \sim \pi_m\left(\tilde{y} \mid x_t, y^k_{t - 1}\right)$ with probability
+\begin{equation*}
+    \frac{p_m A^{-1}_{x_t, n}B_{x_t}C_{x_t, n}}{p_m A^{-1}_{x_t, n}B_{x_t}C_{x_t, n} + \left(1 - p_m\right)}
+\end{equation*}
+and draw $\tilde{y} \sim \pi\left(\tilde{y} \mid x_t, y^k_{t - 1}\right)$ otherwise. 
 
-To finalise the twisted filtering, we need to define a twisted observation density, which due to the way we are sampling above, takes a slightly different form to e.g. \cite{guarnieroetal:2017}. For $t = 1$ we have:
+The densities $\pi_m\left(\tilde{y} \mid x_t, y^k_{t - 1}\right)$ and $\pi\left(\tilde{y} \mid x_t, y^k_{t - 1}\right)$ are both truncated Gaussians, which can be sampled from efficiently using e.g. Danny's magic code (via Chopin).
+
+To finalise the twisted filtering, we need to define a twisted observation density. For $t = 1$ we have:
 \begin{equation}
-    \pi^{\psi}\left(z_1 \mid x_1, y_1\right) = \frac{\pi\left(z_1 \mid y_1\right)\left[\int_{y_1 - 0.5}^{y_1 + 0.5} \tilde{\pi}\left(y \mid x_1, y^k_0\right) dy\right]\bar{\psi}_0\left(y^k_0\right)\bar{\psi}_1\left(y_1\right)}{\exp\left(-\frac{\left[x_1 - \mu_{\psi}\right]^2}{2\left[\sigma^2_y + \sigma^2_{\psi}\right]}\right)\int_{y_1 - 0.5}^{y_1 + 0.5} \frac{\sqrt{\sigma^2_y + \sigma^2_{\psi}}}{\sigma_y\sigma_{\psi}\sqrt{2\pi}} \exp\left(-\frac{1}{2}\left[\frac{\sigma^2_y + \sigma^2_{\psi}}{\sigma^2_y\sigma^2_{\psi}}\right]\left[y - \left(\frac{\sigma^2_{\psi}x_1 + \sigma^2_y\mu_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right)\right]^2\right) dy},
+    \pi^{\psi}\left(z_1 \mid x_1, y_1, \tilde{y}_1\right) = \pi\left(z_1 \mid y_1\right)\frac{\bar{\psi}_1\left(y_1\right)}{\psi_1\left(\tilde{y}_1\right)}\bar{\psi}_0\left(y^k_0\right),
 \end{equation}
-and for $t =2, \dots, T$ we have:
+and for $t = 2, \dots, T$ we have:
 \begin{equation}
-    \pi^{\psi}\left(z_t \mid x_t, y_t\right) = \frac{\pi\left(z_t \mid y_t\right)\left[\int_{y_t - 0.5}^{y_t + 0.5} \tilde{\pi}\left(y \mid x_t, y^k_{t - 1}\right) dy\right]\bar{\psi}_t\left(y_t\right)}{\exp\left(-\frac{\left[x_t - \mu_{\psi}\right]^2}{2\left[\sigma^2_y + \sigma^2_{\psi}\right]}\right)\int_{y_t - 0.5}^{y_t + 0.5} \frac{\sqrt{\sigma^2_y + \sigma^2_{\psi}}}{\sigma_y\sigma_{\psi}\sqrt{2\pi}} \exp\left(-\frac{1}{2}\left[\frac{\sigma^2_y + \sigma^2_{\psi}}{\sigma^2_y\sigma^2_{\psi}}\right]\left[y - \left(\frac{\sigma^2_{\psi}x_t + \sigma^2_y\mu_{\psi}}{\sigma^2_y + \sigma^2_{\psi}}\right)\right]^2\right) dy},
+    \pi^{\psi}\left(z_t \mid x_t, y_t, \tilde{y}_t\right) = \pi\left(z_t \mid y_t\right)\frac{\bar{\psi}_t\left(y_t\right)}{\psi_t\left(\tilde{y}_t\right)},
 \end{equation}
 with the understanding that $\psi_{T + 1}\left(\cdot\right) = 1$.
 
 To choose the twisting functions we do the following recursive algorithm:
 
-For $t=T,\dots,1$:
+For $t = T, \dots, 1$:
 \begin{enumerate}
     \item Set $\psi^i_t = \pi\left(z_t \mid y^i_t\right) \bar{\psi}_t\left(y^i_t\right)$ for $i = 1,\dots, N$.
     \item Choose $\psi_t$ as a member of $\Psi$ on the basis of $y^{1:N}_t$ and $\psi^{1:N}_t$.
 \end{enumerate}
 
-To do the latter, we choose $\psi_t\left(y_t\right)$ as the p.d.f. of a Gaussian distribution with parameters $\mu_{\psi t}$ and $\sigma^2_{\psi t}$, where
+Our choice of $\psi_t\left(\tilde{y}_t\right)$ is defined in (\ref{eq:mixdens}), where we choose the parameters of $\tilde{\psi}_t\left(\tilde{y}_t\right)$ as $\mu_{\psi t}$ and $\sigma^2_{\psi t}$ such that
 \begin{equation}
-    \left(\mu_{\psi t}, \sigma^2_{\psi t}\right) = \mbox{argmin}_{\mu, \sigma^2, \lambda} \left(\sum_{i = 1}^N \left[N\left(\mu, \sigma^2\right) - \lambda\psi^i_t\right]^2\right)
+    \left(\mu_{\psi t}, \sigma^2_{\psi t}, \lambda_t \right) = \mbox{argmin}_{\mu, \sigma^2, \lambda} \left(\sum_{i = 1}^N \left[N\left(\mu, \sigma^2\right) - \lambda\psi^i_t\right]^2\right)
 \end{equation}
 
 The form of $\psi^i_t$ is chosen such that it approximates a theoretical optimum (see \citealp{guarnieroetal:2017}).
