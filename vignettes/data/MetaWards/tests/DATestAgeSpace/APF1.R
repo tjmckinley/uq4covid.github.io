@@ -1,3 +1,11 @@
+## log-sum-exp function
+log_sum_exp <- function(x, mn = FALSE) {
+    maxx <- max(x)
+    y <- maxx + log(sum(exp(x - maxx)))
+    if(mn) y <- y - log(length(x))
+    y
+}
+
 ## run model for each set of design points in pars
 ## pars: matrix / data frame of parameters in order: 
 ##       nu, nuA, pE, pEP, pA, pP, pI1, pI1H, pI1D, pI2, pH, pHD
@@ -12,15 +20,15 @@
 ##            nclasses x nages x nrow(u1_moves)
 ## ndays: the number of days to fit to
 ## npart: the number of particles
-## MD:    turn model discrepancy process on (TRUE) or off (FALSE)
-## obsScale: scaling parameter for Poisson observation process (see code)
+## obsScale: scaling parameter for Skellam observation process (see code)
 ## a1, a2, b: parameters for Skellam observation process
 ## saveAll: a logical specifying whether to return all states (if FALSE then returns just observed states))
+## writeExt: a logical denoting whether to save particles externally or not
 ## PF:      a logical denoting whether to run a particle filter, or just simulate from the model
 ## ncores:  the number of cores for OpenMP parallelisation (if NA then defaults to all available cores)
 
-APF1 <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, MD = TRUE, a1 = 0.01, a2 = 0.2, b = 0.1, 
-               a_dis = 0.05, b_dis = 0.5, saveAll = NA, PF = TRUE, ncores = NA) {
+APF1 <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, a1 = 0.01, a2 = 0.2, b = 0.1, 
+        a_dis = 0.05, b_dis = 0.05, saveAll = NA, writeExt = FALSE, PF = TRUE, ncores = NA) {
                
     ## set default for saveAll if PF = FALSE
     if(!PF & is.na(saveAll)) saveAll <- TRUE
@@ -31,8 +39,8 @@ APF1 <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, MD = TRUE, a1 =
     } else {
         saveAllint <- ifelse(saveAll, 2, 1)
     }
-    MDint <- ifelse(MD, 1, 0)
     PFint <- ifelse(PF, 1, 0)
+    writeExtint <- ifelse(writeExt, 1, 0)
     
     ## check number of requested cores
     if(is.na(ncores)) {
@@ -54,12 +62,19 @@ APF1 <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, MD = TRUE, a1 =
     
     print("Reminder to write code to not hard-code sizes of objects and data")
     
+    ## set up output folder
+    if(writeExt) {
+        print("Reminder to write code to pass save folder out")
+        if(dir.exists("saveOut")) system("rm -rf saveOut")
+        dir.create("saveOut")
+    }
+    
     ## run particle filter for each set of inputs
-    runs <- lapply(1:nrow(pars), function(k, pars, C, u1_moves, ncohorts, u1, npart, ndays, data, MD, a1, a2, b, a_dis, b_dis, saveAll, PF, ncores) {
+    runs <- lapply(1:nrow(pars), function(k, pars, C, u1_moves, ncohorts, u1, npart, ndays, data, a1, a2, b, a_dis, b_dis, saveAll, writeExt, PF, ncores) {
         
         if(PF == 1) {
             ## extract observations
-            data <- select(data, t, (starts_with("DI") | starts_with("DH")) & ends_with("obs")) %>%
+            data <- select(data, t, (starts_with("DI") | starts_with("DH")) & contains("obs")) %>%
                 {rbind(rep(0, ncol(.)), .)} %>%
                 mutate(across(!t, ~. - lag(.))) %>%
                 slice(-1) %>%
@@ -78,36 +93,61 @@ APF1 <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, MD = TRUE, a1 =
         ## do garbage collection (seems to solve allocation issue)
         gc()
         
-        ## run particle filter
-        ll <- APF1_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
-            npart, MD, a1, a2, b, a_dis, b_dis, saveAll, PF, ncores)
-        ll
-    }, pars = pars, C = C, u1_moves = u1_moves, ncohorts = ncohorts, u1 = u1, npart = npart, ndays = ndays, data = data, MD = MDint, 
-       a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis, saveAll = saveAllint, PF = PFint, ncores = ncores)
-    if(!is.na(saveAll)) {
-        if(PF) {
-            ll <- map(runs, "ll")
-            runs <- map(runs, "particles") %>%
-                map(function(runs, ndays, npart) {
-                    x <- list()
-                    for(i in 1:ndays) {
-                        x[[i]] <- runs[(i - 1) * npart + 1:npart]
-                    }
-                    x
-                }, ndays = ndays, npart = npart)
-            ll <- do.call("c", ll)
-            return(list(ll = ll, particles = runs))
-        } else {
-            runs <- map(runs, "particles") %>%
-                map(function(runs, ndays, npart) {
-                    x <- list()
-                    for(i in 1:ndays) {
-                        x[[i]] <- runs[(i - 1) * npart + 1:npart]
-                    }
-                    x
-                }, ndays = ndays, npart = npart)
-            return(list(particles = runs))
+        ## if just simulating
+        if(PF == 0) {
+            ## check return outputs
+            if(saveAll == 0) stop("Must set 'saveAll' to something if not running a PF")
+            
+            ## run particle filter
+            particles <- APF1_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
+                npart, a1, a2, b, a_dis, b_dis, saveAll, writeExt, PF, ncores)
+            return(particles)
         }
+        
+        ## run particle filter
+        particles <- APF1_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
+            npart, a1, a2, b, a_dis, b_dis, saveAll, writeExt, PF, ncores)
+        
+        if(saveAll != 0 & writeExt == 0) {
+            return(list(ll = particles$ll, particles = particles$particles))
+        } else {
+            return(list(ll = particles$ll))
+        }
+    }, pars = pars, C = C, u1_moves = u1_moves, ncohorts = ncohorts, u1 = u1, npart = npart, ndays = ndays, data = data, a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis, saveAll = saveAllint, writeExt = writeExtint, PF = PFint, ncores = ncores)
+    if(!is.na(saveAll)) {
+        if(!writeExt) {
+            if(PF) {
+                ll <- map(runs, "ll")
+                runs <- map(runs, "particles") %>%
+                    map(function(runs, ndays, npart) {
+                        x <- list()
+                        for(i in 1:ndays) {
+                            x[[i]] <- runs[(i - 1) * npart + 1:npart]
+                        }
+                        x
+                    }, ndays = ndays, npart = npart)
+                ll <- do.call("c", ll)
+                return(list(ll = ll, particles = runs))
+            } else {
+                runs <- map(runs, "particles") %>%
+                    map(function(runs, ndays, npart) {
+                        x <- list()
+                        for(i in 1:ndays) {
+                            x[[i]] <- runs[(i - 1) * npart + 1:npart]
+                        }
+                        x
+                    }, ndays = ndays, npart = npart)
+                return(list(particles = runs))
+            }
+        } else {
+            if(PF) {
+                ll <- map(runs, "ll")
+                ll <- do.call("c", ll)
+                return(list(ll = ll))
+            } else {
+                return(NULL)
+            }
+        }       
     } else {
         ll <- map(runs, "ll")
         ll <- do.call("c", runs)
