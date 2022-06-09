@@ -27,7 +27,7 @@ log_sum_exp <- function(x, mn = FALSE) {
 ## PF:      a logical denoting whether to run a particle filter, or just simulate from the model
 ## ncores:  the number of cores for OpenMP parallelisation (if NA then defaults to all available cores)
 
-PF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, a1 = 0.01, a2 = 0.2, b = 0.1, 
+BPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, a1 = 0.01, a2 = 0.2, b = 0.1, 
         a_dis = 0.05, b_dis = 0.05, saveAll = NA, writeExt = FALSE, PF = TRUE, ncores = NA) {
                
     ## set default for saveAll if PF = FALSE
@@ -99,13 +99,13 @@ PF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, a1 = 0.01, a2 = 0
             if(saveAll == 0) stop("Must set 'saveAll' to something if not running a PF")
             
             ## run particle filter
-            particles <- PF_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
+            particles <- BPF_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
                 npart, a1, a2, b, a_dis, b_dis, saveAll, writeExt, PF, ncores)
             return(particles)
         }
         
         ## run particle filter
-        particles <- PF_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
+        particles <- BPF_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
             npart, a1, a2, b, a_dis, b_dis, saveAll, writeExt, PF, ncores)
         
         if(saveAll != 0 & writeExt == 0) {

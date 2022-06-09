@@ -9,6 +9,8 @@ library(sf)
 library(gganimate)
 library(viridis)
 library(patchwork)
+library(BH)
+Sys.setenv("PKG_LIBS" = "-lgmp")
 
 ## set seed
 set.seed(666)
@@ -17,8 +19,8 @@ set.seed(666)
 dir.create("outputs")
 
 ## source simulation function
-sourceCpp("PF.cpp")
-source("PF.R")
+sourceCpp("BPF.cpp")
+source("BPF.R")
 
 ## source Skellam function for observation error
 source("trSkellam.R")
@@ -86,7 +88,7 @@ stageNms <- map(c("S", "E", "A", "RA", "P", "Ione", "DI", "Itwo", "RI", "H", "RH
     reduce(c)
 
 ## simulate discrete-time model
-disSims <- PF(pars, C = contact, data = data, u1_moves = u1_moves,
+disSims <- BPF(pars, C = contact, data = data, u1_moves = u1_moves,
     u1 = u1, ndays = 100, npart = 24, PF = FALSE)
         
 ## collapse to data frame

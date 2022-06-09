@@ -1111,7 +1111,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
 //}
 
 // [[Rcpp::export]]
-List PF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses, 
+List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses, 
     arma::uword nages, arma::uword nlads, arma::imat u1_moves, arma::ivec ncohorts, 
     arma::icube u1_comb, arma::uword ndays, arma::uword npart, double a1, double a2, 
     double b, double a_dis, double b_dis, int saveAll, int writeExt, int PF, int ncores) {

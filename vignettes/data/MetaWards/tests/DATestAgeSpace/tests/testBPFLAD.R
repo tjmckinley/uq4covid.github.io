@@ -10,10 +10,10 @@ library(BH)
 Sys.setenv("PKG_LIBS" = "-lgmp")
 
 ## source Rcpp PF code
-sourceCpp("../PF.cpp")
+sourceCpp("../BPF.cpp")
 
 ## source function to run PF and return log-likelihood
-source("../PF.R")
+source("../BPF.R")
 
 ## read in simulated data and generate incidence curves
 data <- readRDS("../outputs/disSims.rds")
@@ -73,7 +73,7 @@ plot_data <- pivot_longer(filter(data, t <= 100), !t, names_to = "var", values_t
     mutate(var = gsub("obs", "", var))
     
 ## run model with model discrepancy
-runs_md <- PF(pars[6, ], C = contact, data = data, u1_moves = u1_moves,
+runs_md <- BPF(pars[6, ], C = contact, data = data, u1_moves = u1_moves,
     u1 = u1, ndays = 100, npart = 10, a_dis = 0.05, b_dis = 0.05,
     a1 = 0.01, a2 = 0.2, b = 0.001, saveAll = TRUE, writeExt = TRUE)
 
