@@ -9,8 +9,6 @@ library(sf)
 library(gganimate)
 library(viridis)
 library(patchwork)
-library(BH)
-Sys.setenv("PKG_LIBS" = "-lgmp")
 
 ## set seed
 set.seed(666)
