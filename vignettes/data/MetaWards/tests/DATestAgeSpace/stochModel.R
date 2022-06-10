@@ -20,9 +20,6 @@ dir.create("outputs")
 sourceCpp("BPF.cpp")
 source("BPF.R")
 
-## source Skellam function for observation error
-source("trSkellam.R")
-
 ## read in parameters, remove guff and reorder
 pars <- readRDS("wave1/disease.rds") %>%
     rename(nu = `beta[1]`, nuA = `beta[6]`) %>%
