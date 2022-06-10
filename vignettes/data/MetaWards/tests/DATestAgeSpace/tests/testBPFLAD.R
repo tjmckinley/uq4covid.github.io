@@ -169,11 +169,7 @@ p <- select(data, t, !contains("obs") & starts_with("DI")) %>%
     select(-n)
     
 ## extract observed data
-pobs <- inner_join(p,
-    filter(plot_data, obs) %>%
-        mutate(LAD = gsub("obs", "", LAD)),
-    by = "LAD"
-)
+pobs <- inner_join(p, filter(plot_data, obs), by = "LAD")
 
 ## plot particle estimates of states at the LAD level
 sims_md <- map(files, function(y, folder, lookup, toplads) {
@@ -217,7 +213,7 @@ sims_md <- inner_join(p, sims_md, by = "LAD") %>%
     )
 
 ## data for all states    
-p <- inner_join(p, select(plot_data, !obs), by = "LAD")
+p <- inner_join(p, filter(plot_data, !obs), by = "LAD")
 
 ## plot of all states against simulations
 p1 <- list()
