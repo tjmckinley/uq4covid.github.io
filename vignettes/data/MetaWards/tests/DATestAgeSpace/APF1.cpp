@@ -1,4 +1,4 @@
-// [[Rcpp::depends(RcppArmadillo, sitmo, BH)]]
+// [[Rcpp::depends(RcppArmadillo, sitmo)]]
 
 // [[Rcpp::plugins(openmp)]]
 
@@ -7,14 +7,12 @@
 #include <sitmo.h>
 #include <iostream>
 #include <fstream>
-#include <boost/multiprecision/gmp.hpp>
 
 #ifdef _OPENMP
 #include <omp.h>
 #endif
 
 using namespace Rcpp;
-namespace mp = boost::multiprecision;
 
 // BEGIN declaring external constants
 
@@ -255,32 +253,29 @@ double ldtnorm_cpp(int x, double mu, double sigma, double LB, double UB) {
     double temp2 = R::pnorm(x + 0.5, mu, sigma, 1, 1);
     double ldens = temp2 + log(1.0 - exp(temp1 - temp2));
     if(!arma::is_finite(ldens)) {
-        mp::mpf_float::default_precision(1000);
-        mp::mpf_float temp1_mpfr = R::pnorm(x - 0.5, mu, sigma, 1, 1);
-        mp::mpf_float temp2_mpfr = R::pnorm(x + 0.5, mu, sigma, 1, 1);
-        temp1_mpfr = temp2_mpfr + mp::log(1.0 - mp::exp(temp1_mpfr - temp2_mpfr));
-        ldens = temp1_mpfr.convert_to<double>();
+        temp1 = R::pnorm(x - 0.5, mu, sigma, 0, 1);
+        temp2 = R::pnorm(x + 0.5, mu, sigma, 0, 1);
+        ldens = temp1 + log(1.0 - exp(temp2 - temp1));
     }
+    if(!arma::is_finite(ldens)) stop("Something wrong in TN\n");
     if(std::isinf(UB)) {
         // normalising constant
         temp1 = R::pnorm(LB - 0.5, mu, sigma, 0, 1);
+        if(!arma::is_finite(temp1)) stop("Something wrong in TN LB\n");
         ldens -= temp1;
     } else {
         // normalising constant
         temp1 = R::pnorm(LB - 0.5, mu, sigma, 1, 1);
         temp2 = R::pnorm(UB + 0.5, mu, sigma, 1, 1);
         temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
-        if(!arma::is_finite(temp1)) {
-            mp::mpf_float::default_precision(1000);
-            mp::mpf_float temp1_mpfr = R::pnorm(LB - 0.5, mu, sigma, 1, 1);
-            mp::mpf_float temp2_mpfr = R::pnorm(UB + 0.5, mu, sigma, 1, 1);
-            temp1_mpfr = temp2_mpfr + mp::log(1.0 - mp::exp(temp1_mpfr - temp2_mpfr));
-            temp1 = temp1_mpfr.convert_to<double>();
+        if(!arma::is_finite(ldens)) {
+            temp1 = R::pnorm(LB - 0.5, mu, sigma, 0, 1);
+            temp2 = R::pnorm(UB + 0.5, mu, sigma, 0, 1);
+            temp2 = temp1 + log(1.0 - exp(temp2 - temp1));
+            temp1 = temp2;
         }
+        if(!arma::is_finite(temp1)) stop("Something wrong in TN LB UB\n");
         ldens -= temp1;
-    }
-    if(!arma::is_finite(ldens)) {
-        Rprintf("ldens %d %f %f %f %f\n", x, mu, sigma, LB, UB);
     }
     return ldens;
 }
