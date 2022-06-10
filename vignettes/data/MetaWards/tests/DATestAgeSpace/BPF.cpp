@@ -1715,8 +1715,8 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             u1_night_reduced(3, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](11, j, l) - u1[i](11, j, l));
                         }
                     }
-                    muy = a1 - a2;
                     // adjust for observation error
+                    muy = a1 - a2;
                     for(l = 0; l < nlads; l++) {
                         for(j = 0; j < nages; j++) {
                             sigma2y = a1 + a2 + 2.0 * b * u1_night_reduced(2, j, l);
@@ -1773,6 +1773,7 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             u1_night_full(nclasses + 1, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](11, j, l) - u1[i](11, j, l));
                         }
                     }
+                    // adjust for observation error
                     muy = a1 - a2;
                     for(l = 0; l < nlads; l++) {
                         for(j = 0; j < nages; j++) {
