@@ -6,15 +6,12 @@ library(parallel)
 library(abind)
 library(sitmo)
 library(patchwork)
-library(BH)
-Sys.setenv("PKG_LIBS" = "-lgmp")
 
 ## source Rcpp PF code
 sourceCpp("../TPF.cpp")
 
 ## source function to run PF and return log-likelihood
 source("../IAPF.R")
-source("../trSkellam.R")
 
 ## read in simulated data and generate incidence curves
 data <- readRDS("../outputs/disSims.rds")
@@ -31,33 +28,33 @@ contact <- read_csv("../inputs/POLYMOD_matrix.csv", col_names = FALSE) %>%
     as.matrix()
 
 ## read in initial conditions
-#u1 <- readRDS("../outputs/u1.rds")
+u1 <- readRDS("../outputs/u1.rds")
 u1_moves <- readRDS("../outputs/u1_moves.rds")
 
-## solution to round numbers preserving sum
-## adapted from:
-## https://stackoverflow.com/questions/32544646/round-vector-of-numerics-to-integer-while-preserving-their-sum
-smart_round <- function(x) {
-    y <- floor(x)
-    indices <- tail(order(x - y), round(sum(x)) - sum(y))
-    y[indices] <- y[indices] + 1
-    y
-}
+### solution to round numbers preserving sum
+### adapted from:
+### https://stackoverflow.com/questions/32544646/round-vector-of-numerics-to-integer-while-preserving-their-sum
+#smart_round <- function(x) {
+#    y <- floor(x)
+#    indices <- tail(order(x - y), round(sum(x)) - sum(y))
+#    y[indices] <- y[indices] + 1
+#    y
+#}
 
-## add age probabilities
-ageProbs <- read_csv("../inputs/age_seeds.csv", col_names = FALSE)$X2
+### add age probabilities
+#ageProbs <- read_csv("../inputs/age_seeds.csv", col_names = FALSE)$X2
 
-## read in commuter data
-EW19 <- read_delim("../inputs/EW19.dat", delim = " ", col_names = FALSE)
+### read in commuter data
+#EW19 <- read_delim("../inputs/EW19.dat", delim = " ", col_names = FALSE)
 
-## expand to deal with age-classes
-u1 <- apply(EW19, 1, function(x, ageProbs) {
-        u <- matrix(0, 12, length(ageProbs))
-        u[1, ] <- smart_round(ageProbs * x[3])
-        list(u)
-    }, ageProbs = ageProbs) %>%
-    map(1) %>%
-    abind(along = 3)
+### expand to deal with age-classes
+#u1 <- apply(EW19, 1, function(x, ageProbs) {
+#        u <- matrix(0, 12, length(ageProbs))
+#        u[1, ] <- smart_round(ageProbs * x[3])
+#        list(u)
+#    }, ageProbs = ageProbs) %>%
+#    map(1) %>%
+#    abind(along = 3)
 
 ## set seed for reproducibility
 set.seed(42)
@@ -71,11 +68,12 @@ plot_data <- pivot_longer(filter(data, t <= 100), !t, names_to = "var", values_t
     mutate(var = gsub('^(.*)_[0-9]*_.*', '\\1', var)) %>%
     mutate(var = gsub("one", "1", var)) %>%
     mutate(var = gsub("two", "2", var)) %>%
-    mutate(age = gsub("obs", "", age))
+    mutate(age = gsub("obs", "", age)) %>%
+    mutate(var = gsub("obs", "", var))
     
 ## run model with model discrepancy
 runs_md <- IAPF(pars[6, ], C = contact, data = data, u1_moves = u1_moves,
-    u1 = u1, ndays = 100, npart = 10, a_dis = 0.05, b_dis = 0.05, kmax = 15,
+    u1 = u1, ndays = 100, npart = 10, a_dis = 0.05, b_dis = 0.05, kmax = 3,
     a1 = 0.01, a2 = 0.2, b = 0.001, saveAll = TRUE, writeExt = TRUE, tau = 1.5)
 
 ## extract file names
@@ -158,7 +156,7 @@ p1 <- wrap_plots(p1, nrow = 2, heights = c(0.8, 0.2))
 ggsave("simsTPF.pdf", p1, width = 10, height = 10)
 
 ## extract LADs with largest epidemic load at day 100
-p <- select(data, t, !ends_with("obs") & starts_with("DI")) %>%
+p <- select(data, t, !contains("obs") & starts_with("DI")) %>%
     pivot_longer(!t, names_to = "var", values_to = "n") %>%
     mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
     mutate(LAD = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
@@ -172,11 +170,7 @@ p <- select(data, t, !ends_with("obs") & starts_with("DI")) %>%
     select(-n)
     
 ## extract observed data
-pobs <- inner_join(p,
-    filter(plot_data, obs) %>%
-        mutate(LAD = gsub("obs", "", LAD)),
-    by = "LAD"
-)
+pobs <- inner_join(p, filter(plot_data, obs), by = "LAD")
 
 ## plot particle estimates of states at the LAD level
 sims_md <- map(files, function(y, folder, lookup, toplads) {
@@ -220,7 +214,7 @@ sims_md <- inner_join(p, sims_md, by = "LAD") %>%
     )
 
 ## data for all states    
-p <- inner_join(p, select(plot_data, !obs), by = "LAD")
+p <- inner_join(p, filter(plot_data, !obs), by = "LAD")
 
 ## plot of all states against simulations
 p1 <- list()

@@ -76,7 +76,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, kmax
         
         if(PF == 1) {
             ## extract observations
-            data <- select(data, t, (starts_with("DI") | starts_with("DH")) & ends_with("obs")) %>%
+            data <- select(data, t, (starts_with("DI") | starts_with("DH")) & contains("obs")) %>%
                 {rbind(rep(0, ncol(.)), .)} %>%
                 mutate(across(!t, ~. - lag(.))) %>%
                 slice(-1) %>%
@@ -170,17 +170,9 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, kmax
                 
                 ## calculate observation likelihoods
                 temp <- particles[(npart[kcurr] * (ndays - 1)  * 4 + 1):(npart[kcurr] * ndays * 4), , ]
-                temp <- map(1:npart[kcurr], function(i, x, data, a1, a2, b) {
-                    ## extract particle
-                    x <- x[((i - 1) * 4 + 1):(i * 4), , ]
-                
-                    ## reorder particles to match data
-                    x <- as.vector(aperm(x[1:2, , ], 3:1))
+                temp <- TPF_rates_obs_cpp(data[ndays, ], 8, 339, temp, npart[kcurr], a1, a2, b, ncores)
                     
-                    ## calculate observation densities
-                    rbind(x, dtskellam(data - x, a1 + b * x, a2 + b * x, -x, log = TRUE))
-                }, x = temp, data = data[ndays, ], a1 = a1, a2 = a2, b = b)
-                temp <- do.call("rbind", temp)
+                if(any(!is.finite(temp))) browser()
                 
                 ## optimise twisting functions
                 output <- mclapply(1:ncol(temp), function(i, x, fn) {
