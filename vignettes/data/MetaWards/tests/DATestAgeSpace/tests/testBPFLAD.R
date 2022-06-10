@@ -6,8 +6,6 @@ library(parallel)
 library(abind)
 library(sitmo)
 library(patchwork)
-library(BH)
-Sys.setenv("PKG_LIBS" = "-lgmp")
 
 ## source Rcpp PF code
 sourceCpp("../BPF.cpp")
