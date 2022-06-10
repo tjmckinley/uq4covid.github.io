@@ -150,7 +150,7 @@ APF1 <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, a1 = 0.01, a2 =
         }       
     } else {
         ll <- map(runs, "ll")
-        ll <- do.call("c", runs)
+        ll <- do.call("c", ll)
         return(ll)
     }
 }
