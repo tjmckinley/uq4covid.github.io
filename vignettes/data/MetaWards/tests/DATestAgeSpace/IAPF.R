@@ -169,7 +169,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, kmax
                 ptm <- proc.time()
                 
                 ## calculate observation likelihoods
-                temp <- particles[(npart[kcurr] * (ndays - 1)  * 4 + 1):(npart[kcurr] * ndays * 4), , ]
+                temp <- particles[(npart[kcurr] * (ndays - 1) * 4 + 1):(npart[kcurr] * ndays * 4), , ]
                 temp <- TPF_rates_obs_cpp(data[ndays, ], 8, 339, temp, npart[kcurr], a1, a2, b, ncores)
                     
                 if(any(!is.finite(temp))) browser()
@@ -208,7 +208,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, kmax
                 for(t in (ndays - 1):1) {
                 
                     ## generate filter rates
-                    temp <- particles[(npart[kcurr] * (t - 1)  * 4 + 1):(npart[kcurr] * t * 4), , ]
+                    temp <- particles[(npart[kcurr] * (t - 1) * 4 + 1):(npart[kcurr] * t * 4), , ]
                     temp <- TPF_rates_cpp(pars, data[t, ], 8, 339, temp, npart[kcurr], munorm, varnorm, pmix, a1, a2, b, a_dis, b_dis, ncores)
                     
                     if(any(!is.finite(temp))) browser()
