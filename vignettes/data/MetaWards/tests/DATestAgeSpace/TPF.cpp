@@ -1587,7 +1587,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             u = rtnorm_cpp(
                                 muy, 
                                 sqrt(sigma2y),
-                                -0.0,
+                                -0.5,
                                 u1_night(5, j, l) + 0.5,
                                 eng
                             );
@@ -1670,7 +1670,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             u = rtnorm_cpp(
                                 muy, 
                                 sqrt(sigma2y),
-                                -0.0,
+                                -0.5,
                                 u1_night(9, j, l) + 0.5,
                                 eng
                             );
@@ -2481,7 +2481,7 @@ arma::mat TPF_rates_obs_cpp (arma::ivec data, arma::uword nages, arma::uword nla
             for(l = 0; l < nlads; l++) {
                 // observation error for given incidence
                 double sigma2y = a1 + a2 + 2.0 * b * psi(i * 4, j, l);
-                twistnorm(i * 2 + 1, w) += ldtnorm_cpp(
+                twistnorm(i * 2 + 1, w) = ldtnorm_cpp(
                     data(w) - psi(i * 4, j, l), 
                     a1 - a2, 
                     sqrt(sigma2y), 
@@ -2504,7 +2504,7 @@ arma::mat TPF_rates_obs_cpp (arma::ivec data, arma::uword nages, arma::uword nla
                 
                 // observation error for given incidence
                 double sigma2y = a1 + a2 + 2.0 * b * psi(i * 4 + 1, j, l);
-                twistnorm(i * 2 + 1, w) += ldtnorm_cpp(
+                twistnorm(i * 2 + 1, w) = ldtnorm_cpp(
                     data(w) - psi(i * 4 + 1, j, l), 
                     a1 - a2, 
                     sqrt(sigma2y), 
@@ -2574,7 +2574,7 @@ arma::mat TPF_rates_cpp (arma::vec pars, arma::ivec data, arma::uword nages, arm
             for(l = 0; l < nlads; l++) {
             
                 // set up auxiliary matrix for sampling
-                arma::vec tempdensx (psi(i * 4 + 2, j, l) + 1);
+                arma::vec tempdensx (psi(i * 4 + 2, j, l) + 1); tempdensx.zeros();
 
                 // loop over x values
                 for(int s = 0; s <= psi(i * 4 + 2, j, l); s++) {
@@ -2633,7 +2633,7 @@ arma::mat TPF_rates_cpp (arma::vec pars, arma::ivec data, arma::uword nages, arm
             for(l = 0; l < nlads; l++) {
             
                 // set up auxiliary matrix for sampling
-                arma::vec tempdensx (psi(i * 4 + 3, j, l) + 1);
+                arma::vec tempdensx (psi(i * 4 + 3, j, l) + 1); tempdensx.zeros();
 
                 // loop over x values
                 for(int s = 0; s <= psi(i * 4 + 3, j, l); s++) {
