@@ -1570,11 +1570,9 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         // extract mixture probability
                         weight1 = tempdensx[i][w](DIinc1(j, l));
                         weight1 -= R::dbinom(DIinc1(j, l), u1_night(5, j, l), pI1pI1D, 1);
-                        weight2 = log(1.0 - pmix);
-                        weightnorm = (weight1 > weight2 ? weight1:weight2);
-                        weightnorm += log(exp(weight1 - weightnorm) - exp(weight2 - weightnorm));
-                        weightnorm -= weight1;
-                        pcondmix = exp(weightnorm);
+                        weight2 = log(1.0 - pmix) - weight1;
+                        weight1 = log(1.0 - exp(weight2));
+                        pcondmix = exp(weight1);
                         if(pcondmix < 0.0 || pcondmix > 1.0) stop("Mixture sampling error\n");
                         
                         // sample from mixture density
@@ -1655,11 +1653,9 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         // extract mixture probability
                         weight1 = tempdensx[i][w](DHinc1(j, l));
                         weight1 -= R::dbinom(DHinc1(j, l), u1_night(9, j, l), pHpHD, 1);
-                        weight2 = log(1.0 - pmix);
-                        weightnorm = (weight1 > weight2 ? weight1:weight2);
-                        weightnorm += log(exp(weight1 - weightnorm) - exp(weight2 - weightnorm));
-                        weightnorm -= weight1;
-                        pcondmix = exp(weightnorm);
+                        weight2 = log(1.0 - pmix) - weight1;
+                        weight1 = log(1.0 - exp(weight2));
+                        pcondmix = exp(weight1);
                         if(pcondmix < 0.0 || pcondmix > 1.0) stop("Mixture sampling error\n");
                         
                         // sample from mixture density
