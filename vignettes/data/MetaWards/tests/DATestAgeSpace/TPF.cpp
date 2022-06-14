@@ -2443,34 +2443,12 @@ arma::mat TPF_rates_obs_cpp (arma::ivec data, arma::uword nages, arma::uword nla
     arma::uword i, j, l;
     
     // set auxiliary objects
-    arma::mat twistnorm(npart * 2, data.n_elem); 
-    
-    // sample seeds to set up thread-safe PRNGs
-#ifdef _OPENMP
-    omp_set_num_threads(ncores);
-#endif
-    arma::vec seeds(ncores);
-    for(i = 0; i < ncores; i++) {
-        seeds(i) = R::rnorm(0.0, 100.0);
-    }
-    uint32_t coreseedSerial = static_cast<uint32_t>(R::rnorm(0.0, 100.0));
-    sitmo::prng engSerial(coreseedSerial);
+    arma::mat twistnorm(npart * 2, data.n_elem); twistnorm.zeros();
 
 #ifdef _OPENMP
-#pragma omp parallel for default(none) private(j, l) shared(seeds, npart, nages, nlads, a1, a2, b, twistnorm, psi, data)
+#pragma omp parallel for default(none) private(j, l) shared(npart, nages, nlads, a1, a2, b, twistnorm, psi, data)
 #endif
     for(i = 0; i < npart; i++) {
-
-        // set up print string for debugging
-        char str1[80];
-        std::strcpy(str1, "twist0");
-
-        // set up thread-safe RNG
-        uint32_t coreseed = static_cast<uint32_t>(seeds(0));
-#ifdef _OPENMP
-        coreseed = static_cast<uint32_t>(seeds((arma::uword) omp_get_thread_num()));
-#endif
-        sitmo::prng eng(coreseed);
         
         // start counter
         int w = 0;
@@ -2531,34 +2509,12 @@ arma::mat TPF_rates_cpp (arma::vec pars, arma::ivec data, arma::uword nages, arm
     arma::uword i, j, l;
     
     // set auxiliary objects
-    arma::mat twistnorm(npart * 2, munorm.n_elem); 
-    
-    // sample seeds to set up thread-safe PRNGs
-#ifdef _OPENMP
-    omp_set_num_threads(ncores);
-#endif
-    arma::vec seeds(ncores);
-    for(i = 0; i < ncores; i++) {
-        seeds(i) = R::rnorm(0.0, 100.0);
-    }
-    uint32_t coreseedSerial = static_cast<uint32_t>(R::rnorm(0.0, 100.0));
-    sitmo::prng engSerial(coreseedSerial);
+    arma::mat twistnorm(npart * 2, munorm.n_elem); twistnorm.zeros();
 
 #ifdef _OPENMP
-#pragma omp parallel for default(none) private(j, l) shared(seeds, npart, nages, nlads, pars, a1, a2, b, a_dis, b_dis, munorm, varnorm, twistnorm, psi, data, pmix)
+#pragma omp parallel for default(none) private(j, l) shared(npart, nages, nlads, pars, a1, a2, b, a_dis, b_dis, munorm, varnorm, twistnorm, psi, data, pmix)
 #endif
     for(i = 0; i < npart; i++) {
-
-        // set up print string for debugging
-        char str1[80];
-        std::strcpy(str1, "twist0");
-
-        // set up thread-safe RNG
-        uint32_t coreseed = static_cast<uint32_t>(seeds(0));
-#ifdef _OPENMP
-        coreseed = static_cast<uint32_t>(seeds((arma::uword) omp_get_thread_num()));
-#endif
-        sitmo::prng eng(coreseed);
         
         // start counter
         int w = 0;
