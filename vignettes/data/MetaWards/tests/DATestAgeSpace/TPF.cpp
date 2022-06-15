@@ -2346,10 +2346,10 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                 for(i = 0; i < npart; i++) {
                     for(l = 0; l < u1_moves.n_rows; l++) {
                         for(j = 0; j < nages; j++) {
-                            psi(t * npart * 4 + i * 4, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](6, j, l) - u1[i](6, j, l);
-                            psi(t * npart * 4 + i * 4 + 1, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](11, j, l) - u1[i](11, j, l);
-                            psi(t * npart * 4 + i * 4 + 2, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](5, j, l);
-                            psi(t * npart * 4 + i * 4 + 3, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](9, j, l);
+                            psi(t * npart * 4 + i * 4, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](6, j, l) - u1[i](6, j, l));
+                            psi(t * npart * 4 + i * 4 + 1, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](11, j, l) - u1[i](11, j, l));
+                            psi(t * npart * 4 + i * 4 + 2, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](5, j, l);
+                            psi(t * npart * 4 + i * 4 + 3, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](9, j, l);
                         }
                     }
                 }
@@ -2468,7 +2468,7 @@ arma::mat TPF_rates_obs_cpp (arma::ivec data, arma::uword nages, arma::uword nla
                 );
                 
                 // set data
-                twistnorm(i * 2, w) = psi(i * 4, j, l);
+                twistnorm(i * 2, w) = psi(i * 4 + 2, j, l);
                 
                 // increment counter
                 w++;
@@ -2491,7 +2491,7 @@ arma::mat TPF_rates_obs_cpp (arma::ivec data, arma::uword nages, arma::uword nla
                 );
                 
                 // set data
-                twistnorm(i * 2, w) = psi(i * 4 + 1, j, l);
+                twistnorm(i * 2, w) = psi(i * 4 + 3, j, l);
                 
                 // increment counter
                 w++;
@@ -2574,7 +2574,7 @@ arma::mat TPF_rates_cpp (arma::vec pars, arma::ivec data, arma::uword nages, arm
                 );
                 
                 // set data
-                twistnorm(i * 2, w) = psi(i * 4, j, l);
+                twistnorm(i * 2, w) = psi(i * 4 + 2, j, l);
                 
                 // increment counter
                 w++;
@@ -2633,7 +2633,7 @@ arma::mat TPF_rates_cpp (arma::vec pars, arma::ivec data, arma::uword nages, arm
                 );
                 
                 // set data
-                twistnorm(i * 2, w) = psi(i * 4 + 1, j, l);
+                twistnorm(i * 2, w) = psi(i * 4 + 3, j, l);
                 
                 // increment counter
                 w++;
