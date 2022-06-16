@@ -1142,7 +1142,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
 
 // [[Rcpp::export]]
 List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses, arma::uword nages, arma::uword nlads, arma::imat u1_moves, arma::ivec ncohorts, 
-         arma::icube u1_comb, arma::uword ndays, arma::uword npart, arma::mat munorm, arma::mat varnorm, arma::mat loglamnorm, double pmix, int twist, double a1, double a2, double b, double a_dis, 
+         arma::icube u1_comb, arma::uword ndays, arma::uword npart, arma::mat munorm, arma::mat varnorm, double pmix, int twist, double a1, double a2, double b, double a_dis, 
          double b_dis, int saveAll, int writeExt, int returnPsi, int PF, int ncores) {
     
     // set counters
@@ -1358,7 +1358,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
         t = 0;
     
 #ifdef _OPENMP
-#pragma omp parallel for default(none) private(j, l) shared(seeds, npart, u1_moves, nages, nclasses, nlads, u1, pars, a_dis, b_dis, munorm, varnorm, loglamnorm, twistnorm, tempdensx, t, pmix)
+#pragma omp parallel for default(none) private(j, l) shared(seeds, npart, u1_moves, nages, nclasses, nlads, u1, pars, a_dis, b_dis, munorm, varnorm, twistnorm, tempdensx, t, pmix)
 #endif
         for(i = 0; i < npart; i++) {
     
@@ -1402,13 +1402,10 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
 
                     // loop over x values
                     for(int s = 0; s <= u1_night(5, j, l); s++) {
-                
-                        // regularisation constant correction
-                        tempdensx[i][w](s) = -loglamnorm(t, w);
                         
                         // Gaussian correction
                         sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(5, j, l) * pI1pI1D;
-                        tempdensx[i][w](s) -= 0.5 * pow(s - munorm(t, w), 2.0) / (sigma2y + varnorm(t, w));
+                        tempdensx[i][w](s) = -0.5 * pow(s - munorm(t, w), 2.0) / (sigma2y + varnorm(t, w));
                         tempdensx[i][w](s) -= 0.5 * log(2.0 * M_PI * (sigma2y + varnorm(t, w)));
                         
                         // target normalising constant correction  
@@ -1451,9 +1448,6 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
 
                     // loop over x values
                     for(int s = 0; s <= u1_night(9, j, l); s++) {
-                
-                        // regularisation constant correction
-                        tempdensx[i][w](s) = -loglamnorm(t, w);
                         
                         // Gaussian correction
                         sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(9, j, l) * pHpHD;
@@ -1502,7 +1496,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
         
         // loop over particles
 #ifdef _OPENMP
-#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, u1_moves, nages, nclasses, nlads, data, C, N_night, N_day, u1, u1_new, t, pars, weights, a_dis, b_dis, a1, a2, b, obsInc, PF, ncohorts, munorm, varnorm, loglamnorm, twistnorm, tempdensx, condpars, twist, ndays, pmix)
+#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, u1_moves, nages, nclasses, nlads, data, C, N_night, N_day, u1, u1_new, t, pars, weights, a_dis, b_dis, a1, a2, b, obsInc, PF, ncohorts, munorm, varnorm, twistnorm, tempdensx, condpars, twist, ndays, pmix)
 #endif
         for(i = 0; i < npart; i++) {
     
@@ -1568,18 +1562,47 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                     for(l = 0; l < nlads; l++) {
                     
                         // sample simulator from twisted density
-                        arma::vec tempdensx1 (tempdensx[i][w].n_elem);
-                        tempdensx1 = exp(tempdensx[i][w] - twistnorm[i](w));
-                        tempdensx1 = tempdensx1 / sum(tempdensx1);
-                        DIinc1(j, l) = rmultinom_cpp(tempdensx1, eng);
+                        arma::vec tdensx (tempdensx[i][w].n_elem);
+                        tdensx = exp(tempdensx[i][w] - twistnorm[i](w));
+                        if(fabs(sum(tdensx) - 1.0) > 1e-10) {
+                            Rprintf("sum(tdens) = %e\n", sum(tdensx));
+                            stop("Must have sum(tdensx) == 1 in rmultinom\n");
+                        }
+                        tdensx = tdensx / sum(tdensx);
+                        DIinc1(j, l) = rmultinom_cpp(tdensx, eng);
+                        
+                        if(tempdensx[i][w].n_elem != (u1_night(5, j, l) + 1)) stop("Grrr\n");
                         
                         // extract mixture probability
-                        weight1 = tempdensx[i][w](DIinc1(j, l));
-                        weight1 -= R::dbinom(DIinc1(j, l), u1_night(5, j, l), pI1pI1D, 1);
-                        weight2 = log(1.0 - pmix) - weight1;
-                        weight1 = log(1.0 - exp(weight2));
-                        pcondmix = exp(weight1);
-                        if(pcondmix < 0.0 || pcondmix > 1.0) stop("Mixture sampling error\n");
+//                        weight1 = tempdensx[i][w](DIinc1(j, l));
+//                        weight1 -= R::dbinom(DIinc1(j, l), u1_night(5, j, l), pI1pI1D, 1);
+//                        weight2 = log(1.0 - pmix) - weight1;
+//                        weight1 = log(1.0 - exp(weight2));
+//                        pcondmix = exp(weight1);
+//                        
+                        // Gaussian correction
+                        sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(5, j, l) * pI1pI1D;
+                        weight1 = -0.5 * pow(DIinc1(j, l) - munorm(t, w), 2.0) / (sigma2y + varnorm(t, w));
+                        weight1 -= 0.5 * log(2.0 * M_PI * (sigma2y + varnorm(t, w)));
+                        
+                        // target normalising constant correction  
+                        weight1 -= ltnormconst_cpp((double) DIinc1(j, l), sqrt(sigma2y), 0.0, u1_night(5, j, l));
+                        
+                        // integrate over twisting function densities
+                        muy = varnorm(t, w) * DIinc1(j, l) + sigma2y * munorm(t, w);
+                        muy /= (varnorm(t, w) + sigma2y);
+                        sigma2y = sigma2y * varnorm(t, w) / (varnorm(t, w) + sigma2y);
+                        weight1 += ltnormconst_cpp(muy, sqrt(sigma2y), 0.0, u1_night(5, j, l));
+                        pcondmix = weight1 + log(pmix);
+                        
+                        // adjust for mixture
+                        weight1 = pcondmix;
+                        weight2 = log(1.0 - pmix);
+                        weightnorm = (weight1 > weight2 ? weight1:weight2);
+                        weightnorm += log(exp(weight1 - weightnorm) + exp(weight2 - weightnorm));
+                        pcondmix -= weightnorm;
+                        pcondmix = exp(pcondmix);
+                        if(pcondmix < 0.0 || pcondmix > 1.0) stop("Mixture sampling error %f\n", pcondmix);
                         
                         // sample from mixture density
                         u = eng() / sitmo::prng::max();
@@ -1621,7 +1644,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         // observation error for given incidence
                         sigma2y = a1 + a2 + 2.0 * b * DIinc(j, l);
                         weights(i) += ldtnorm_cpp(
-                            obsInc(j * nlads + l) - DIinc(j, l), 
+                            obsInc(w) - DIinc(j, l), 
                             a1 - a2, 
                             sqrt(sigma2y), 
                             -DIinc(j, l), 
@@ -1634,7 +1657,6 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         weightnorm = (weight1 > weight2 ? weight1:weight2);
                         weightnorm += log(exp(weight1 - weightnorm) + exp(weight2 - weightnorm));
                         weights(i) -= weightnorm;
-                        weights(i) += loglamnorm(t, w);
                         
                         // store incidence for redistribution
                         tempMD(6, j, l) = DIinc1(j, l);
@@ -1652,18 +1674,44 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                     for(l = 0; l < nlads; l++) {
                     
                         // sample simulator from twisted density
-                        arma::vec tempdensx1 (tempdensx[i][w].n_elem);
-                        tempdensx1 = exp(tempdensx[i][w] - twistnorm[i](w));
-                        tempdensx1 = tempdensx1 / sum(tempdensx1);
-                        DHinc1(j, l) = rmultinom_cpp(tempdensx1, eng);
+                        arma::vec tdensx (tempdensx[i][w].n_elem);
+                        tdensx = exp(tempdensx[i][w] - twistnorm[i](w));
+                        tdensx = tdensx / sum(tdensx);
+                        DHinc1(j, l) = rmultinom_cpp(tdensx, eng);
+                        
+                        if(tempdensx[i][w].n_elem != (u1_night(9, j, l) + 1)) stop("Grrr DH\n");
                         
                         // extract mixture probability
-                        weight1 = tempdensx[i][w](DHinc1(j, l));
-                        weight1 -= R::dbinom(DHinc1(j, l), u1_night(9, j, l), pHpHD, 1);
-                        weight2 = log(1.0 - pmix) - weight1;
-                        weight1 = log(1.0 - exp(weight2));
-                        pcondmix = exp(weight1);
-                        if(pcondmix < 0.0 || pcondmix > 1.0) stop("Mixture sampling error\n");
+//                        weight1 = tempdensx[i][w](DHinc1(j, l));
+//                        weight1 -= R::dbinom(DHinc1(j, l), u1_night(9, j, l), pHpHD, 1);
+//                        weight2 = log(1.0 - pmix) - weight1;
+//                        weight1 = log(1.0 - exp(weight2));
+//                        pcondmix = exp(weight1);
+
+//                        
+                        // Gaussian correction
+                        sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(9, j, l) * pHpHD;
+                        weight1 = -0.5 * pow(DHinc1(j, l) - munorm(t, w), 2.0) / (sigma2y + varnorm(t, w));
+                        weight1 -= 0.5 * log(2.0 * M_PI * (sigma2y + varnorm(t, w)));
+                        
+                        // target normalising constant correction  
+                        weight1 -= ltnormconst_cpp((double) DHinc1(j, l), sqrt(sigma2y), 0.0, u1_night(5, j, l));
+                        
+                        // integrate over twisting function densities
+                        muy = varnorm(t, w) * DHinc1(j, l) + sigma2y * munorm(t, w);
+                        muy /= (varnorm(t, w) + sigma2y);
+                        sigma2y = sigma2y * varnorm(t, w) / (varnorm(t, w) + sigma2y);
+                        weight1 += ltnormconst_cpp(muy, sqrt(sigma2y), 0.0, u1_night(9, j, l));
+                        pcondmix = weight1 + log(pmix);
+                        
+                        // adjust for mixture
+                        weight1 = pcondmix;
+                        weight2 = log(1.0 - pmix);
+                        weightnorm = (weight1 > weight2 ? weight1:weight2);
+                        weightnorm += log(exp(weight1 - weightnorm) + exp(weight2 - weightnorm));
+                        pcondmix -= weightnorm;
+                        pcondmix = exp(pcondmix);
+                        if(pcondmix < 0.0 || pcondmix > 1.0) stop("Mixture sampling error %f\n", pcondmix);
                         
                         // sample from mixture density
                         u = eng() / sitmo::prng::max();
@@ -1705,7 +1753,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         // observation error for given incidence
                         sigma2y = a1 + a2 + 2.0 * b * DHinc(j, l);
                         weights(i) += ldtnorm_cpp(
-                            obsInc(nlads * nages + j * nlads + l) - DHinc(j, l), 
+                            obsInc(w) - DHinc(j, l), 
                             a1 - a2, 
                             sqrt(sigma2y), 
                             -DHinc(j, l), 
@@ -1718,7 +1766,6 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         weightnorm = (weight1 > weight2 ? weight1:weight2);
                         weightnorm += log(exp(weight1 - weightnorm) + exp(weight2 - weightnorm));
                         weights(i) -= weightnorm;
-                        weights(i) += loglamnorm(t, w);
                         
                         // store incidence for redistribution
                         tempMD(11, j, l) = DHinc1(j, l);
@@ -2110,10 +2157,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         tempdensx[i][w] = arma::vec (u1_night(5, j, l) + 1);
 
                         // loop over x values
-                        for(int s = 0; s <= u1_night(5, j, l); s++) {
-                
-                            // regularisation constant correction
-                            tempdensx[i][w](s) = -loglamnorm(t + 1, w);    
+                        for(int s = 0; s <= u1_night(5, j, l); s++) {  
                             
                             // Gaussian correction
                             sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(5, j, l) * pI1pI1D;
@@ -2162,10 +2206,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         tempdensx[i][w] = arma::vec (u1_night(9, j, l) + 1);
 
                         // loop over x values
-                        for(int s = 0; s <= u1_night(9, j, l); s++) {
-                
-                            // regularisation constant correction
-                            tempdensx[i][w](s) = -loglamnorm(t + 1, w);   
+                        for(int s = 0; s <= u1_night(9, j, l); s++) {   
                             
                             // Gaussian correction
                             sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(9, j, l) * pHpHD;
@@ -2517,7 +2558,7 @@ arma::mat TPF_rates_obs_cpp (arma::ivec data, arma::uword nages, arma::uword nla
 
 // [[Rcpp::export]]
 arma::mat TPF_rates_cpp (arma::vec pars, arma::ivec data, arma::uword nages, arma::uword nlads, arma::cube psi, 
-    arma::uword npart, arma::vec munorm, arma::vec varnorm, arma::vec loglamnorm, double pmix, double a1, double a2, double b, double a_dis, double b_dis, int ncores) {
+    arma::uword npart, arma::vec munorm, arma::vec varnorm, double pmix, double a1, double a2, double b, double a_dis, double b_dis, int ncores) {
     
     // set counters
     arma::uword i, j, l;
@@ -2526,7 +2567,7 @@ arma::mat TPF_rates_cpp (arma::vec pars, arma::ivec data, arma::uword nages, arm
     arma::mat twistnorm(npart * 2, munorm.n_elem); twistnorm.zeros();
 
 #ifdef _OPENMP
-#pragma omp parallel for default(none) private(j, l) shared(npart, nages, nlads, pars, a1, a2, b, a_dis, b_dis, munorm, varnorm, loglamnorm, twistnorm, psi, data, pmix)
+#pragma omp parallel for default(none) private(j, l) shared(npart, nages, nlads, pars, a1, a2, b, a_dis, b_dis, munorm, varnorm, twistnorm, psi, data, pmix)
 #endif
     for(i = 0; i < npart; i++) {
         
@@ -2548,13 +2589,10 @@ arma::mat TPF_rates_cpp (arma::vec pars, arma::ivec data, arma::uword nages, arm
 
                 // loop over x values
                 for(int s = 0; s <= psi(i * 4 + 2, j, l); s++) {
-                
-                    // regularisation constant correction
-                    tempdensx(s) = -loglamnorm(w);
                     
                     // Gaussian correction
                     sigma2y = 2.0 * a_dis + 2.0 * b_dis * psi(i * 4 + 2, j, l) * pI1pI1D;
-                    tempdensx(s) -= 0.5 * pow(s - munorm(w), 2.0) / (sigma2y + varnorm(w));
+                    tempdensx(s) = -0.5 * pow(s - munorm(w), 2.0) / (sigma2y + varnorm(w));
                     tempdensx(s) -= 0.5 * log(2.0 * M_PI * (sigma2y + varnorm(w)));
                     
                     // target normalising constant correction  
@@ -2610,13 +2648,10 @@ arma::mat TPF_rates_cpp (arma::vec pars, arma::ivec data, arma::uword nages, arm
 
                 // loop over x values
                 for(int s = 0; s <= psi(i * 4 + 3, j, l); s++) {
-                
-                    // regularisation constant correction
-                    tempdensx(s) = -loglamnorm(w);
                     
                     // Gaussian correction
                     sigma2y = 2.0 * a_dis + 2.0 * b_dis * psi(i * 4 + 3, j, l) * pHpHD;
-                    tempdensx(s) -= 0.5 * pow(s - munorm(w), 2.0) / (sigma2y + varnorm(w));
+                    tempdensx(s) = -0.5 * pow(s - munorm(w), 2.0) / (sigma2y + varnorm(w));
                     tempdensx(s) -= 0.5 * log(2.0 * M_PI * (sigma2y + varnorm(w)));
                     
                     // target normalising constant correction  

@@ -108,7 +108,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, kmax
         
         ## run particle filter
         particles <- TPF_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
-            npart, matrix(0, 1, 1), matrix(1, 1, 1), matrix(1, 1, 1), pmix, 0, a1, a2, b, a_dis, b_dis, saveAll, writeExt, 1, PF, ncores)
+            npart, matrix(0, 1, 1), matrix(1, 1, 1), pmix, 0, a1, a2, b, a_dis, b_dis, saveAll, writeExt, 1, PF, ncores)
             
         ## extract particles
         ll <- particles$ll
@@ -196,11 +196,10 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, kmax
                 ## extract Gaussian parameters
                 munorm <- map(output, "par")
                 varnorm <- (map_dbl(munorm, 2))^2
-                loglamnorm <- log(map_dbl(munorm, 3))
                 munorm <- map_dbl(munorm, 1)
                 
                 ## save rates
-                psi[[ndays]] <- list(munorm = munorm, varnorm = varnorm, loglamnorm = loglamnorm)
+                psi[[ndays]] <- list(munorm = munorm, varnorm = varnorm)
                     
                 cat(paste0("Day: ", ndays, " t = ", round(as.numeric((proc.time() - ptm)["elapsed"]), 2), " secs\n"))
                 ptm <- proc.time()
@@ -210,7 +209,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, kmax
                 
                     ## generate filter rates
                     temp <- particles[(npart[kcurr] * (t - 1) * 4 + 1):(npart[kcurr] * t * 4), , ]
-                    temp <- TPF_rates_cpp(pars, data[t, ], 8, 339, temp, npart[kcurr], munorm, varnorm, loglamnorm, pmix, a1, a2, b, a_dis, b_dis, ncores)
+                    temp <- TPF_rates_cpp(pars, data[t, ], 8, 339, temp, npart[kcurr], munorm, varnorm, pmix, a1, a2, b, a_dis, b_dis, ncores)
                     
                     if(any(!is.finite(temp))) browser()
                 
@@ -241,11 +240,10 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, kmax
                     ## extract Gaussian parameters
                     munorm <- map(output, "par")
                     varnorm <- (map_dbl(munorm, 2))^2
-                    loglamnorm <- log(map_dbl(munorm, 3))
                     munorm <- map_dbl(munorm, 1)
                     
                     ## save rates
-                    psi[[t]] <- list(munorm = munorm, varnorm = varnorm, loglamnorm = loglamnorm)
+                    psi[[t]] <- list(munorm = munorm, varnorm = varnorm)
                     
                     cat(paste0("Day: ", t, " t = ", round(as.numeric((proc.time() - ptm)["elapsed"]), 2), " secs\n"))
                     ptm <- proc.time()
@@ -254,7 +252,6 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, kmax
                 ## reduce to rate matrix
                 psimu <- do.call("rbind", map(psi, "munorm"))
                 psivar <- do.call("rbind", map(psi, "varnorm"))
-                psiloglam <- do.call("rbind", map(psi, "loglamnorm"))
                 
                 ## print summaries to screen
                 cat("\nPsi means:\n")
@@ -277,7 +274,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, kmax
                 ## run particle filter
                 cat(paste0("\nRunning model (npart = ", npart[kcurr], ")\n"))
                 particles <- TPF_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
-                    npart[kcurr], psimu, psivar, psiloglam, pmix, 1, a1, a2, b, a_dis, b_dis, saveAll, writeExt, 1, PF, ncores)
+                    npart[kcurr], psimu, psivar, pmix, 1, a1, a2, b, a_dis, b_dis, saveAll, writeExt, 1, PF, ncores)
             
                 ## extract particles
                 ll <- c(ll, particles$ll)
