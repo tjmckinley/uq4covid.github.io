@@ -329,7 +329,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, kmax
         }       
     } else {
         ll <- map(runs, "ll")
-        ll <- do.call("c", runs)
+        ll <- do.call("c", ll)
         return(ll)
     }
 }
