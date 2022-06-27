@@ -10,10 +10,12 @@ library(patchwork)
 ## source Rcpp PF code
 sourceCpp("../BPF.cpp")
 sourceCpp("../APF1.cpp")
+sourceCpp("../TPF.cpp")
 
 ## source function to run PF and return log-likelihood
 source("../BPF.R")
 source("../APF1.R")
+source("../IAPF.R")
 
 ## read in simulated data and generate incidence curves
 data <- readRDS("../outputs/disSims.rds")
@@ -61,18 +63,24 @@ runs_bpf <- BPF(pars, C = contact, data = data, u1_moves = u1_moves,
     u1 = u1, ndays = 50, npart = 10, a_dis = 0.05, b_dis = 0.05,
     a1 = 0.01, a2 = 0.2, b = 0.001, saveAll = NA)
     
+save.image("runs.RData")
+    
 ## run APF1
 runs_apf1 <- APF1(pars, C = contact, data = data, u1_moves = u1_moves,
     u1 = u1, ndays = 50, npart = 10, a_dis = 0.05, b_dis = 0.05,
     a1 = 0.01, a2 = 0.2, b = 0.001, saveAll = NA)
+    
+save.image("runs1.RData")
 
-## run BPF
-runs_bpft10 <- BPF(pars[1, ], C = contact, data = data, u1_moves = u1_moves,
-    u1 = u1, ndays = 50, npart = 100, a_dis = 0.05, b_dis = 0.05,
+## run TPF
+runs_tpf <- IAPF(pars, C = contact, data = data, u1_moves = u1_moves,
+    u1 = u1, ndays = 50, npart = 10, a_dis = 0.05, b_dis = 0.05, kmax = 3,
     a1 = 0.01, a2 = 0.2, b = 0.001, saveAll = NA)
+    
+save.image("runs2.RData")
   
 ## collapse to data frame and plot
-runs <- tibble(BPF = runs_bpf, APF1 = runs_apf1) %>%
+runs <- tibble(BPF = runs_bpf, APF1 = runs_apf1, TPF = runs_tpf) %>%
     cbind(select(pars, id)) %>%
     pivot_longer(!id, names_to = "Type")
 
@@ -83,4 +91,4 @@ p <- ggplot(runs) +
     ggtitle(paste0("Num. of replicates = ", nreps, " Num. particles = ", npart)) +
     ylab("Density")
     
-ggsave(paste0("PF_dens_", nreps, "_ll.pdf"), p, width = 7, height = 7)
+ggsave(paste0("PF_dens_", nreps, "_ll.pdf"), p, width = 10, height = 10)
