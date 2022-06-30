@@ -20,6 +20,7 @@ log_sum_exp <- function(x, mn = FALSE) {
 ##            nclasses x nages x nrow(u1_moves)
 ## ndays: the number of days to fit to
 ## npart: the number of particles
+## niter: number of Metropolis-Hastings steps to counter particle impoverishment
 ## obsScale: scaling parameter for Skellam observation process (see code)
 ## a1, a2, b: parameters for Skellam observation process
 ## saveAll: a logical specifying whether to return all states (if FALSE then returns just observed states))
@@ -27,7 +28,7 @@ log_sum_exp <- function(x, mn = FALSE) {
 ## PF:      a logical denoting whether to run a particle filter, or just simulate from the model
 ## ncores:  the number of cores for OpenMP parallelisation (if NA then defaults to all available cores)
 
-BPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, a1 = 0.01, a2 = 0.2, b = 0.1, 
+BPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, niter = 0, a1 = 0.01, a2 = 0.2, b = 0.1, 
         a_dis = 0.05, b_dis = 0.05, saveAll = NA, writeExt = FALSE, PF = TRUE, ncores = NA) {
                
     ## set default for saveAll if PF = FALSE
@@ -70,7 +71,7 @@ BPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, a1 = 0.01, a2 = 
     }
     
     ## run particle filter for each set of inputs
-    runs <- lapply(1:nrow(pars), function(k, pars, C, u1_moves, ncohorts, u1, npart, ndays, data, a1, a2, b, a_dis, b_dis, saveAll, writeExt, PF, ncores) {
+    runs <- lapply(1:nrow(pars), function(k, pars, C, u1_moves, ncohorts, u1, npart, niter, ndays, data, a1, a2, b, a_dis, b_dis, saveAll, writeExt, PF, ncores) {
         
         if(PF == 1) {
             ## extract observations
@@ -100,20 +101,20 @@ BPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, a1 = 0.01, a2 = 
             
             ## run particle filter
             particles <- BPF_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
-                npart, a1, a2, b, a_dis, b_dis, saveAll, writeExt, PF, ncores)
+                npart, niter, a1, a2, b, a_dis, b_dis, saveAll, writeExt, PF, ncores)
             return(particles)
         }
         
         ## run particle filter
         particles <- BPF_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
-            npart, a1, a2, b, a_dis, b_dis, saveAll, writeExt, PF, ncores)
+            npart, niter, a1, a2, b, a_dis, b_dis, saveAll, writeExt, PF, ncores)
         
         if(saveAll != 0 & writeExt == 0) {
             return(list(ll = particles$ll, particles = particles$particles))
         } else {
             return(list(ll = particles$ll))
         }
-    }, pars = pars, C = C, u1_moves = u1_moves, ncohorts = ncohorts, u1 = u1, npart = npart, ndays = ndays, data = data, a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis, saveAll = saveAllint, writeExt = writeExtint, PF = PFint, ncores = ncores)
+    }, pars = pars, C = C, u1_moves = u1_moves, ncohorts = ncohorts, u1 = u1, npart = npart, niter = niter, ndays = ndays, data = data, a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis, saveAll = saveAllint, writeExt = writeExtint, PF = PFint, ncores = ncores)
     if(!is.na(saveAll)) {
         if(!writeExt) {
             if(PF) {
