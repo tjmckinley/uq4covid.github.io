@@ -53,7 +53,7 @@ APF1 <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, a1 = 0.01, a2 =
     }
     
     ## check u1_moves are ordered
-    u1_moves <- u1_moves[sort.list(u1_moves[, 1]), ]
+    u1_moves <- u1_moves[sort.list(u1_moves[, 1]), , drop = FALSE]
     
     ## generate number of cohorts
     ncohorts <- tapply(u1_moves[, 1], u1_moves[, 1], length)
@@ -89,6 +89,11 @@ APF1 <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, a1 = 0.01, a2 =
         
         ## set pars
         pars <- unlist(pars[k, ])
+        
+        ## extract number of stages, age classes and lads
+        nclasses <- dim(u1)[1]
+        nages <- dim(u1)[2]
+        nlads <- max(u1_moves[, 1])
     
         ## do garbage collection (seems to solve allocation issue)
         gc()
@@ -99,13 +104,13 @@ APF1 <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, a1 = 0.01, a2 =
             if(saveAll == 0) stop("Must set 'saveAll' to something if not running a PF")
             
             ## run particle filter
-            particles <- APF1_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
+            particles <- APF1_cpp(pars, C, data, nclasses, nages, nlads, u1_moves, ncohorts, u1, ndays,
                 npart, a1, a2, b, a_dis, b_dis, saveAll, writeExt, PF, ncores)
             return(particles)
         }
         
         ## run particle filter
-        particles <- APF1_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
+        particles <- APF1_cpp(pars, C, data, nclasses, nages, nlads, u1_moves, ncohorts, u1, ndays,
             npart, a1, a2, b, a_dis, b_dis, saveAll, writeExt, PF, ncores)
         
         if(saveAll != 0 & writeExt == 0) {
