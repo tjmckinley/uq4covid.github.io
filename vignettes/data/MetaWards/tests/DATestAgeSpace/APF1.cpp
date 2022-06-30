@@ -1108,7 +1108,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
 // [[Rcpp::export]]
 List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses, 
     arma::uword nages, arma::uword nlads, arma::imat u1_moves, arma::ivec ncohorts, 
-    arma::icube u1_comb, arma::uword ndays, arma::uword npart, double a1, double a2, 
+    arma::icube u1_comb, arma::uword ndays, arma::uword npart, int niter, double a1, double a2, 
     double b, double a_dis, double b_dis, int saveAll, int writeExt, int PF, int ncores) {
     
     // set counters
@@ -1116,6 +1116,7 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
     
     // split u1 up into different LADs
     std::vector<arma::icube> u1(npart);
+    std::vector<arma::icube> u11(npart);
     std::vector<arma::icube> u1_new(npart);
     arma::icube u1_night_full(nclasses + 2, nages, nlads); u1_night_full.zeros();
     arma::icube u1_night_reduced(4, nages, nlads); u1_night_reduced.zeros();
@@ -1285,6 +1286,24 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                 }
             }
         }
+    }
+    
+    // vectors for storing acceptance rates of MCMC
+    arma::ivec nacc(npart); nacc.zeros();
+    
+    // parameters for conditional sampling
+    arma::vec condpars (pars.n_elem); condpars.zeros();
+    condpars = pars;
+    for(j = 0; j < nages; j++) {
+        condpars(j + 4 * nages + 2) = pars(j + 4 * nages + 2) * (1.0 - pars(j + 6 * nages + 2));
+        condpars(j + 4 * nages + 2) /= (1.0 - pars(j + 4 * nages + 2) * pars(j + 6 * nages + 2));
+        condpars(j + 5 * nages + 2) = pars(j + 5 * nages + 2);
+        condpars(j + 5 * nages + 2) /= (1.0 - pars(j + 6 * nages + 2));
+        condpars(j + 6 * nages + 2) = 0.0;
+        
+        condpars(j + 8 * nages + 2) = pars(j + 8 * nages + 2) * (1.0 - pars(j + 9 * nages + 2));
+        condpars(j + 8 * nages + 2) /= (1.0 - pars(j + 8 * nages + 2) * pars(j + 9 * nages + 2));
+        condpars(j + 9 * nages + 2) = 0.0;
     }
     
     // initialise timer
@@ -1722,6 +1741,515 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
             seeds((arma::uword) omp_get_thread_num()) = eng();
         }
         
+        if(PF == 1) {
+            // calculate log-likelihood contribution
+            ll += log_sum_exp(weights, 1);
+            
+            // if zero likelihood then return
+            if(!arma::is_finite(ll)) {
+                Rprintf("Finishing early due to non-finite log-likelihood estimate\n");
+                if(saveAll == 0 || writeExt == 1) {
+                    return List::create(Named("ll") = ll);
+                } else {
+                    return List::create(Named("ll") = ll, _["particles"] = out);
+                }
+            }
+            
+            // normalise weights
+            wnorm = log_sum_exp(weights, 0);
+            weights = exp(weights - wnorm);
+            weights = weights / sum(weights);
+            
+            // resample
+            for(i = 0; i < npart; i++) {
+                inds(i) = (arma::uword) rmultinom_cpp(weights, engSerial);
+            }
+            for(i = 0; i < npart; i++) {
+                u11[i] = u1[inds(i)];
+                u1_night_obs1[i] = u1_night_obs[inds(i)];
+            }
+            for(i = 0; i < npart; i++) {
+                u1[i] = u11[i];
+                u1_night_obs[i] = u1_night_obs1[i];
+            }
+            for(i = 0; i < npart; i++) {
+                u11[i] = u1_new[inds(i)];
+            }
+            for(i = 0; i < npart; i++) {
+                u1_new[i] = u11[i];
+            }
+            
+            // Metropolis-Hastings steps to deal with particle impoverishment
+            if(niter > 0) {
+#ifdef _OPENMP
+#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, u1_moves, nages, nclasses, nlads, data, C, N_night, N_day, u1, u1_new, t, pars, a_dis, b_dis, a1, a2, b, obsInc, PF, ncohorts, ndays, condpars, niter, nacc)
+#endif
+                for(i = 0; i < npart; i++) {
+            
+                    // set up print string for debugging
+                    char str1[80];
+	                std::strcpy(str1, "Gibbs setup");
+         
+                    // set up thread-safe RNG
+                    uint32_t coreseed = static_cast<uint32_t>(seeds(0));
+    #ifdef _OPENMP
+                    coreseed = static_cast<uint32_t>(seeds((arma::uword) omp_get_thread_num()));
+    #endif
+                    sitmo::prng eng(coreseed);
+                
+                    // set up auxiliary objects
+                    arma::imat DHinc (nages, nlads); DHinc.zeros();
+                    arma::imat DIinc (nages, nlads); DIinc.zeros();
+                    arma::imat DHinc1 (nages, nlads); DHinc1.zeros();
+                    arma::imat DIinc1 (nages, nlads); DIinc1.zeros();
+                    arma::imat RHinc (nages, nlads); RHinc.zeros();
+                    arma::imat Hinc (nages, nlads); Hinc.zeros();
+                    arma::imat RIinc (nages, nlads); RIinc.zeros();
+                    arma::imat I2inc (nages, nlads); I2inc.zeros();
+                    arma::imat I1inc (nages, nlads); I1inc.zeros();
+                    arma::imat Pinc (nages, nlads); Pinc.zeros();
+                    arma::imat RAinc (nages, nlads); RAinc.zeros();
+                    arma::imat Ainc (nages, nlads); Ainc.zeros();
+                    arma::imat Einc (nages, nlads); Einc.zeros();
+                    arma::icube tempMD (nclasses, nages, nlads); tempMD.zeros();
+                    arma::icube tempMD1 (2, nages, nlads); tempMD1.zeros();
+                    arma::icube tempsim1 (2, nages, nlads); tempsim1.zeros();
+                    
+                    arma::mat pinf(nages, nlads); pinf.zeros();
+                    arma::imat origE(nages, u1_moves.n_rows); origE.zeros();
+                    arma::icube u1_day(nclasses, nages, nlads); u1_day.zeros();
+                    arma::icube u1_night(nclasses, nages, nlads); u1_night.zeros();
+                    arma::icube u1_night1(nclasses, nages, nlads); u1_night1.zeros();
+                    
+                    // aggregate counts to LAD-level
+                    for(j = 0; j < nages; j++) {                    
+                        for(l = 0; l < u1_moves.n_rows; l++) {
+                            for(int s = 0; s < nclasses; s++) {
+                                u1_night(s, j, u1_moves(l, 0) - 1) += u1[i](s, j, l);
+                            }
+                        }
+                    }
+                    
+                    // set auxiliary variables
+                    double muy, sigma2y, pI1pI1D, pHpHD, acc, acccurr, accprop, u;
+                
+                    // cols: c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "RI", "H", "RH", "DH")
+                    //          0,   1,   2,   3,    4,   5,    6,    7,    8,    9,   10,   11
+                    
+                    // adjust states according to model discrepancy
+                    
+                    // aggregate incidence to LAD-level
+                    for(j = 0; j < nages; j++) {                    
+                        for(l = 0; l < u1_moves.n_rows; l++) {
+                            DHinc(j, u1_moves(l, 0) - 1) += u1_new[i](11, j, l) - u1[i](11, j, l);
+                        }
+                    }
+                    // aggregate incidence to LAD-level
+                    for(j = 0; j < nages; j++) {                    
+                        for(l = 0; l < u1_moves.n_rows; l++) {
+                            DIinc(j, u1_moves(l, 0) - 1) += u1_new[i](6, j, l) - u1[i](6, j, l);
+                        }
+                    }
+                    // current likelihood
+                    acccurr = 0.0;
+                    for(j = 0; j < nages; j++) {
+                        // extract transition probabilities
+                        pHpHD = pars(j + 8 * nages + 2) * pars(j + 9 * nages + 2);
+                        pI1pI1D = pars(j + 4 * nages + 2) * pars(j + 6 * nages + 2);
+                        for(l = 0; l < nlads; l++) {
+                            // observation error for current incidence
+                            muy = a1 - a2;
+                            sigma2y = a1 + a2 + 2.0 * b * DHinc(j, l);
+                            acccurr += ldtnorm_cpp(
+                                obsInc(nlads * nages + j * nlads + l) - DHinc(j, l), 
+                                muy, 
+                                sqrt(sigma2y), 
+                                -DHinc(j, l), 
+                                std::numeric_limits<double>::infinity()
+                            );
+                            sigma2y = a1 + a2 + 2.0 * b * DIinc(j, l);
+                            acccurr += ldtnorm_cpp(
+                                obsInc(j * nlads + l) - DIinc(j, l), 
+                                muy, 
+                                sqrt(sigma2y), 
+                                -DIinc(j, l), 
+                                std::numeric_limits<double>::infinity()
+                            );
+                        }
+                    }
+                                    
+                    // run over Metropolis-Hastings steps
+                    nacc(i) = 0;
+                    for(int it = 0; it < niter; it++) {
+                    
+                        // set acceptance probability
+                        accprop = 0.0;
+                        
+                        // loop over ages
+                        std::strcpy(str1, "MH");
+                        for(j = 0; j < nages; j++) {
+                        
+                            // extract transition probabilities
+                            pHpHD = pars(j + 8 * nages + 2) * pars(j + 9 * nages + 2);
+                            pI1pI1D = pars(j + 4 * nages + 2) * pars(j + 6 * nages + 2);
+                            
+                            // loop over LADs
+                            for(l = 0; l < nlads; l++) {
+                            
+                                // sample from simulator
+                                int r = rbinom_cpp(u1_night(9, j, l), pHpHD, eng);
+                                DHinc1(j, l) = r;
+                            
+                                // sample MD conditional on simulator
+                                sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(9, j, l) * pHpHD;
+                                muy = (double) r;
+                                int s = rdtnorm_cpp(
+                                    muy, 
+                                    sqrt(sigma2y),
+                                    0.0,
+                                    u1_night(9, j, l),
+                                    eng
+                                );
+                                DHinc(j, l) = s;
+                                
+                                // observation error for given incidence
+                                muy = a1 - a2;
+                                sigma2y = a1 + a2 + 2.0 * b * s;
+                                accprop += ldtnorm_cpp(
+                                    obsInc(nlads * nages + j * nlads + l) - s, 
+                                    muy, 
+                                    sqrt(sigma2y), 
+                                    -s, 
+                                    std::numeric_limits<double>::infinity()
+                                );
+                            
+                                // sample from simulator
+                                r = rbinom_cpp(u1_night(5, j, l), pI1pI1D, eng);
+                                DIinc1(j, l) = r;
+                            
+                                // sample MD conditional on simulator
+                                sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(5, j, l) * pI1pI1D;
+                                muy = (double) r;
+                                s = rdtnorm_cpp(
+                                    muy, 
+                                    sqrt(sigma2y),
+                                    0.0,
+                                    u1_night(5, j, l),
+                                    eng
+                                );
+                                DIinc(j, l) = s;
+                                
+                                // observation error for given incidence
+                                muy = a1 - a2;
+                                sigma2y = a1 + a2 + 2.0 * b * s;
+                                accprop += ldtnorm_cpp(
+                                    obsInc(j * nlads + l) - s, 
+                                    muy, 
+                                    sqrt(sigma2y), 
+                                    -s, 
+                                    std::numeric_limits<double>::infinity()
+                                );
+                            }
+                        }
+                                
+                        // accept-reject
+                        acc = accprop - acccurr;
+                        u = log(eng()) - log(sitmo::prng::max());
+                        if(u < acc) {
+                            nacc(i)++;
+                            acccurr = accprop;
+                            for(j = 0; j < nages; j++) {
+                                for(l = 0; l < nlads; l++) {
+                                    tempsim1(0, j, l) = DIinc1(j, l);
+                                    tempsim1(1, j, l) = DHinc1(j, l);
+                                    tempMD1(0, j, l) = DIinc(j, l);
+                                    tempMD1(1, j, l) = DHinc(j, l);
+                                }
+                            }
+                        }
+                    }
+                    
+                    // if some moves have been made then update counts
+                    if(nacc(i) > 0) {
+                    
+                        // set new particle
+                        u1_new[i] = u1[i];
+                        
+                        // set up simulator adjustments
+                        tempMD.zeros();
+                        for(l = 0; l < nlads; l++) {
+                            for(j = 0; j < nages; j++) {
+                                tempMD(6, j, l) = tempsim1(0, j, l);
+                                tempMD(11, j, l) = tempsim1(1, j, l);
+                            }
+                        }
+                
+                        // now redistribute simulator incidence across cohorts
+                        redistribution(i, nages, nlads, tempMD, ncohorts, u1, u1_new, eng, 1);
+                        
+                        // sample remaining x values from conditional simulator
+                        discreteStochModel((int) i, condpars, t - 1, t, u1_moves, u1_new, u1_day, u1_night1, N_day, N_night, pinf, origE, C, eng);
+                        
+                        // set model discrepancy counts for later re-distribution
+                        tempMD.zeros();
+                        for(l = 0; l < nlads; l++) {
+                            for(j = 0; j < nages; j++) {
+                                tempMD(6, j, l) = tempMD1(0, j, l) - tempsim1(0, j, l);
+                                tempMD(11, j, l) = tempMD1(1, j, l) - tempsim1(1, j, l);
+                                DIinc(j, l) = tempMD1(0, j, l);
+                                DHinc(j, l) = tempMD1(1, j, l);
+                            }
+                        }
+                        
+                        // calculate remaining MD terms
+                        
+                        // RH given DH (MD on incidence)
+                        std::strcpy(str1, "RHinc");
+                        // aggregate incidence to LAD-level
+                        for(j = 0; j < nages; j++) {                    
+                            for(l = 0; l < u1_moves.n_rows; l++) {
+                                RHinc(j, u1_moves(l, 0) - 1) += u1_new[i](10, j, l) - u1[i](10, j, l);
+                            }
+                        }
+                        for(j = 0; j < nages; j++) {
+                            for(l = 0; l < nlads; l++) {
+                                sigma2y = 2.0 * a_dis + 2.0 * b_dis * RHinc(j, l);
+                                tempMD(10, j, l) = rdtnorm_cpp(
+                                    0.0, 
+                                    sqrt(sigma2y),
+                                    -RHinc(j, l),
+                                    u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l),
+                                    eng
+                                );
+                                RHinc(j, l) += tempMD(10, j, l);
+                                if(RHinc(j, l) < 0 || RHinc(j, l) > u1_night(9, j, l) - DHinc(j, l)) stop("RHinc error\n");
+                            }
+                        }
+                            
+                        // H given later
+                        std::strcpy(str1, "H");
+                        // aggregate count to LAD-level
+                        for(j = 0; j < nages; j++) {
+                            for(l = 0; l < u1_moves.n_rows; l++) {
+                                Hinc(j, u1_moves(l, 0) - 1) += u1_new[i](9, j, l);
+                            }
+                        }
+                        for(j = 0; j < nages; j++) {
+                            for(l = 0; l < nlads; l++) {
+                                // let Hinc be count MD
+                                sigma2y = 2.0 * a_dis + 2.0 * b_dis * Hinc(j, l);
+                                tempMD(9, j, l) = rdtnorm_cpp(
+                                    0.0, 
+                                    sqrt(sigma2y),
+                                    -Hinc(j, l) + u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l),
+                                    u1_night(5, j, l) - DIinc(j, l) - Hinc(j, l) + u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l),
+                                    eng
+                                );
+                                Hinc(j, l) += tempMD(9, j, l);
+                                if(Hinc(j, l) < 0) stop("Hinc error\n");
+                            }
+                        }
+                        for(j = 0; j < nages; j++) {
+                            for(l = 0; l < nlads; l++) {
+                                Hinc(j, l) = Hinc(j, l) - u1_night(9, j, l) + DHinc(j, l) + RHinc(j, l);
+                                if(Hinc(j, l) < 0 || Hinc(j, l) > u1_night(5, j, l) - DIinc(j, l)) stop("Hinc error1 %d\n", Hinc(j, l));
+                            }
+                        }
+                            
+                        // RI (MD on incidence)
+                        std::strcpy(str1, "RIinc");
+                        // aggregate incidence to LAD-level
+                        for(j = 0; j < nages; j++) {                    
+                            for(l = 0; l < u1_moves.n_rows; l++) {
+                                RIinc(j, u1_moves(l, 0) - 1) += u1_new[i](8, j, l) - u1[i](8, j, l);
+                            }
+                        }
+                        for(j = 0; j < nages; j++) {
+                            for(l = 0; l < nlads; l++) {
+                                sigma2y = 2.0 * a_dis + 2.0 * b_dis * RIinc(j, l);
+                                tempMD(8, j, l) = rdtnorm_cpp(
+                                    0.0, 
+                                    sqrt(sigma2y),
+                                    -RIinc(j, l),
+                                    u1_night(7, j, l) - RIinc(j, l),
+                                    eng
+                                );
+                                RIinc(j, l) += tempMD(8, j, l);
+                                if(RIinc(j, l) < 0 || RIinc(j, l) > u1_night(7, j, l)) stop("RIinc error\n");
+                            }
+                        }
+                            
+                        // I2 given later
+                        std::strcpy(str1, "I2inc");
+                        // aggregate count to LAD-level
+                        for(j = 0; j < nages; j++) {
+                            for(l = 0; l < u1_moves.n_rows; l++) {
+                                I2inc(j, u1_moves(l, 0) - 1) += u1_new[i](7, j, l);
+                            }
+                        }
+                        for(j = 0; j < nages; j++) {
+                            for(l = 0; l < nlads; l++) {
+                                sigma2y = 2.0 * a_dis + 2.0 * b_dis * I2inc(j, l);
+                                tempMD(7, j, l) = rdtnorm_cpp(
+                                    0.0, 
+                                    sqrt(sigma2y),
+                                    -I2inc(j, l) + u1_night(7, j, l) - RIinc(j, l),
+                                    u1_night(5, j, l) - DIinc(j, l) - Hinc(j, l) - I2inc(j, l) + u1_night(7, j, l) - RIinc(j, l),
+                                    eng
+                                );
+                                I2inc(j, l) += tempMD(7, j, l);
+                                if(I2inc(j, l) < 0) stop("I2inc error\n");
+                            }
+                        }                
+                        for(j = 0; j < nages; j++) {
+                            for(l = 0; l < nlads; l++) {
+                                I2inc(j, l) = I2inc(j, l) - u1_night(7, j, l) + RIinc(j, l);
+                                if(I2inc(j, l) < 0 || I2inc(j, l) > u1_night(5, j, l) - DIinc(j, l) - Hinc(j, l)) stop("I2inc error\n");
+                            }
+                        }
+                        
+                        // I1 given later
+                        std::strcpy(str1, "I1inc");
+                        // aggregate count to LAD-level
+                        for(j = 0; j < nages; j++) {
+                            for(l = 0; l < u1_moves.n_rows; l++) {
+                                I1inc(j, u1_moves(l, 0) - 1) += u1_new[i](5, j, l);
+                            }
+                        }
+                        for(j = 0; j < nages; j++) {
+                            for(l = 0; l < nlads; l++) {
+                                sigma2y = 2.0 * a_dis + 2.0 * b_dis * I1inc(j, l);
+                                tempMD(5, j, l) = rdtnorm_cpp(
+                                    0.0, 
+                                    sqrt(sigma2y),
+                                    -I1inc(j, l) + u1_night(5, j, l) - I2inc(j, l) - DIinc(j, l) - Hinc(j, l),
+                                    u1_night(4, j, l) - I1inc(j, l) + u1_night(5, j, l) - I2inc(j, l) - DIinc(j, l) - Hinc(j, l),
+                                    eng
+                                );
+                                I1inc(j, l) += tempMD(5, j, l);
+                                if(I1inc(j, l) < 0) stop("I1inc error\n");
+                            }
+                        }                
+                        for(j = 0; j < nages; j++) {
+                            for(l = 0; l < nlads; l++) {
+                                I1inc(j, l) = I1inc(j, l) - u1_night(5, j, l) + I2inc(j, l) + DIinc(j, l) + Hinc(j, l);
+                                if(I1inc(j, l) < 0 || I1inc(j, l) > u1_night(4, j, l)) stop("I1inc error\n");
+                            }
+                        }
+                        
+                        // P given later
+                        std::strcpy(str1, "Pinc");
+                        // aggregate count to LAD-level
+                        for(j = 0; j < nages; j++) {
+                            for(l = 0; l < u1_moves.n_rows; l++) {
+                                Pinc(j, u1_moves(l, 0) - 1) += u1_new[i](4, j, l);
+                            }
+                        }
+                        for(j = 0; j < nages; j++) {
+                            for(l = 0; l < nlads; l++) {
+                                sigma2y = 2.0 * a_dis + 2.0 * b_dis * Pinc(j, l);
+                                tempMD(4, j, l) = rdtnorm_cpp(
+                                    0.0, 
+                                    sqrt(sigma2y),
+                                    -Pinc(j, l) + u1_night(4, j, l) - I1inc(j, l),
+                                    u1_night(1, j, l) - Pinc(j, l) + u1_night(4, j, l) - I1inc(j, l),
+                                    eng
+                                );
+                                Pinc(j, l) += tempMD(4, j, l);
+                                if(Pinc(j, l) < 0) stop("Pinc error\n");
+                            }
+                        }                
+                        for(j = 0; j < nages; j++) {
+                            for(l = 0; l < nlads; l++) {
+                                Pinc(j, l) = Pinc(j, l) - u1_night(4, j, l) + I1inc(j, l);
+                                if(Pinc(j, l) < 0 || Pinc(j, l) > u1_night(1, j, l)) stop("Pinc error\n");
+                            }
+                        }
+                        
+                        // RA (MD on incidence)
+                        std::strcpy(str1, "RAinc");
+                        // aggregate incidence to LAD-level
+                        for(j = 0; j < nages; j++) {                    
+                            for(l = 0; l < u1_moves.n_rows; l++) {
+                                RAinc(j, u1_moves(l, 0) - 1) += u1_new[i](3, j, l) - u1[i](3, j, l);
+                            }
+                        }
+                        for(j = 0; j < nages; j++) {
+                            for(l = 0; l < nlads; l++) {
+                                sigma2y = 2.0 * a_dis + 2.0 * b_dis * RAinc(j, l);
+                                tempMD(3, j, l) = rdtnorm_cpp(
+                                    0.0, 
+                                    sqrt(sigma2y),
+                                    -RAinc(j, l),
+                                    u1_night(2, j, l) - RAinc(j, l),
+                                    eng
+                                );
+                                RAinc(j, l) += tempMD(3, j, l);
+                                if(RAinc(j, l) < 0 || RAinc(j, l) > u1_night(2, j, l)) stop("RAinc error\n");
+                            }
+                        }
+                        
+                        // A given later
+                        std::strcpy(str1, "Ainc");
+                        // aggregate count to LAD-level
+                        for(j = 0; j < nages; j++) {
+                            for(l = 0; l < u1_moves.n_rows; l++) {
+                                Ainc(j, u1_moves(l, 0) - 1) += u1_new[i](2, j, l);
+                            }
+                        }
+                        for(j = 0; j < nages; j++) {
+                            for(l = 0; l < nlads; l++) {
+                                sigma2y = 2.0 * a_dis + 2.0 * b_dis * Ainc(j, l);
+                                tempMD(2, j, l) = rdtnorm_cpp(
+                                    0.0, 
+                                    sqrt(sigma2y),
+                                    -Ainc(j, l) + u1_night(2, j, l) - RAinc(j, l),
+                                    u1_night(1, j, l) - Pinc(j, l) - Ainc(j, l) + u1_night(2, j, l) - RAinc(j, l),
+                                    eng
+                                );
+                                Ainc(j, l) += tempMD(2, j, l);
+                            }
+                        }                
+                        for(j = 0; j < nages; j++) {
+                            for(l = 0; l < nlads; l++) {
+                                Ainc(j, l) = Ainc(j, l) - u1_night(2, j, l) + RAinc(j, l);
+                                if(Ainc(j, l) < 0 || Ainc(j, l) > u1_night(1, j, l) - Pinc(j, l)) stop("Ainc error\n");
+                            }
+                        }
+                        
+                        // E given later
+                        std::strcpy(str1, "Einc");
+                        // aggregate count to LAD-level
+                        for(j = 0; j < nages; j++) {
+                            for(l = 0; l < u1_moves.n_rows; l++) {
+                                Einc(j, u1_moves(l, 0) - 1) += u1_new[i](1, j, l);
+                            }
+                        }
+                        for(j = 0; j < nages; j++) {
+                            for(l = 0; l < nlads; l++) {
+                                sigma2y = 2.0 * a_dis + 2.0 * b_dis * Einc(j, l);
+                                tempMD(1, j, l) = rdtnorm_cpp(
+                                    0.0, 
+                                    sqrt(sigma2y),
+                                    -Einc(j, l) + u1_night(1, j, l) - Pinc(j, l) - Ainc(j, l),
+                                    u1_night(0, j, l) - Einc(j, l) + u1_night(1, j, l) - Pinc(j, l) - Ainc(j, l),
+                                    eng
+                                );
+                                Einc(j, l) += tempMD(1, j, l);
+                                if(Einc(j, l) < 0) stop("'Einc' error\n");
+                            }
+                        }
+                        
+                        // re-distribute incidence across cohorts
+                        redistribution(i, nages, nlads, tempMD, ncohorts, u1, u1_new, eng, 0);
+                    }
+                    
+                    // advance seed
+                    seeds((arma::uword) omp_get_thread_num()) = eng();
+                }
+            }
+        }
+            
         // save particles if necessary
         if(saveAll != 0) {
             // set up print string for debugging
@@ -1847,42 +2375,9 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
             }
         }
         
-        if(PF == 1) {
-            // calculate log-likelihood contribution
-            ll += log_sum_exp(weights, 1);
-            
-            // if zero likelihood then return
-            if(!arma::is_finite(ll)) {
-                Rprintf("Finishing early due to non-finite log-likelihood estimate\n");
-                if(saveAll == 0 || writeExt == 1) {
-                    return List::create(Named("ll") = ll);
-                } else {
-                    return List::create(Named("ll") = ll, _["particles"] = out);
-                }
-            }
-            
-            // normalise weights
-            wnorm = log_sum_exp(weights, 0);
-            weights = exp(weights - wnorm);
-            weights = weights / sum(weights);
-            
-            // resample
-            for(i = 0; i < npart; i++) {
-                inds(i) = (arma::uword) rmultinom_cpp(weights, engSerial);
-            }
-            for(i = 0; i < npart; i++) {
-                u1[i] = u1_new[inds(i)];
-                u1_night_obs1[i] = u1_night_obs[inds(i)];
-            }
-            // copy in order to pass by reference
-            for(i = 0; i < npart; i++) {
-                u1_new[i] = u1[i];
-                u1_night_obs[i] = u1_night_obs1[i];
-            }
-        } else {
-            for(i = 0; i < npart; i++) {
-                u1[i] = u1_new[i];
-            }
+        // update particles for next time point
+        for(i = 0; i < npart; i++) {
+            u1[i] = u1_new[i];
         }
         
         //calculate block run time
@@ -1898,7 +2393,16 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
             ESS = 1.0 / ESS;
             ESS = ESS / ((double) npart);
             
-            Rprintf("t = %d / %d RESS = %.2f time = %.2f secs \n", t + 1, ndays, ESS, (res[timer_cnt] / 1e9) - prev_time);
+            if(niter == 0) {
+                Rprintf("t = %d / %d RESS = %.2f time = %.2f secs \n", t + 1, ndays, ESS, (res[timer_cnt] / 1e9) - prev_time);
+            } else  {
+                for(i = 0; i < npart; i++) {
+                    nacc(i) = (nacc(i) > 0 ? 1:0);
+                }
+                double accrate = (double) sum(nacc);
+                accrate /= ((double) npart);
+                Rprintf("t = %d / %d RESS = %.2f nacc = %.2f time = %.2f secs \n", t + 1, ndays, ESS, accrate, (res[timer_cnt] / 1e9) - prev_time);
+            }
         } else {
             Rprintf("t = %d / %d time = %.2f secs \n", t + 1, ndays, (res[timer_cnt] / 1e9) - prev_time);
         }
