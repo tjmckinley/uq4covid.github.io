@@ -55,7 +55,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, kmax
     }
     
     ## check u1_moves are ordered
-    u1_moves <- u1_moves[sort.list(u1_moves[, 1]), ]
+    u1_moves <- u1_moves[sort.list(u1_moves[, 1]), , drop = FALSE]
     
     ## generate number of cohorts
     ncohorts <- tapply(u1_moves[, 1], u1_moves[, 1], length)
@@ -91,6 +91,11 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, kmax
         
         ## set pars
         pars <- unlist(pars[k, ])
+        
+        ## extract number of stages, age classes and lads
+        nclasses <- dim(u1)[1]
+        nages <- dim(u1)[2]
+        nlads <- max(u1_moves[, 1])
     
         ## do garbage collection (seems to solve allocation issue)
         gc()
@@ -101,13 +106,13 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, kmax
             if(saveAll == 0) stop("Must set 'saveAll' to something if not running a PF")
             
             ## run particle filter
-            particles <- TPF_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
+            particles <- TPF_cpp(pars, C, data, nclasses, nages, nlads, u1_moves, ncohorts, u1, ndays,
                 npart, matrix(0, 1, 1), matrix(1, 1, 1), pmix, 0, a1, a2, b, a_dis, b_dis, saveAll, writeExt, 0, PF, ncores)
             return(particles)
         }
         
         ## run particle filter
-        particles <- TPF_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
+        particles <- TPF_cpp(pars, C, data, nclasses, nages, nlads, u1_moves, ncohorts, u1, ndays,
             npart, matrix(0, 1, 1), matrix(1, 1, 1), pmix, 0, a1, a2, b, a_dis, b_dis, saveAll, writeExt, 1, PF, ncores)
             
         ## extract particles
@@ -273,7 +278,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, kmax
                 
                 ## run particle filter
                 cat(paste0("\nRunning model (npart = ", npart[kcurr], ")\n"))
-                particles <- TPF_cpp(pars, C, data, 12L, 8L, 339L, u1_moves, ncohorts, u1, ndays,
+                particles <- TPF_cpp(pars, C, data, nclasses, nages, nlads, u1_moves, ncohorts, u1, ndays,
                     npart[kcurr], psimu, psivar, pmix, 1, a1, a2, b, a_dis, b_dis, saveAll, writeExt, 1, PF, ncores)
             
                 ## extract particles
