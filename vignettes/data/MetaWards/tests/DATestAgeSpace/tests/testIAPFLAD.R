@@ -59,8 +59,11 @@ u1_moves <- readRDS("../outputs/u1_moves.rds")
 ## set seed for reproducibility
 set.seed(42)
 
+## set number of days to run for
+ndays <- 100
+
 ## set up plot data
-plot_data <- pivot_longer(filter(data, t <= 100), !t, names_to = "var", values_to = "n") %>%
+plot_data <- pivot_longer(filter(data, t <= ndays), !t, names_to = "var", values_to = "n") %>%
     mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
     mutate(LAD = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
     mutate(age = gsub('(.*)_[0-9]*', '\\1', age)) %>%
@@ -73,7 +76,7 @@ plot_data <- pivot_longer(filter(data, t <= 100), !t, names_to = "var", values_t
     
 ## run model with model discrepancy
 runs_md <- IAPF(pars[6, ], C = contact, data = data, u1_moves = u1_moves,
-    u1 = u1, ndays = 100, npart = 10, a_dis = 0.05, b_dis = 0.05, kmax = 3,
+    u1 = u1, ndays = ndays, npart = 10, a_dis = 0.05, b_dis = 0.05, kmax = 3,
     a1 = 0.01, a2 = 0.2, b = 0.001, saveAll = TRUE, writeExt = TRUE, tau = 1.5)
 
 ## extract file names
@@ -162,7 +165,7 @@ p <- select(data, t, !contains("obs") & starts_with("DI")) %>%
     mutate(LAD = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
     mutate(age = gsub('(.*)_[0-9]*', '\\1', age)) %>%
     mutate(var = gsub('^(.*)_[0-9]*_.*', '\\1', var)) %>%
-    filter(t == 100) %>%
+    filter(t == ndays) %>%
     group_by(LAD) %>%
     summarise(n = sum(n), .groups = "drop") %>%
     arrange(desc(n)) %>%
