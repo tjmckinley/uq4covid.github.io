@@ -1146,7 +1146,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
          double b_dis, int saveAll, int writeExt, int returnPsi, int PF, int ncores) {
     
     // set counters
-    arma::uword i, j, l, k, t;
+    arma::uword i, j, l, k, t = 0;
     
     // split u1 up into different LADs
     std::vector<arma::icube> u1(npart);
@@ -2303,7 +2303,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         file.open(file_name, std::ios::app);
                         for(l = 0; l < nlads; l++) {
                             for(arma::uword r = 0; r < 4; r++) {
-                                file << t << ", " << r << ", ";
+                                file << t + 1 << ", " << r << ", ";
                                 for(j = 0; j < nages; j++) {
                                     file << u1_night_reduced(r, j, l) << ", ";
                                 }
@@ -2361,7 +2361,7 @@ List TPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         file.open(file_name, std::ios::app);
                         for(l = 0; l < nlads; l++) {
                             for(arma::uword r = 0; r < (nclasses + 2); r++) {
-                                file << t << ", " << r << ", ";
+                                file << t + 1 << ", " << r << ", ";
                                 for(j = 0; j < nages; j++) {
                                     file << u1_night_full(r, j, l) << ", ";
                                 }
