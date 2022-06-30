@@ -1322,8 +1322,6 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             // set up auxiliary objects
             arma::imat DHinc (nages, nlads); DHinc.zeros();
             arma::imat DIinc (nages, nlads); DIinc.zeros();
-            arma::imat DHinc1 (nages, nlads); DHinc1.zeros();
-            arma::imat DIinc1 (nages, nlads); DIinc1.zeros();
             arma::imat RHinc (nages, nlads); RHinc.zeros();
             arma::imat Hinc (nages, nlads); Hinc.zeros();
             arma::imat RIinc (nages, nlads); RIinc.zeros();
