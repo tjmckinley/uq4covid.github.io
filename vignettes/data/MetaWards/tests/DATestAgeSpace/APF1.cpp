@@ -1290,6 +1290,7 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
     
     // vectors for storing acceptance rates of MCMC
     arma::ivec nacc(npart); nacc.zeros();
+    arma::mat MHweights(npart, data.n_cols); MHweights.zeros();
     
     // parameters for conditional sampling
     arma::vec condpars (pars.n_elem); condpars.zeros();
@@ -1323,7 +1324,7 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
         
         // loop over particles
 #ifdef _OPENMP
-#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, u1_moves, nages, nclasses, nlads, data, C, N_night, N_day, u1, u1_new, t, pars, weights, a_dis, b_dis, a1, a2, b, obsInc, PF, ncohorts, ndays)
+#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, u1_moves, nages, nclasses, nlads, data, C, N_night, N_day, u1, u1_new, t, pars, weights, a_dis, b_dis, a1, a2, b, obsInc, PF, ncohorts, ndays, MHweights)
 #endif
         for(i = 0; i < npart; i++) {
     
@@ -1435,6 +1436,7 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                     // adjust weights
                     if(PF == 1) {
                         weights(i) += tempnorm;
+                        MHweights(i, nlads * nages + j * nlads + l) = tempnorm;
                     }
                 }
             }
@@ -1491,6 +1493,7 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                     // observation error for given incidence
                     if(PF == 1) {
                         weights(i) += tempnorm;
+                        MHweights(i, j * nlads + l) = tempnorm;
                     }
                 }
             }
@@ -1782,7 +1785,7 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
             // Metropolis-Hastings steps to deal with particle impoverishment
             if(niter > 0) {
 #ifdef _OPENMP
-#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, u1_moves, nages, nclasses, nlads, data, C, N_night, N_day, u1, u1_new, t, pars, a_dis, b_dis, a1, a2, b, obsInc, PF, ncohorts, ndays, condpars, niter, nacc)
+#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, u1_moves, nages, nclasses, nlads, data, C, N_night, N_day, u1, u1_new, t, pars, a_dis, b_dis, a1, a2, b, obsInc, PF, ncohorts, ndays, condpars, niter, nacc, MHweights)
 #endif
                 for(i = 0; i < npart; i++) {
             
@@ -1831,7 +1834,7 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                     }
                     
                     // set auxiliary variables
-                    double muy, sigma2y, pI1pI1D, pHpHD, acc, acccurr, accprop, u;
+                    double muy, sigma2y, pI1pI1D, pHpHD, acc, acccurr, accprop, u, tempnorm;
                 
                     // cols: c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "RI", "H", "RH", "DH")
                     //          0,   1,   2,   3,    4,   5,    6,    7,    8,    9,   10,   11
@@ -1852,30 +1855,8 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                     }
                     // current likelihood
                     acccurr = 0.0;
-                    for(j = 0; j < nages; j++) {
-                        // extract transition probabilities
-                        pHpHD = pars(j + 8 * nages + 2) * pars(j + 9 * nages + 2);
-                        pI1pI1D = pars(j + 4 * nages + 2) * pars(j + 6 * nages + 2);
-                        for(l = 0; l < nlads; l++) {
-                            // observation error for current incidence
-                            muy = a1 - a2;
-                            sigma2y = a1 + a2 + 2.0 * b * DHinc(j, l);
-                            acccurr += ldtnorm_cpp(
-                                obsInc(nlads * nages + j * nlads + l) - DHinc(j, l), 
-                                muy, 
-                                sqrt(sigma2y), 
-                                -DHinc(j, l), 
-                                std::numeric_limits<double>::infinity()
-                            );
-                            sigma2y = a1 + a2 + 2.0 * b * DIinc(j, l);
-                            acccurr += ldtnorm_cpp(
-                                obsInc(j * nlads + l) - DIinc(j, l), 
-                                muy, 
-                                sqrt(sigma2y), 
-                                -DIinc(j, l), 
-                                std::numeric_limits<double>::infinity()
-                            );
-                        }
+                    for(j = 0; j < MHweights.n_cols; j++) {
+                        acccurr += MHweights(i, j);
                     }
                                     
                     // run over Metropolis-Hastings steps
@@ -1899,56 +1880,81 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                                 // sample from simulator
                                 int r = rbinom_cpp(u1_night(9, j, l), pHpHD, eng);
                                 DHinc1(j, l) = r;
-                            
+                    
                                 // sample MD conditional on simulator
-                                sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(9, j, l) * pHpHD;
-                                muy = (double) r;
-                                int s = rdtnorm_cpp(
-                                    muy, 
-                                    sqrt(sigma2y),
-                                    0.0,
-                                    u1_night(9, j, l),
-                                    eng
-                                );
+                                arma::vec tempdensy (u1_night(9, j, l) + 1);
+                                int s = 0;
+                                for(s = 0; s <= u1_night(9, j, l); s++) {
+                                    
+                                    // observation error
+                                    muy = a1 - a2;
+                                    sigma2y = a1 + a2 + 2.0 * b * s;
+                                    tempdensy(s) = ldtnorm_cpp(
+                                        obsInc(nlads * nages + j * nlads + l) - s, 
+                                        muy, 
+                                        sqrt(sigma2y), 
+                                        -s, 
+                                        std::numeric_limits<double>::infinity()
+                                    );
+                                    
+                                    // MD density
+                                    muy = (double) DHinc1(j, l);
+                                    sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(9, j, l) * pHpHD;
+                                    tempdensy(s) += ldtnorm_cpp(
+                                        s, 
+                                        muy, 
+                                        sqrt(sigma2y), 
+                                        0.0, 
+                                        u1_night(9, j, l)
+                                    );
+                                }
+                                tempnorm = log_sum_exp(tempdensy, 0);
+                                tempdensy = exp(tempdensy - tempnorm);
+                                tempdensy = tempdensy / sum(tempdensy);
+                                s = rmultinom_cpp(tempdensy, eng);
                                 DHinc(j, l) = s;
                                 
-                                // observation error for given incidence
-                                muy = a1 - a2;
-                                sigma2y = a1 + a2 + 2.0 * b * s;
-                                accprop += ldtnorm_cpp(
-                                    obsInc(nlads * nages + j * nlads + l) - s, 
-                                    muy, 
-                                    sqrt(sigma2y), 
-                                    -s, 
-                                    std::numeric_limits<double>::infinity()
-                                );
-                            
+                                // update accprop
+                                accprop += tempnorm;
+                                
                                 // sample from simulator
                                 r = rbinom_cpp(u1_night(5, j, l), pI1pI1D, eng);
                                 DIinc1(j, l) = r;
-                            
+                    
                                 // sample MD conditional on simulator
-                                sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(5, j, l) * pI1pI1D;
-                                muy = (double) r;
-                                s = rdtnorm_cpp(
-                                    muy, 
-                                    sqrt(sigma2y),
-                                    0.0,
-                                    u1_night(5, j, l),
-                                    eng
-                                );
+                                arma::vec tempdensy1 (u1_night(5, j, l) + 1); 
+                                for(s = 0; s <= u1_night(5, j, l); s++) {
+                                    
+                                    // observation error
+                                    muy = a1 - a2;
+                                    sigma2y = a1 + a2 + 2.0 * b * s;
+                                    tempdensy1(s) = ldtnorm_cpp(
+                                        obsInc(j * nlads + l) - s, 
+                                        muy, 
+                                        sqrt(sigma2y), 
+                                        -s, 
+                                        std::numeric_limits<double>::infinity()
+                                    );
+                                    
+                                    // MD density
+                                    muy = (double) DIinc1(j, l);
+                                    sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(5, j, l) * pI1pI1D;
+                                    tempdensy1(s) += ldtnorm_cpp(
+                                        s, 
+                                        muy, 
+                                        sqrt(sigma2y), 
+                                        0.0, 
+                                        u1_night(5, j, l)
+                                    );
+                                }
+                                tempnorm = log_sum_exp(tempdensy1, 0);
+                                tempdensy1 = exp(tempdensy1 - tempnorm);
+                                tempdensy1 = tempdensy1 / sum(tempdensy1);
+                                s = rmultinom_cpp(tempdensy1, eng);
                                 DIinc(j, l) = s;
                                 
-                                // observation error for given incidence
-                                muy = a1 - a2;
-                                sigma2y = a1 + a2 + 2.0 * b * s;
-                                accprop += ldtnorm_cpp(
-                                    obsInc(j * nlads + l) - s, 
-                                    muy, 
-                                    sqrt(sigma2y), 
-                                    -s, 
-                                    std::numeric_limits<double>::infinity()
-                                );
+                                // update accprop
+                                accprop += tempnorm;
                             }
                         }
                                 
