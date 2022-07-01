@@ -28,9 +28,10 @@ log_sum_exp <- function(x, mn = FALSE) {
 ## writeExt: a logical denoting whether to save particles externally or not
 ## PF:      a logical denoting whether to run a particle filter, or just simulate from the model
 ## ncores:  the number of cores for OpenMP parallelisation (if NA then defaults to all available cores)
+## parEnsemble: decides whether to parallelise across or within ensemble
 
 IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, kmax = 3, tau = 1, a1 = 0.01, a2 = 0.2, b = 0.1, 
-               a_dis = 0.05, b_dis = 0.5, pmix = 0.9, saveAll = NA, writeExt = FALSE, PF = TRUE, ncores = NA) {
+               a_dis = 0.05, b_dis = 0.5, pmix = 0.9, saveAll = NA, writeExt = FALSE, PF = TRUE, ncores = NA, parEnsemble = FALSE) {
                
     ## set default for saveAll if PF = FALSE
     if(!PF & is.na(saveAll)) saveAll <- TRUE
@@ -71,8 +72,16 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, kmax
         dir.create("saveOut")
     }
     
+    ## set up auxiliary parameters guiding parallelisation
+    if(parEnsemble) {
+        ncoresEns <- ncores
+        ncores <- 1
+    } else {
+        ncoresEns <- 1
+    }
+    
     ## run particle filter for each set of inputs
-    runs <- lapply(1:nrow(pars), function(k, pars, C, u1_moves, ncohorts, u1, npart, kstop, tau, ndays, data, a1, a2, b, a_dis, b_dis, pmix, saveAll, writeExt, PF, ncores) {
+    runs <- mclapply(1:nrow(pars), function(k, pars, C, u1_moves, ncohorts, u1, npart, kstop, tau, ndays, data, a1, a2, b, a_dis, b_dis, pmix, saveAll, writeExt, PF, ncores) {
         
         if(PF == 1) {
             ## extract observations
@@ -309,7 +318,7 @@ IAPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, kstop = 3, kmax
         } else {
             return(list(ll = ll[length(ll)]))
         }
-    }, pars = pars, C = C, u1_moves = u1_moves, ncohorts = ncohorts, u1 = u1, npart = npart, kstop = kstop, tau = tau, ndays = ndays, data = data, a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis, pmix = pmix, saveAll = saveAllint, writeExt = writeExtint, PF = PFint, ncores = ncores)
+    }, pars = pars, C = C, u1_moves = u1_moves, ncohorts = ncohorts, u1 = u1, npart = npart, kstop = kstop, tau = tau, ndays = ndays, data = data, a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis, pmix = pmix, saveAll = saveAllint, writeExt = writeExtint, PF = PFint, ncores = ncores, mc.cores = ncoresEns)
     if(!is.na(saveAll)) {
         if(!writeExt) {
             if(PF) {
