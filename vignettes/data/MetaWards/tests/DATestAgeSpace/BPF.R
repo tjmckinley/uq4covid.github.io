@@ -58,9 +58,9 @@ BPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, niter = 0, a1 = 
     u1_moves <- u1_moves[sort.list(u1_moves[, 1]), , drop = FALSE]
     
     ## generate number of cohorts
-    ncohorts <- tapply(u1_moves[, 1], u1_moves[, 1], length)
-    ncohorts <- c(0, cumsum(ncohorts))
-    names(ncohorts) <- NULL
+    ncohorts1 <- tapply(u1_moves[, 1], u1_moves[, 1], length)
+    ncohorts1 <- c(0, cumsum(ncohorts1))
+    names(ncohorts1) <- NULL
     
     print("Reminder to write code to not hard-code sizes of objects and data")
     
@@ -80,7 +80,7 @@ BPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, niter = 0, a1 = 
     }
     
     ## run particle filter for each set of inputs
-    runs <- mclapply(1:nrow(pars), function(k, pars, C, u1_moves, ncohorts, u1, npart, niter, ndays, data, a1, a2, b, a_dis, b_dis, saveAll, writeExt, PF, ncores) {
+    runs <- mclapply(1:nrow(pars), function(k, pars, C, u1_moves, ncohorts1, u1, npart, niter, ndays, data, a1, a2, b, a_dis, b_dis, saveAll, writeExt, PF, ncores) {
         
         if(PF == 1) {
             ## extract observations
@@ -114,13 +114,13 @@ BPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, niter = 0, a1 = 
             if(saveAll == 0) stop("Must set 'saveAll' to something if not running a PF")
             
             ## run particle filter
-            particles <- BPF_cpp(pars, C, data, nclasses, nages, nlads, u1_moves, ncohorts, u1, ndays,
+            particles <- BPF_cpp(pars, C, data, nclasses, nages, nlads, u1_moves, ncohorts1, u1, ndays,
                 npart, niter, a1, a2, b, a_dis, b_dis, saveAll, writeExt, PF, ncores)
             return(particles)
         }
         
         ## run particle filter
-        particles <- BPF_cpp(pars, C, data, nclasses, nages, nlads, u1_moves, ncohorts, u1, ndays,
+        particles <- BPF_cpp(pars, C, data, nclasses, nages, nlads, u1_moves, ncohorts1, u1, ndays,
             npart, niter, a1, a2, b, a_dis, b_dis, saveAll, writeExt, PF, ncores)
         
         if(saveAll != 0 & writeExt == 0) {
@@ -128,7 +128,7 @@ BPF <- function(pars, C, data, u1_moves, u1, ndays, npart = 10, niter = 0, a1 = 
         } else {
             return(list(ll = particles$ll))
         }
-    }, pars = pars, C = C, u1_moves = u1_moves, ncohorts = ncohorts, u1 = u1, npart = npart, niter = niter, ndays = ndays, data = data, a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis, saveAll = saveAllint, writeExt = writeExtint, PF = PFint, ncores = ncores, mc.cores = ncoresEns)
+    }, pars = pars, C = C, u1_moves = u1_moves, ncohorts1 = ncohorts1, u1 = u1, npart = npart, niter = niter, ndays = ndays, data = data, a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis, saveAll = saveAllint, writeExt = writeExtint, PF = PFint, ncores = ncores, mc.cores = ncoresEns)
     if(!is.na(saveAll)) {
         if(!writeExt) {
             if(PF) {

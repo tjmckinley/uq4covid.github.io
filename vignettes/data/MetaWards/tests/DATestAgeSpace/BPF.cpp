@@ -391,27 +391,22 @@ int rmultinom_cpp (arma::vec &p, sitmo::prng &eng) {
 } 
 
 // simulation model
-void discreteStochModel(int ipart, arma::vec &pars, int tstart, int tstop, 
-                        arma::imat &u1_moves, std::vector<arma::icube> &u1, arma::icube &u1_day, arma::icube &u1_night,
-                        arma::imat &N_day, arma::imat &N_night, arma::mat &pinf, arma::imat &origE, arma::mat &C, sitmo::prng &eng) {
+void discreteStochModel(int ipart, int nclasses, int nages, int nlads, 
+                        arma::vec &pars, int tstart, int tstop, 
+                        arma::imat &u1_moves, std::vector<arma::icube> &u1, 
+                        arma::mat &C, sitmo::prng &eng) {
     
     // u1_moves is a matrix with columns: LADfrom, LADto
     // u1 is a 3D array with dimensions: nclasses x nages x nmoves
     //          each row of u1 must match u1_moves
-    // u1_day/night are 3D arrays with dimensions: nclasses x nages x nlads
-    // N_day/night are nlad x nage matrices of population counts
-    // pinf is nages x nlads auxiliary matrix
-    // origE is nages x nmoves auxiliary matrix
     
     // set up auxiliary matrix for counts
-    arma::uword nclasses = (arma::uword) u1[ipart].n_rows;
-    arma::uword nages = (arma::uword) u1[ipart].n_cols;
     int k, n;
     arma::uword i, j, l;
     
     // reconstruct day/night counts
-    u1_day.zeros();
-    u1_night.zeros();
+    arma::icube u1_day(nclasses, nages, nlads); u1_day.zeros();
+    arma::icube u1_night(nclasses, nages, nlads); u1_night.zeros();
     for(i = 0; i < u1_moves.n_rows; i++) {
         for(j = 0; j < nages; j++) {
             for(l = 0; l < nclasses; l++) {
@@ -420,6 +415,22 @@ void discreteStochModel(int ipart, arma::vec &pars, int tstart, int tstop,
             }
         }
     }
+    
+    // reconstruct population counts
+    arma::imat N_day(nages, nlads); N_day.zeros();
+    arma::imat N_night(nages, nlads); N_night.zeros();
+    for(i = 0; i < nlads; i++) {
+        for(j = 0; j < nages; j++) {
+            for(l = 0; l < nclasses; l++) {
+                N_day(j, i) += u1_day(l, j, i);
+                N_night(j, i) += u1_night(l, j, i);
+            }
+        }
+    }
+    
+    // auxiliary vectors
+    arma::mat pinf(nages, nlads); pinf.zeros();
+    arma::imat origE(nages, u1_moves.n_rows); origE.zeros();
     
     // extract parameters
     double nu = pars(0);
@@ -479,7 +490,7 @@ void discreteStochModel(int ipart, arma::vec &pars, int tstart, int tstop,
         }
         
         // transmission probabilities (day), loop over LADs
-        for(i = 0; i < u1_day.n_slices; i++) {
+        for(i = 0; i < nlads; i++) {
             
             // update infective counts for rate
             for(j = 0; j < nages; j++) {
@@ -1107,7 +1118,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
 
 // [[Rcpp::export]]
 List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses, 
-    arma::uword nages, arma::uword nlads, arma::imat u1_moves, arma::ivec ncohorts, 
+    arma::uword nages, arma::uword nlads, arma::imat u1_moves, arma::ivec ncohorts1, 
     arma::icube u1_comb, arma::uword ndays, arma::uword npart, int niter, double a1, double a2, 
     double b, double a_dis, double b_dis, int saveAll, int writeExt, int PF, int ncores) {
     
@@ -1118,24 +1129,13 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
     std::vector<arma::icube> u1(npart);
     std::vector<arma::icube> u11(npart);
     std::vector<arma::icube> u1_new(npart);
-    arma::icube u1_night_full(nclasses + 2, nages, nlads); u1_night_full.zeros();
-    arma::icube u1_night_reduced(4, nages, nlads); u1_night_reduced.zeros();
-    std::vector<arma::icube> u1_night_obs(npart);
-    std::vector<arma::icube> u1_night_obs1(npart);
+    arma::icube u_night_full(nclasses + 2, nages, nlads); u_night_full.zeros();
+    arma::icube u_night_reduced(4, nages, nlads); u_night_reduced.zeros();
+    std::vector<arma::icube> u_night_obs(npart);
+    std::vector<arma::icube> u_night_obs1(npart);
     for(i = 0; i < npart; i++) {
-        u1_night_obs[i] = arma::icube (2, nages, nlads); u1_night_obs[i].zeros();
+        u_night_obs[i] = arma::icube (2, nages, nlads); u_night_obs[i].zeros();
     }
-    arma::imat N_day(nages, nlads); N_day.zeros();
-    arma::imat N_night(nages, nlads); N_night.zeros();
-    for(i = 0; i < u1_moves.n_rows; i++) {
-        for(j = 0; j < nages; j++) {
-            for(l = 0; l < nclasses; l++) {
-                N_day(j, (arma::uword) u1_moves(i, 1) - 1) += u1_comb(l, j, i);
-                N_night(j, (arma::uword) u1_moves(i, 0) - 1) += u1_comb(l, j, i);
-            }
-        }
-    }
-    
     for(i = 0; i < npart; i++) {
         u1[i] = u1_comb;
         u1_new[i] = u1_comb;
@@ -1172,43 +1172,43 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
         if(saveAll == 1) {
             for(i = 0; i < npart; i++) {
                 // extract just counts for DI and DH
-                u1_night_reduced.zeros();
+                u_night_reduced.zeros();
                 for(l = 0; l < u1_moves.n_rows; l++) {
                     for(j = 0; j < nages; j++) {
-                        u1_night_reduced(0, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](6, j, l);
-                        u1_night_reduced(1, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](11, j, l);
+                        u_night_reduced(0, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](6, j, l);
+                        u_night_reduced(1, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](11, j, l);
                         // incidence
-                        u1_night_reduced(2, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](6, j, l);
-                        u1_night_reduced(3, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](11, j, l);
+                        u_night_reduced(2, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](6, j, l);
+                        u_night_reduced(3, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](11, j, l);
                     }
                 }
                 // apply observation error
                 muy = a1 - a2;
                 for(l = 0; l < nlads; l++) {
                     for(j = 0; j < nages; j++) {
-                        sigma2y = a1 + a2 + 2.0 * b * u1_night_reduced(2, j, l);
-                        u1_night_reduced(2, j, l) += rdtnorm_cpp(
+                        sigma2y = a1 + a2 + 2.0 * b * u_night_reduced(2, j, l);
+                        u_night_reduced(2, j, l) += rdtnorm_cpp(
                             muy, 
                             sqrt(sigma2y),
-                            -u1_night_reduced(2, j, l),
+                            -u_night_reduced(2, j, l),
                             std::numeric_limits<double>::infinity(),
                             engSerial
                         );
                         
-                        sigma2y = a1 + a2 + 2.0 * b * u1_night_reduced(3, j, l);
-                        u1_night_reduced(3, j, l) += rdtnorm_cpp(
+                        sigma2y = a1 + a2 + 2.0 * b * u_night_reduced(3, j, l);
+                        u_night_reduced(3, j, l) += rdtnorm_cpp(
                             muy, 
                             sqrt(sigma2y),
-                            -u1_night_reduced(3, j, l),
+                            -u_night_reduced(3, j, l),
                             std::numeric_limits<double>::infinity(),
                             engSerial
                         );
-                        u1_night_obs[i](0, j, l) = u1_night_reduced(2, j, l);
-                        u1_night_obs[i](1, j, l) = u1_night_reduced(3, j, l);
+                        u_night_obs[i](0, j, l) = u_night_reduced(2, j, l);
+                        u_night_obs[i](1, j, l) = u_night_reduced(3, j, l);
                     }
                 }
                 if(writeExt == 0) {
-                    out[i] = u1_night_reduced;
+                    out[i] = u_night_reduced;
                 } else {
                     std::sprintf(file_name, "saveOut/p_%u.csv", i);
                     file.open(file_name);
@@ -1219,7 +1219,7 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         for(arma::uword r = 0; r < 4; r++) {
                             file << t << ", " << r << ", ";
                             for(j = 0; j < nages; j++) {
-                                file << u1_night_reduced(r, j, l) << ", ";
+                                file << u_night_reduced(r, j, l) << ", ";
                             }
                             file << l + 1 << "\n";
                         }
@@ -1229,44 +1229,44 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             }
         } else {
             for(i = 0; i < npart; i++) {
-                u1_night_full.zeros();
+                u_night_full.zeros();
                 for(l = 0; l < u1_moves.n_rows; l++) {
                     for(j = 0; j < nages; j++) {
                         for(k = 0; k < nclasses; k++) {
-                            u1_night_full(k, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](k, j, l);
+                            u_night_full(k, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](k, j, l);
                         }
                         // incidence
-                        u1_night_full(nclasses, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](6, j, l);
-                        u1_night_full(nclasses + 1, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](11, j, l);
+                        u_night_full(nclasses, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](6, j, l);
+                        u_night_full(nclasses + 1, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](11, j, l);
                     }
                 }
                 // apply observation error
                 muy = a1 - a2;
                 for(l = 0; l < nlads; l++) {
                     for(j = 0; j < nages; j++) {
-                        sigma2y = a1 + a2 + 2.0 * b * u1_night_full(nclasses, j, l);
-                        u1_night_full(nclasses, j, l) += rdtnorm_cpp(
+                        sigma2y = a1 + a2 + 2.0 * b * u_night_full(nclasses, j, l);
+                        u_night_full(nclasses, j, l) += rdtnorm_cpp(
                             muy, 
                             sqrt(sigma2y),
-                            -u1_night_full(nclasses, j, l),
+                            -u_night_full(nclasses, j, l),
                             std::numeric_limits<double>::infinity(),
                             engSerial
                         );
                         
-                        sigma2y = a1 + a2 + 2.0 * b * u1_night_full(nclasses + 1, j, l);
-                        u1_night_full(nclasses + 1, j, l) += rdtnorm_cpp(
+                        sigma2y = a1 + a2 + 2.0 * b * u_night_full(nclasses + 1, j, l);
+                        u_night_full(nclasses + 1, j, l) += rdtnorm_cpp(
                             muy, 
                             sqrt(sigma2y),
-                            -u1_night_full(nclasses + 1, j, l),
+                            -u_night_full(nclasses + 1, j, l),
                             std::numeric_limits<double>::infinity(),
                             engSerial
                         );
-                        u1_night_obs[i](0, j, l) = u1_night_full(nclasses, j, l);
-                        u1_night_obs[i](1, j, l) = u1_night_full(nclasses + 1, j, l);
+                        u_night_obs[i](0, j, l) = u_night_full(nclasses, j, l);
+                        u_night_obs[i](1, j, l) = u_night_full(nclasses + 1, j, l);
                     }
                 }
                 if(writeExt == 0) {
-                    out[i] = u1_night_full;
+                    out[i] = u_night_full;
                 } else {
                     std::sprintf(file_name, "saveOut/p_%u.csv", i);
                     file.open(file_name);
@@ -1277,7 +1277,7 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         for(arma::uword r = 0; r < (nclasses + 2); r++) {
                             file << t << ", " << r << ", ";
                             for(j = 0; j < nages; j++) {
-                                file << u1_night_full(r, j, l) << ", ";
+                                file << u_night_full(r, j, l) << ", ";
                             }
                             file << l + 1 << "\n";
                         }
@@ -1323,7 +1323,7 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
         
         // loop over particles
 #ifdef _OPENMP
-#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, u1_moves, nages, nclasses, nlads, data, C, N_night, N_day, u1, u1_new, t, pars, weights, a_dis, b_dis, a1, a2, b, obsInc, PF, ncohorts, ndays)
+#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, nages, nclasses, nlads, data, C, u1_moves, u1, u1_new, ncohorts1, t, pars, weights, a_dis, b_dis, a1, a2, b, obsInc, PF, ndays)
 #endif
         for(i = 0; i < npart; i++) {
     
@@ -1352,11 +1352,7 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             arma::imat Einc (nages, nlads); Einc.zeros();
             arma::icube tempMD (nclasses, nages, nlads); tempMD.zeros();
             
-            arma::mat pinf(nages, nlads); pinf.zeros();
-            arma::imat origE(nages, u1_moves.n_rows); origE.zeros();
-            arma::icube u1_day(nclasses, nages, nlads); u1_day.zeros();
             arma::icube u1_night(nclasses, nages, nlads); u1_night.zeros();
-            arma::icube u1_night1(nclasses, nages, nlads); u1_night1.zeros();
             
             // aggregate counts to LAD-level
             for(j = 0; j < nages; j++) {                    
@@ -1374,7 +1370,7 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             double muy, sigma2y, pI1pI1D, pHpHD;
             
             // run model and return u1
-            discreteStochModel((int) i, pars, t - 1, t, u1_moves, u1_new, u1_day, u1_night1, N_day, N_night, pinf, origE, C, eng);
+            discreteStochModel(i, nclasses, nages, nlads, pars, t - 1, t, u1_moves, u1_new, C, eng);
         
             // cols: c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "RI", "H", "RH", "DH")
             //          0,   1,   2,   3,    4,   5,    6,    7,    8,    9,   10,   11
@@ -1707,7 +1703,7 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             }
             
             // re-distribute incidence across cohorts
-            redistribution(i, nages, nlads, tempMD, ncohorts, u1, u1_new, eng, 0);
+            redistribution(i, nages, nlads, tempMD, ncohorts1, u1, u1_new, eng, 0);
             
             // advance seed
             seeds((arma::uword) omp_get_thread_num()) = eng();
@@ -1738,11 +1734,11 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             }
             for(i = 0; i < npart; i++) {
                 u11[i] = u1[inds(i)];
-                u1_night_obs1[i] = u1_night_obs[inds(i)];
+                u_night_obs1[i] = u_night_obs[inds(i)];
             }
             for(i = 0; i < npart; i++) {
                 u1[i] = u11[i];
-                u1_night_obs[i] = u1_night_obs1[i];
+                u_night_obs[i] = u_night_obs1[i];
             }
             for(i = 0; i < npart; i++) {
                 u11[i] = u1_new[inds(i)];
@@ -1754,7 +1750,7 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             // Metropolis-Hastings steps to deal with particle impoverishment
             if(niter > 0) {
 #ifdef _OPENMP
-#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, u1_moves, nages, nclasses, nlads, data, C, N_night, N_day, u1, u1_new, t, pars, a_dis, b_dis, a1, a2, b, obsInc, PF, ncohorts, ndays, condpars, niter, nacc)
+#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, nages, nclasses, nlads, data, C, ncohorts1, u1_moves, u1, u1_new, t, pars, a_dis, b_dis, a1, a2, b, obsInc, PF, ndays, condpars, niter, nacc)
 #endif
                 for(i = 0; i < npart; i++) {
             
@@ -1787,11 +1783,7 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                     arma::icube tempMD1 (2, nages, nlads); tempMD1.zeros();
                     arma::icube tempsim1 (2, nages, nlads); tempsim1.zeros();
                     
-                    arma::mat pinf(nages, nlads); pinf.zeros();
-                    arma::imat origE(nages, u1_moves.n_rows); origE.zeros();
-                    arma::icube u1_day(nclasses, nages, nlads); u1_day.zeros();
                     arma::icube u1_night(nclasses, nages, nlads); u1_night.zeros();
-                    arma::icube u1_night1(nclasses, nages, nlads); u1_night1.zeros();
                     
                     // aggregate counts to LAD-level
                     for(j = 0; j < nages; j++) {                    
@@ -1957,10 +1949,10 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         }
                 
                         // now redistribute simulator incidence across cohorts
-                        redistribution(i, nages, nlads, tempMD, ncohorts, u1, u1_new, eng, 1);
+                        redistribution(i, nages, nlads, tempMD, ncohorts1, u1, u1_new, eng, 1);
                         
                         // sample remaining x values from conditional simulator
-                        discreteStochModel((int) i, condpars, t - 1, t, u1_moves, u1_new, u1_day, u1_night1, N_day, N_night, pinf, origE, C, eng);
+                        discreteStochModel(i, nclasses, nages, nlads, condpars, t - 1, t, u1_moves, u1_new, C, eng);
                         
                         // set model discrepancy counts for later re-distribution
                         tempMD.zeros();
@@ -2213,7 +2205,7 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         }
                         
                         // re-distribute incidence across cohorts
-                        redistribution(i, nages, nlads, tempMD, ncohorts, u1, u1_new, eng, 0);
+                        redistribution(i, nages, nlads, tempMD, ncohorts1, u1, u1_new, eng, 0);
                     }
                     
                     // advance seed
@@ -2231,46 +2223,46 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             if(saveAll == 1) {
                 for(i = 0; i < npart; i++) {
                     // extract just counts for DI and DH
-                    u1_night_reduced.zeros();
+                    u_night_reduced.zeros();
                     for(l = 0; l < u1_moves.n_rows; l++) {
                         for(j = 0; j < nages; j++) {
-                            u1_night_reduced(0, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](6, j, l);
-                            u1_night_reduced(1, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](11, j, l);
+                            u_night_reduced(0, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](6, j, l);
+                            u_night_reduced(1, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](11, j, l);
                             // incidence
-                            u1_night_reduced(2, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](6, j, l) - u1[i](6, j, l));
-                            u1_night_reduced(3, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](11, j, l) - u1[i](11, j, l));
+                            u_night_reduced(2, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](6, j, l) - u1[i](6, j, l));
+                            u_night_reduced(3, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](11, j, l) - u1[i](11, j, l));
                         }
                     }
                     // adjust for observation error
                     muy = a1 - a2;
                     for(l = 0; l < nlads; l++) {
                         for(j = 0; j < nages; j++) {
-                            sigma2y = a1 + a2 + 2.0 * b * u1_night_reduced(2, j, l);
-                            u1_night_reduced(2, j, l) += rdtnorm_cpp(
+                            sigma2y = a1 + a2 + 2.0 * b * u_night_reduced(2, j, l);
+                            u_night_reduced(2, j, l) += rdtnorm_cpp(
                                 muy, 
                                 sqrt(sigma2y),
-                                -u1_night_reduced(2, j, l),
+                                -u_night_reduced(2, j, l),
                                 std::numeric_limits<double>::infinity(),
                                 engSerial
                             );
                             
-                            sigma2y = a1 + a2 + 2.0 * b * u1_night_reduced(3, j, l);
-                            u1_night_reduced(3, j, l) += rdtnorm_cpp(
+                            sigma2y = a1 + a2 + 2.0 * b * u_night_reduced(3, j, l);
+                            u_night_reduced(3, j, l) += rdtnorm_cpp(
                                 muy, 
                                 sqrt(sigma2y),
-                                -u1_night_reduced(3, j, l),
+                                -u_night_reduced(3, j, l),
                                 std::numeric_limits<double>::infinity(),
                                 engSerial
                             );
                             // cumulate
-                            u1_night_reduced(2, j, l) += u1_night_obs[i](0, j, l);
-                            u1_night_reduced(3, j, l) += u1_night_obs[i](1, j, l);
-                            u1_night_obs[i](0, j, l) = u1_night_reduced(2, j, l);
-                            u1_night_obs[i](1, j, l) = u1_night_reduced(3, j, l);
+                            u_night_reduced(2, j, l) += u_night_obs[i](0, j, l);
+                            u_night_reduced(3, j, l) += u_night_obs[i](1, j, l);
+                            u_night_obs[i](0, j, l) = u_night_reduced(2, j, l);
+                            u_night_obs[i](1, j, l) = u_night_reduced(3, j, l);
                         }
                     }
                     if(writeExt == 0) {
-                        out[i + npart * (t + 1)] = u1_night_reduced;
+                        out[i + npart * (t + 1)] = u_night_reduced;
                     } else {
                         std::sprintf(file_name, "saveOut/p_%u.csv", i);
                         file.open(file_name, std::ios::app);
@@ -2278,7 +2270,7 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             for(arma::uword r = 0; r < 4; r++) {
                                 file << t + 1 << ", " << r << ", ";
                                 for(j = 0; j < nages; j++) {
-                                    file << u1_night_reduced(r, j, l) << ", ";
+                                    file << u_night_reduced(r, j, l) << ", ";
                                 }
                                 file << l + 1 << "\n";
                             }
@@ -2288,47 +2280,47 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                 }
             } else {
                 for(i = 0; i < npart; i++) {
-                    u1_night_full.zeros();
+                    u_night_full.zeros();
                     for(l = 0; l < u1_moves.n_rows; l++) {
                         for(j = 0; j < nages; j++) {
                             for(k = 0; k < nclasses; k++) {
-                                u1_night_full(k, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](k, j, l);
+                                u_night_full(k, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](k, j, l);
                             }
                             // incidence
-                            u1_night_full(nclasses, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](6, j, l) - u1[i](6, j, l));
-                            u1_night_full(nclasses + 1, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](11, j, l) - u1[i](11, j, l));
+                            u_night_full(nclasses, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](6, j, l) - u1[i](6, j, l));
+                            u_night_full(nclasses + 1, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](11, j, l) - u1[i](11, j, l));
                         }
                     }
                     // adjust for observation error
                     muy = a1 - a2;
                     for(l = 0; l < nlads; l++) {
                         for(j = 0; j < nages; j++) {
-                            sigma2y = a1 + a2 + 2.0 * b * u1_night_full(nclasses, j, l);
-                            u1_night_full(nclasses, j, l) += rdtnorm_cpp(
+                            sigma2y = a1 + a2 + 2.0 * b * u_night_full(nclasses, j, l);
+                            u_night_full(nclasses, j, l) += rdtnorm_cpp(
                                 muy, 
                                 sqrt(sigma2y),
-                                -u1_night_full(nclasses, j, l),
+                                -u_night_full(nclasses, j, l),
                                 std::numeric_limits<double>::infinity(),
                                 engSerial
                             );
                             
-                            sigma2y = a1 + a2 + 2.0 * b * u1_night_full(nclasses + 1, j, l);
-                            u1_night_full(nclasses + 1, j, l) += rdtnorm_cpp(
+                            sigma2y = a1 + a2 + 2.0 * b * u_night_full(nclasses + 1, j, l);
+                            u_night_full(nclasses + 1, j, l) += rdtnorm_cpp(
                                 muy, 
                                 sqrt(sigma2y),
-                                -u1_night_full(nclasses + 1, j, l),
+                                -u_night_full(nclasses + 1, j, l),
                                 std::numeric_limits<double>::infinity(),
                                 engSerial
                             );
                             // cumulate
-                            u1_night_full(nclasses, j, l) += u1_night_obs[i](0, j, l);
-                            u1_night_full(nclasses + 1, j, l) += u1_night_obs[i](1, j, l);
-                            u1_night_obs[i](0, j, l) = u1_night_full(nclasses, j, l);
-                            u1_night_obs[i](1, j, l) = u1_night_full(nclasses + 1, j, l);
+                            u_night_full(nclasses, j, l) += u_night_obs[i](0, j, l);
+                            u_night_full(nclasses + 1, j, l) += u_night_obs[i](1, j, l);
+                            u_night_obs[i](0, j, l) = u_night_full(nclasses, j, l);
+                            u_night_obs[i](1, j, l) = u_night_full(nclasses + 1, j, l);
                         }
                     }
                     if(writeExt == 0) {
-                        out[i + npart * (t + 1)] = u1_night_full;
+                        out[i + npart * (t + 1)] = u_night_full;
                     } else {
                         std::sprintf(file_name, "saveOut/p_%u.csv", i);
                         file.open(file_name, std::ios::app);
@@ -2336,7 +2328,7 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             for(arma::uword r = 0; r < (nclasses + 2); r++) {
                                 file << t + 1 << ", " << r << ", ";
                                 for(j = 0; j < nages; j++) {
-                                    file << u1_night_full(r, j, l) << ", ";
+                                    file << u_night_full(r, j, l) << ", ";
                                 }
                                 file << l + 1 << "\n";
                             }
