@@ -331,7 +331,7 @@ int rpois_cpp (double lambda, sitmo::prng &eng) {
 
 // Binomial RNG using inverse transform method
 // (to try to circumvent non thread-safe RNG in R)
-int rbinom_cpp (int n, double p, sitmo::prng &eng) {
+int rbinom_cpp (int n, double p, sitmo::prng &eng, int approx = 1) {
     if(n < 0) {
         Rprintf("n = %d\n", n);
         stop("'n' must be >= 0 in rbinom\n");
@@ -341,6 +341,16 @@ int rbinom_cpp (int n, double p, sitmo::prng &eng) {
         stop("Must have 0 <= p <= 1 in rbinom\n");
     }
     if(n == 0) return 0;
+    // if approximation turned on then use truncated 
+    // Gaussian approximation where appropriate
+    if(approx == 1) {
+        if(n > 20 && (n * p) > 5 && (n * (1.0 - p)) > 5) {
+            double mu = n * p;
+            double sigma = sqrt(mu * (1.0 - p));
+            int k = rdtnorm_cpp(mu, sigma, 0.0, (double) n, eng);
+            return(k);
+        }
+    }
     double mx = sitmo::prng::max();
     double u = log(eng()) - log(mx);
     int k;
