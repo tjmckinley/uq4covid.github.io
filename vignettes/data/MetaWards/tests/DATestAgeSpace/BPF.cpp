@@ -583,12 +583,6 @@ void discreteStochModel(int ipart, int nclasses, int nages, int nlads,
                         u1[ipart](9, j, i) -= (k < 2 ? 1:0);
                         u1[ipart](10, j, i) += (k == 0 ? 1:0);
                         u1[ipart](11, j, i) += (k == 1 ? 1:0);
-                        u1_day(9, j, (arma::uword) u1_moves(i, 1) - 1) -= (k < 2 ? 1:0);
-                        u1_day(10, j, (arma::uword) u1_moves(i, 1) - 1) += (k == 0 ? 1:0);
-                        u1_day(11, j, (arma::uword) u1_moves(i, 1) - 1) += (k == 1 ? 1:0);
-                        u1_night(9, j, (arma::uword) u1_moves(i, 0) - 1) -= (k < 2 ? 1:0);
-                        u1_night(10, j, (arma::uword) u1_moves(i, 0) - 1) += (k == 0 ? 1:0);
-                        u1_night(11, j, (arma::uword) u1_moves(i, 0) - 1) += (k == 1 ? 1:0);
                     }
                 }
                 
@@ -596,10 +590,6 @@ void discreteStochModel(int ipart, int nclasses, int nages, int nlads,
                 k = rbinom_cpp(u1[ipart](7, j, i), probI2(j), eng);
                 u1[ipart](7, j, i) -= k;
                 u1[ipart](8, j, i) += k;
-                u1_day(7, j, (arma::uword) u1_moves(i, 1) - 1) -= k;
-                u1_day(8, j, (arma::uword) u1_moves(i, 1) - 1) += k;
-                u1_night(7, j, (arma::uword) u1_moves(i, 0) - 1) -= k;
-                u1_night(8, j, (arma::uword) u1_moves(i, 0) - 1) += k;
                 
                 // I1 out
                 n = u1[ipart](5, j, i);
@@ -610,14 +600,6 @@ void discreteStochModel(int ipart, int nclasses, int nages, int nlads,
                         u1[ipart](9, j, i) += (k == 0 ? 1:0);
                         u1[ipart](7, j, i) += (k == 1 ? 1:0);
                         u1[ipart](6, j, i) += (k == 2 ? 1:0);
-                        u1_day(5, j, (arma::uword) u1_moves(i, 1) - 1) -= (k < 3 ? 1:0);
-                        u1_day(9, j, (arma::uword) u1_moves(i, 1) - 1) += (k == 0 ? 1:0);
-                        u1_day(7, j, (arma::uword) u1_moves(i, 1) - 1) += (k == 1 ? 1:0);
-                        u1_day(6, j, (arma::uword) u1_moves(i, 1) - 1) += (k == 2 ? 1:0);
-                        u1_night(5, j, (arma::uword) u1_moves(i, 0) - 1) -= (k < 3 ? 1:0);
-                        u1_night(9, j, (arma::uword) u1_moves(i, 0) - 1) += (k == 0 ? 1:0);
-                        u1_night(7, j, (arma::uword) u1_moves(i, 0) - 1) += (k == 1 ? 1:0);
-                        u1_night(6, j, (arma::uword) u1_moves(i, 0) - 1) += (k == 2 ? 1:0);
                     }
                 }
                 
@@ -625,19 +607,11 @@ void discreteStochModel(int ipart, int nclasses, int nages, int nlads,
                 k = rbinom_cpp(u1[ipart](4, j, i), probP(j), eng);
                 u1[ipart](4, j, i) -= k;
                 u1[ipart](5, j, i) += k;
-                u1_day(4, j, (arma::uword) u1_moves(i, 1) - 1) -= k;
-                u1_day(5, j, (arma::uword) u1_moves(i, 1) - 1) += k;
-                u1_night(4, j, (arma::uword) u1_moves(i, 0) - 1) -= k;
-                u1_night(5, j, (arma::uword) u1_moves(i, 0) - 1) += k;
                 
                 // ARA
                 k = rbinom_cpp(u1[ipart](2, j, i), probA(j), eng);
                 u1[ipart](2, j, i) -= k;
                 u1[ipart](3, j, i) += k;
-                u1_day(2, j, (arma::uword) u1_moves(i, 1) - 1) -= k;
-                u1_day(3, j, (arma::uword) u1_moves(i, 1) - 1) += k;
-                u1_night(2, j, (arma::uword) u1_moves(i, 0) - 1) -= k;
-                u1_night(3, j, (arma::uword) u1_moves(i, 0) - 1) += k;
                 
                 // E out
                 if(origE(j, i) > 0) {
@@ -646,12 +620,6 @@ void discreteStochModel(int ipart, int nclasses, int nages, int nlads,
                         u1[ipart](1, j, i) -= (k < 2 ? 1:0);
                         u1[ipart](2, j, i) += (k == 0 ? 1:0);
                         u1[ipart](4, j, i) += (k == 1 ? 1:0);
-                        u1_day(1, j, (arma::uword) u1_moves(i, 1) - 1) -= (k < 2 ? 1:0);
-                        u1_day(2, j, (arma::uword) u1_moves(i, 1) - 1) += (k == 0 ? 1:0);
-                        u1_day(4, j, (arma::uword) u1_moves(i, 1) - 1) += (k == 1 ? 1:0);
-                        u1_night(1, j, (arma::uword) u1_moves(i, 0) - 1) -= (k < 2 ? 1:0);
-                        u1_night(2, j, (arma::uword) u1_moves(i, 0) - 1) += (k == 0 ? 1:0);
-                        u1_night(4, j, (arma::uword) u1_moves(i, 0) - 1) += (k == 1 ? 1:0);
                     }
                 }
             }
