@@ -1119,8 +1119,9 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
 // [[Rcpp::export]]
 List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses, 
     arma::uword nages, arma::uword nlads, arma::imat u1_moves, arma::ivec ncohorts1, 
-    arma::icube u1_comb, arma::uword ndays, arma::uword npart, int niter, double a1, double a2, 
-    double b, double a_dis, double b_dis, int saveAll, int writeExt, int PF, int ncores) {
+    arma::icube u1_comb, arma::icube u2_comb, arma::vec playprobs, arma::ivec ncohorts2, 
+    arma::uword ndays, arma::uword npart, int niter, double a1, double a2, double b, 
+    double a_dis, double b_dis, int saveAll, int writeExt, int PF, int ncores) {
     
     // set counters
     arma::uword i, j, l, k, t = 0;
@@ -1129,6 +1130,8 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
     std::vector<arma::icube> u1(npart);
     std::vector<arma::icube> u11(npart);
     std::vector<arma::icube> u1_new(npart);
+    std::vector<arma::icube> u2(npart);
+    std::vector<arma::icube> u2_new(npart);
     arma::icube u_night_full(nclasses + 2, nages, nlads); u_night_full.zeros();
     arma::icube u_night_reduced(4, nages, nlads); u_night_reduced.zeros();
     std::vector<arma::icube> u_night_obs(npart);
@@ -1139,6 +1142,8 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
     for(i = 0; i < npart; i++) {
         u1[i] = u1_comb;
         u1_new[i] = u1_comb;
+        u2[i] = u2_comb;
+        u2_new[i] = u2_comb;
     }
         
     // set up weight vector
@@ -1180,6 +1185,15 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         // incidence
                         u_night_reduced(2, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](6, j, l);
                         u_night_reduced(3, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](11, j, l);
+                    }
+                }
+                for(l = 0; l < nlads; l++) {
+                    for(j = 0; j < nages; j++) {
+                        u_night_reduced(0, j, l) += u2[i](6, j, l);
+                        u_night_reduced(1, j, l) += u2[i](11, j, l);
+                        // incidence
+                        u_night_reduced(2, j, l) += u2[i](6, j, l);
+                        u_night_reduced(3, j, l) += u2[i](11, j, l);
                     }
                 }
                 // apply observation error
@@ -1238,6 +1252,16 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         // incidence
                         u_night_full(nclasses, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](6, j, l);
                         u_night_full(nclasses + 1, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](11, j, l);
+                    }
+                }
+                for(l = 0; l < nlads; l++) {
+                    for(j = 0; j < nages; j++) {
+                        for(k = 0; k < nclasses; k++) {
+                            u_night_full(k, j, l) += u2[i](k, j, l);
+                        }
+                        // incidence
+                        u_night_full(nclasses, j, l) += u2[i](6, j, l);
+                        u_night_full(nclasses + 1, j, l) += u2[i](11, j, l);
                     }
                 }
                 // apply observation error
@@ -1323,7 +1347,7 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
         
         // loop over particles
 #ifdef _OPENMP
-#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, nages, nclasses, nlads, data, C, u1_moves, u1, u1_new, ncohorts1, t, pars, weights, a_dis, b_dis, a1, a2, b, obsInc, PF, ndays)
+#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, nages, nclasses, nlads, data, C, u1_moves, u1, u1_new, ncohorts1, u2, u2_new, playprobs, ncohorts2, t, pars, weights, a_dis, b_dis, a1, a2, b, obsInc, PF, ndays)
 #endif
         for(i = 0; i < npart; i++) {
     
@@ -1353,6 +1377,35 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             arma::icube tempMD (nclasses, nages, nlads); tempMD.zeros();
             
             arma::icube u1_night(nclasses, nages, nlads); u1_night.zeros();
+            
+            // play movements
+            for(l = 0; l < nlads; l++) {
+                // loop over age and classes
+                for(j = 0; j < nages; j++) {
+                    for(k = 0; k < nclasses; k++) {
+                        // set number in class
+                        int tn = u2[i](k, j, l);
+                        // distribute across connected lads
+                        for(int s = ncohorts1(l); s < (ncohorts1(l) + ncohorts2(l)); s++) {
+                            u1[i](k, j, s) = 0;
+                        }
+                        if(tn > 0) {
+                            int s = ncohorts1(l);
+                            while(s < (ncohorts1(l) + ncohorts2(l)) && tn > 0) {
+                                int r = rbinom_cpp(tn, playprobs(s), eng);
+                                u1[i](k, j, s) = r;
+                                tn -= r;
+                                if(tn < 0) stop("Error in multinomial sampling of play movements\n");
+                                s++;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // ensure player movements match between 
+            // current and past movement cohorts
+            u1_new[i] = u1[i];
             
             // aggregate counts to LAD-level
             for(j = 0; j < nages; j++) {                    
@@ -1705,6 +1758,18 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             // re-distribute incidence across cohorts
             redistribution(i, nages, nlads, tempMD, ncohorts1, u1, u1_new, eng, 0);
             
+            // aggregate play movements back to LAD level
+            u2_new[i].zeros();
+            for(j = 0; j < nages; j++) {
+                for(l = 0; l < nlads; l++) {
+                    for(k = 0; k < nclasses; k++) {
+                        for(int r = ncohorts1(l); r < (ncohorts1(l) + ncohorts2(l)); r++) {
+                            u2_new[i](k, j, l) += u1[i](k, j, r);
+                        }
+                    }
+                }
+            }           
+            
             // advance seed
             seeds((arma::uword) omp_get_thread_num()) = eng();
         }
@@ -1746,11 +1811,23 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             for(i = 0; i < npart; i++) {
                 u1_new[i] = u11[i];
             }
+            for(i = 0; i < npart; i++) {
+                u11[i] = u2[inds(i)];
+            }
+            for(i = 0; i < npart; i++) {
+                u2[i] = u11[i];
+            }
+            for(i = 0; i < npart; i++) {
+                u11[i] = u2_new[inds(i)];
+            }
+            for(i = 0; i < npart; i++) {
+                u2_new[i] = u11[i];
+            }
             
             // Metropolis-Hastings steps to deal with particle impoverishment
             if(niter > 0) {
 #ifdef _OPENMP
-#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, nages, nclasses, nlads, data, C, ncohorts1, u1_moves, u1, u1_new, t, pars, a_dis, b_dis, a1, a2, b, obsInc, PF, ndays, condpars, niter, nacc)
+#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, nages, nclasses, nlads, data, C, ncohorts1, u1_moves, u1, u1_new, ncohorts2, u2, u2_new, playprobs, t, pars, a_dis, b_dis, a1, a2, b, obsInc, PF, ndays, condpars, niter, nacc)
 #endif
                 for(i = 0; i < npart; i++) {
             
@@ -1784,6 +1861,8 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                     arma::icube tempsim1 (2, nages, nlads); tempsim1.zeros();
                     
                     arma::icube u1_night(nclasses, nages, nlads); u1_night.zeros();
+                    
+                    // PLAY MOVEMENTS HAVE ALREADY BEEN DONE AND DON'T NEED TO BE RESAMPLED HERE
                     
                     // aggregate counts to LAD-level
                     for(j = 0; j < nages; j++) {                    
@@ -2206,6 +2285,18 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         
                         // re-distribute incidence across cohorts
                         redistribution(i, nages, nlads, tempMD, ncohorts1, u1, u1_new, eng, 0);
+                        
+                        // aggregate play movements back to LAD level
+                        u2_new[i].zeros();
+                        for(j = 0; j < nages; j++) {
+                            for(l = 0; l < nlads; l++) {
+                                for(k = 0; k < nclasses; k++) {
+                                    for(int r = ncohorts1(l); r < (ncohorts1(l) + ncohorts2(l)); r++) {
+                                        u2_new[i](k, j, l) += u1[i](k, j, r);
+                                    }
+                                }
+                            }
+                        }           
                     }
                     
                     // advance seed
@@ -2221,6 +2312,10 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             std::strcpy(str1, "save");
             double muy, sigma2y, u;
             if(saveAll == 1) {
+            
+                // U1() BELOW ALREADY HAS THE CORRECT PLAYER MOVEMENTS SO CAN USE THE EXISTING
+                // CODE WITHOUT MODIFICATION
+            
                 for(i = 0; i < npart; i++) {
                     // extract just counts for DI and DH
                     u_night_reduced.zeros();
@@ -2342,6 +2437,7 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
         // update particles for next time point
         for(i = 0; i < npart; i++) {
             u1[i] = u1_new[i];
+            u2[i] = u2_new[i];
         }
         
         //calculate block run time
