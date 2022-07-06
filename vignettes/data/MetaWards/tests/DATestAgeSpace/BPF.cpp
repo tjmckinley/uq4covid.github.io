@@ -393,9 +393,8 @@ int rmultinom_cpp (arma::vec &p, sitmo::prng &eng) {
     double u = eng() / mx;
     double temp = p(0);
     int k = 0;
-    while(temp < u) {
+    while(temp < u && k < (p.n_elem - 1)) {
         k++;
-        if(k >= p.n_elem) stop("Error in multinomial sampling\n");
         temp += p(k);
     }
     return k;
