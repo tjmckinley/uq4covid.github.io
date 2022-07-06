@@ -1,0 +1,442 @@
+\documentclass[a4paper]{article}
+\usepackage{amsmath, bm, xcolor, tikz, algpseudocode, algorithm, natbib, mathtools, mdframed}
+\usetikzlibrary{arrows, positioning, backgrounds, fit}
+
+% formatting
+\usepackage[margin=1in]{geometry}
+\setlength{\parskip}{\baselineskip}
+\setlength{\parindent}{0pt}
+
+\title{(Auxiliary) particle filters}
+\author{TJ McKinley}
+\date{}
+
+% custom commands for brevity
+\newcommand{\btheta}{\bm{\theta}}
+\newcommand{\bx}{\bm{x}}
+\newcommand{\bX}{\bm{X}}
+\newcommand{\by}{\bm{y}}
+\newcommand{\bz}{\bm{z}}
+\newcommand{\bA}{\bm{A}}
+\newcommand{\bp}{\bm{p}}
+\newcommand{\bq}{\bm{q}}
+\newcommand{\br}{\bm{r}}
+\newcommand{\bY}{\bm{Y}}
+\newcommand{\bZ}{\bm{Z}}
+\newcommand{\bU}{\bm{U}}
+\newcommand{\bD}{\bm{D}}
+\newcommand{\bR}{\bm{R}}
+\newcommand{\bI}{\bm{I}}
+\newcommand{\bP}{\bm{P}}
+\newcommand{\bE}{\bm{E}}
+\newcommand{\bH}{\bm{H}}
+\newcommand{\bS}{\bm{S}}
+\newcommand{\gap}[1][1]{\vspace{#1\baselineskip}}
+\newcommand{\srm}[1]{\mbox{\scriptsize #1}}
+
+\bibliographystyle{asa}
+
+\begin{document}
+
+\maketitle
+
+\section{Likelihood terms}
+
+Let's first consider the form of the likelihood functions for the simulator and the model discrepancy terms. Assume that we have $N_s$ spatial regions and $N_a$ age-classes, then for $t = 1, \dots, T$ time points, let $\bz_t = \left\{\bz_{tsa}; s = 1, \dots, N_s~\mbox{and}~a = 1, \dots, N_a\right\}$, where $\bz_{tsa} = \left(D^{Z^\prime}_{Htsa}, D^{Z^\prime}_{Itsa}\right)$ be the \textbf{observed} death incidence counts. Similarly,  $\bx_t = \left\{\bx_{tsa}; s = 1, \dots, N_s~\mbox{and}~a = 1, \dots, N_a\right\}$, where \newline
+$\bx_{tsa} = \left(E^X_{tsa}, A^X_{tsa}, R^X_{At}, P^X_{tsa}, I^X_{1tsa}, I^X_{2tsa}, R^X_{Itsa}, D^X_{Itsa}, H^X_{tsa}, D^X_{Htsa}, R^X_{Htsa}\right)$ is a vector of counts from the \textbf{simulator} at time $t$; and $\by_t = \left\{\bz_{tsa}; s = 1, \dots, N_s~\mbox{and}~a = 1, \dots, N_a\right\}$, where \newline $\by_{tsa} = \left(E^Y_{tsa}, A^Y_{tsa}, R^Y_{Atsa}, P^Y_{tsa}, I^Y_{1tsa}, I^Y_{2tsa}, R^Y_{Itsa}, D^Y_{Itsa}, H^Y_{tsa}, D^Y_{Htsa}, R^Y_{Htsa}\right)$ is a vector of counts \textbf{adjusted for model discrepancy} at time $t$. 
+
+We note that some of the likelihood terms below depend on \textbf{incidence} counts (e.g. $D^{X^\prime}_{Htsa}$), but these can be directly derived from the raw counts if required. In the discussion below we use $p\left(\cdot\right)$ to denote an arbitrary probability \textit{mass} function, and $\pi\left(\cdot\right)$ to denote an arbitrary probability \textit{density} function. We use the superscript $T$ to denote \textit{truncated} distributions e.g. $p^T\left(\cdot\right)$ or $\pi^T\left(\cdot\right)$. 
+
+To keep consistent with much of the particle filtering literature, we will use $g\left(\cdot\right)$ to denote a generic observation distributon across all observations, and $f\left(\cdot\right)$ to denote the state transition distributions. In all discussions below we drop dependence on the parameters, $\btheta$, for brevity. Since we have fixed initial conditions, the target likelihood is thus:
+\begin{equation}
+    \prod_{t = 1}^T g\left(\bz_{t} \mid \by_t, \bx_t\right)f\left(\by_{t}, \bx_t \mid \by_{t - 1}\right) = \prod_{t = 1}^T g\left(\bz_{t} \mid \by_t\right)f\left(\by_{t} \mid \bx_{t}, \by_{t - 1}\right)f\left(\bx_t \mid \by_{t - 1}\right).
+\end{equation}
+Letting $\bD^{X^\prime}_{Ht} = \left\{D^{X^\prime}_{Htsa}; s = 1, \dots, N_s~\mbox{and}~a = 1, \dots, N_a\right\}$ (and similarly for the other stages), we can then write the simulator distribution as:
+\begin{align}
+    f\left(\bx_t \mid \by_{t - 1}\right) &= p\left(\bD^{X^\prime}_{Ht}, \bR^{X^\prime}_{Ht} \mid \bH^{Y}_{t - 1}\right)p\left(\bH^{X^\prime}_t, \bI^{X^\prime}_{2t}, \bD^{X^\prime}_{It} \mid \bI^{Y}_{1(t - 1)}\right)p\left(\bR^{X^\prime}_{It} \mid \bI^{Y}_{2(t - 1)}\right)\nonumber\\
+    & \qquad \qquad \qquad \times p\left(\bI^{X^\prime}_{1t} \mid \bP^{Y}_{t - 1}\right)p\left(\bP^{X^\prime}_t, \bA^{X^\prime}_t \mid \bE^{Y}_{t - 1}\right)p\left(\bR^{X^\prime}_{At} \mid \bA^{Y}_{t - 1} \right)\nonumber\\
+    & \qquad \qquad \qquad \qquad \qquad \qquad \times p\left(\bE^{X^\prime}_t \mid \bS^{Y}_{t - 1}, \bA^{Y}_{t - 1}, \bP^{Y}_{t - 1}, \bI^{Y}_{1(t - 1)}, \bI^{Y}_{2(t - 1)}\right).\label{eq:simlike}
+\end{align}
+The infection distribution, $p\left(\bE^{X^\prime}_t \mid \bS^{Y}_{t - 1}, \bA^{Y}_{t - 1}, \bP^{Y}_{t - 1}, \bI^{Y}_{1(t - 1)}, \bI^{Y}_{2(t - 1)}\right)$ is a joint distribution over all spatial regions and age-classes, whereas all other transitions are independent over region and age-classes. For example:
+\begin{equation}
+    p\left(\bD^{X^\prime}_{Ht}, \bR^{X^\prime}_{Ht} \mid \bH^{Y}_{t - 1}\right) = \prod_{s = 1}^{N_s} \prod_{a = 1}^{N_a} p\left(D^{X^\prime}_{Htsa}, R^{X^\prime}_{Htsa} \mid H^{Y}_{(t - 1)sa}\right),
+\end{equation}
+and similarly for the other transitions.
+
+The conditional model discrepancy distribution is:
+\begin{align}
+    f\left(\by_t \mid \bx_t, \by_{t - 1}\right) &= p\left(\bD^{Y^\prime}_{Ht} \mid \bD^{X^\prime}_{Ht}, \bH^{Y}_{t - 1}\right)p\left(\bD^{Y^\prime}_{It} \mid \bD^{X^\prime}_{It}, \bI^{Y}_{1(t - 1)}\right)p\left(\bR^{Y^\prime}_{Ht} \mid \bR^{X^\prime}_{Ht}, \bD^{Y^\prime}_{Ht}, \bH^{Y}_{t - 1}\right)\nonumber\\
+    & \qquad \times p\left(\bH^Y_t \mid \bH^X_t, \bH^{Y}_{t - 1}, \bD^{Y^\prime}_{Ht}, \bR^{Y^\prime}_{Ht}, \bD^{Y^\prime}_{It}, \bI^{Y}_{1(t - 1)}\right) p\left(\bR^{Y^\prime}_{It} \mid \bR^{X^\prime}_{It}, \bI^{Y}_{2(t - 1)}\right)\nonumber\\
+    &\qquad \qquad \times p\left(\bI^Y_{2t} \mid \bI^X_{2t}, \bI^{Y}_{2(t - 1)}, \bR^{Y^\prime}_{It}, \bD^{Y^\prime}_{It}, \bH^{Y^\prime}_t, \bI^{Y}_{1(t - 1)}\right)\nonumber\\
+    &\qquad \qquad \qquad \times p\left(\bI^Y_{1t} \mid \bI^X_{1t}, \bI^{Y}_{1(t - 1)}, \bI^{Y^\prime}_{2t}, \bD^{Y^\prime}_{It}, \bH^{Y^\prime}_t, \bP^{Y}_{t - 1}\right)\nonumber\\
+    &\qquad \qquad \qquad \qquad \times p\left(\bP^Y_t \mid \bP^X_t, \bP^{Y}_{t - 1}, \bI^{Y^\prime}_{1t}, \bE^{Y}_{t - 1}\right)p\left(\bR^{Y^\prime}_{At} \mid \bR^{X^\prime}_{At}, \bA^{Y}_{t - 1}\right)\nonumber\\
+    & \qquad \qquad \qquad \qquad \qquad \times p\left(\bA^Y_t \mid \bA^X_t, \bA^{Y}_{t - 1}, \bR^{Y^\prime}_{At}, \bE^{Y}_{t - 1}\right)\nonumber\\
+    & \qquad \qquad \qquad \qquad \qquad \qquad \times p\left(\bE^Y_t \mid \bE^X_t, \bE^{Y}_{t - 1}, \bP^{Y^\prime}_t, \bA^{Y^\prime}_t, \bS^{Y}_{t - 1}\right),\label{eq:mdlike}
+\end{align}
+and here all the component distributions in (\ref{eq:mdlike}) are independent over space and age given  $\bx_t$ and $\by_{t - 1}$.
+
+Finally, the conditional observation density is:
+\begin{align}
+    g\left(\bz_t \mid \by_t\right) &= p\left(\bD^{Z^\prime}_{Ht} \mid \bD^{Y^\prime}_{Ht}\right)p\left(\bD^{Z^\prime}_{It} \mid \bD^{Y^\prime}_{It}\right),\label{eq:obsdens}
+\end{align}
+and all the component distributions in (\ref{eq:obsdens}) are independent over space and age given $\by_t$.
+
+Details on the functional forms for the model discrepancy terms are given in Section~\ref{sec:MD}.
+
+\section{Bootstrap particle filter}
+
+To run a standard bootstrap particle filter (BPF) we can thus sample (with a slight abuse of notation):
+\begin{enumerate}
+    \item Particle $k$ with probability $\pi^{1:K}_{t - 1}$.
+    \item $\bx_t \sim f\left(\bx_t \mid \by^k_{t - 1}\right)$;
+    \item $\by_t \sim f\left(\by_t \mid \bx_t, \by^k_{t - 1}\right)$,
+\end{enumerate}
+and then generating particle weight:
+\begin{equation}
+    w^k_t = \prod_{s = 1}^{N_s} \prod_{a = 1}^{N_a} \prod_{c = 1}^{N_z} g\left(z_{tsac} \mid y^k_{tsac}\right).
+\end{equation}
+
+\section{Auxiliary particle filter}
+
+To simplify future discussions, note that in (\ref{eq:simlike}), we can decompose\footnote{Since $p\left(D^{X^\prime}_{Htsa}, R^{X^\prime}_{Htsa} \mid H^{Y}_{(t - 1)sa}\right)$ is multinomial, both the marginal, $p\left(D^{X^\prime}_{Htsa} \mid H^{Y}_{(t - 1)sa}\right)$, and conditional, $p\left(R^{X^\prime}_{Htsa} \mid D^{X^\prime}_{Htsa}, H^{Y}_{(t - 1)sa}\right)$, are binomial. Similarly the marginal, $p\left(D^{X^\prime}_{Itsa} \mid I^{Y}_{(t - 1)sa}\right)$, is binomial; and the conditional, $p\left(H^{X^\prime}_{tsa}, I^{X^\prime}_{2tsa} \mid D^{X^\prime}_{Itsa}, I^{Y}_{(t - 1)sa}\right)$, is multinomial}
+\begin{equation}
+    p\left(D^{X^\prime}_{Htsa}, R^{X^\prime}_{Htsa} \mid H^{Y}_{(t - 1)sa}\right) = p\left(D^{X^\prime}_{Htsa} \mid H^{Y}_{(t - 1)sa}\right)p\left(R^{X^\prime}_{Htsa} \mid D^{X^\prime}_{Htsa}, H^{Y}_{(t - 1)sa}\right),
+\end{equation}
+and
+\begin{equation}
+    p\left(H^{X^\prime}_{tsa}, I^{X^\prime}_{2tsa}, D^{X^\prime}_{Itsa} \mid I^{Y}_{(t - 1)sa}\right) = p\left(D^{X^\prime}_{Itsa} \mid I^{Y}_{(t - 1)sa}\right)p\left(H^{X^\prime}_{tsa}, I^{X^\prime}_{2tsa} \mid D^{X^\prime}_{Itsa}, I^{Y}_{(t - 1)sa}\right).\label{eq:condsampler}
+\end{equation}
+Hence if we let $\by^z_t = \left\{D^Y_{Htsa}, D^Y_{Itsa}; s = 1, \dots, N_s~\mbox{and}~a = 1,\dots, N_a\right\}$ be the adjusted states corresponding to the observed states $\bz_t$, and similarly for $\bx^z_t$, then based on (\ref{eq:simlike})--(\ref{eq:condsampler}) above we can then write the likelihood as:
+\begin{equation}
+    \prod_{t = 1}^T g\left(\bz_{t} \mid \by^z_t\right)f\left(\by^{-z}_{t} \mid \by^z_t, \bx^{-z}_{t}, \by_{t - 1}\right)f\left(\by^z_t \mid \bx^z_t, \by_{t - 1}\right)f\left(\bx^{-z}_t \mid \bx^z_t, \by_{t - 1}\right)f\left(\bx^z_t \mid \by_{t - 1}\right)\label{eq:conddecomp},
+\end{equation}
+where $\by^{-z}_t = \by_t \setminus \by^z_t$ are those states in $\by_t$ that do not include those in $\by^z_t$, and similarly $\bx^{-z}_t = \bx_t \setminus \bx^z_t$. In the subsequent discussion we focus on importance samplers targeting $f\left(\bx^z_t, \by^z_t \mid \by_{t - 1}\right) = f\left(\by^z_t \mid \bx^z_t, \by_{t - 1}\right)f\left(\bx^z_t \mid \by_{t - 1}\right)$.
+
+From the decomposition in (\ref{eq:conddecomp}), we note that at time $t$ we can write the likelihood contribution as:
+\begin{align}
+    &g\left(\bz_{t} \mid \by^z_t\right)f\left(\by^{-z}_{t} \mid \by^z_t, \bx^{-z}_{t}, \by_{t - 1}\right)f\left(\by^z_t \mid \bx^z_t, \by_{t - 1}\right)f\left(\bx^{-z}_t \mid \bx^z_t, \by_{t - 1}\right)f\left(\bx^z_t \mid \by_{t - 1}\right) \nonumber\\
+    & \qquad \qquad = f\left(\by^{-z}_{t} \mid \by^z_t, \bx^{-z}_{t}, \by_{t - 1}\right)f\left(\bx^{-z}_{t} \mid \bx^z_{t}, \by_{t - 1}\right)\nonumber\\
+    & \qquad \qquad \qquad \qquad \times \prod_{s = 1}^{N_s} \prod_{a = 1}^{N_a} \prod_{c = 1}^{N_z} g\left(z_{tsac} \mid y^z_{tsac}\right)f\left(y^z_{tsac} \mid x^z_{tsac}, \by_{(t - 1)sac}\right)f\left(x^z_{tsac} \mid \by_{(t - 1)sac}\right),\label{eq:condlikesa}
+\end{align}
+where $N_z = 2$ observed states: $D_H$ and $D_I$. Sampling from the first two terms in (\ref{eq:condlikesa}) is described in Sections~\ref{sec:condsim} and \ref{sec:condmdsim}, and hence we focus on an importance sampler:
+\begin{equation}
+    q\left(y^z_{tsac} \mid z_{tsac}, x^z_{tsac}, \by_{(t - 1)sac}\right) = \frac{g\left(z_{tsac} \mid y^z_{tsac}\right)f\left(y^z_{tsac} \mid x^z_{tsac}, \by_{(t - 1)sac}\right)}{\sum_{y = 0}^n g\left(z_{tsac} \mid y\right)f\left(y \mid x^z_{tsac}, \by_{(t - 1)sac}\right)},
+\end{equation}
+where all spatial regions, age-classes and states can be sampled independently, and $n$ is the maximum value for $y^z_{tsac}$ given $\by_{(t - 1)sac}$ and $x^z_{tsac}$. From the decomposition in (\ref{eq:conddecomp}) it is clear that we can sample (with a slight abuse of notation):
+\begin{enumerate}
+    \item Particle $k$ with probability $\pi^{1:K}_{t - 1}$.
+    \item $\bx^z_t \sim f\left(\bx^z_t \mid \by^k_{t - 1}\right)$;
+    \item $\by^z_t \sim q\left(\by^z_t \mid \bx^z_t, \by^k_{t - 1}\right)$;
+    \item $\bx^{-z}_t \sim f\left(\bx^{-z}_t \mid \bx^z_t, \by^k_{t - 1}\right)$;
+    \item $\by^{-z}_t \sim f\left(\by^{-z}_t \mid \by^z_t, \bx^{-z}_t, \by^k_{t - 1}\right)$.
+\end{enumerate}
+With this sampler the particle weights are thus:
+\begin{equation}
+    w^k_t = \prod_{s = 1}^{N_s} \prod_{a = 1}^{N_a} \prod_{c = 1}^{N_z} \sum_{y = 0}^n g\left(z_{tsac} \mid y\right)f\left(y \mid x^z_{tsac}, \by^k_{(t - 1)sac}\right).
+\end{equation}
+
+\section{Dealing with particle impoverishment}
+
+We often have complete particle degeneracy at a given time point $t$, and thus the re-sampled particles have no variability. Following CHOPIN / DOUCETJOHANSEN we can introduce variability by introducing a Markov kernel, $K_t(\cdot)$, of invariant distribution $p\left(\bx_{1:t}, \by_{1:t} \mid \bz_{1:t}\right)$. Such a kernel is only ergodic if all $\bx_{1:t}$ and $\by_{1:t}$ are updated, but following XXXXXXX we will update only $\left(\bx_t, \by_t \mid \bx_{1:t}, \by_{1:t}, \bz_{1:t}\right)$ using independence sampler Metropolis-Hastings update steps. From the model decomposition in (\ref{eq:condlikesa}) we can see that for a given particle we can simulate proposals $\bx_t^\prime$ and $\by_t^\prime$ from the model directly, and then accept-reject the proposal with probability:
+\begin{equation}
+    \alpha = \min\left(1, \frac{g\left(\bz_{t} \mid \by^{z\prime}_{t}\right)}{g\left(\bz_{tsac} \mid \by^{zk}_t\right)}\right).
+\end{equation}
+We note also from the decomposition in (\ref{eq:condlikesa}) that $f\left(\bx^{-z}_t \mid \bx^z_t, \by^k_{t - 1}\right)$ and $f\left(\by^{-z}_t \mid \by^z_t, \bx^{-z}_t, \by^k_{t - 1}\right)$ cancel out of the accept-reject ratio, and are independent of $\bx^z_t$ and $\by^z_t$ given $\by^k_{t - 1}$. As such, they do not have to be sampled from in order to accept or reject a proposal. This means that multiple update steps can be done quickly. If, at the end of these at least one proposal has been accepted, then we can simulate $\bx^{-z}_t$ and $\by^{-z}_t$ as required.
+
+For the auxiliary particle filter we sample from $f\left(\bx^z_t \mid \by^k_{t - 1}\right)$ and $q\left(\by^z_t \mid \bx^z_t, \by^k_{t - 1}\right)$ and accept-reject with probability:
+\begin{equation}
+    \alpha = \min\left(1, \frac{\prod_{s = 1}^{N_s} \prod_{a = 1}^{N_a} \prod_{c = 1}^{N_z} \sum_{y = 0}^{n^\prime_{tsac}} g\left(z_{tsac} \mid y\right)f\left(y \mid x^{z\prime}_{tsac}, \by^k_{(t - 1)sac}\right)}{\prod_{s = 1}^{N_s} \prod_{a = 1}^{N_a} \prod_{c = 1}^{N_z} \sum_{y = 0}^{n^k_{tsac}} g\left(z_{tsac} \mid y\right)f\left(y \mid x^{zk}_{tsac}, \by^k_{(t - 1)sac}\right)}\right).
+\end{equation}
+
+\section{Appendix}
+
+\subsection{Sampling from conditional simulator}\label{sec:condsim}
+
+\textcolor{red}{Hence in the subsequent discussion we present the case for sampling from a single region, age-class and state, and for clarity we drop the $s$, $a$ and $c$ subscripts.}
+
+It turns out that we can sample from $\pi\left(\bx^{-z}_t \mid \bx^z_t, \by_{t - 1}\right)$ \textit{directly from the simulator}, by adjusting some parameters and inputs slightly.
+
+If we first consider 
+\begin{equation}
+    \left(D^{X^\prime}_{Ht}, R^{X^\prime}_{Ht} \mid H^{Y}_{t - 1}\right) \sim \mbox{Multinomial}\left(H^{Y}_{t - 1}, \bp\right),
+\end{equation}
+where $\bp = \left(p_Hp_{HD}, p_H\left(1 - p_{HD}\right), 1 - p_H\right)$. From this we have that
+\begin{equation}
+    \left(R^{X^\prime}_{Ht} \mid D^{X^\prime}_{Ht}, H^{Y}_{t - 1}\right) \sim \mbox{Binomial}\left(H^{Y}_{t - 1} - D^{X^\prime}_{Ht}, \frac{p_H\left(1 - p_{HD}\right)}{1 - p_Hp_{HD}}\right).\label{eq:dhbin}
+\end{equation}
+Therefore (\ref{eq:dhbin}) is equivalent to sampling
+\begin{equation}
+    \left(D^{\ast X^\prime}_{Ht}, R^{X^\prime}_{Ht} \mid H^{Y}_{t - 1}\right) \sim \mbox{Multinomial}\left(H^{Y}_{t - 1} - D^{X^\prime}_{Ht}, \bp^\ast\right),
+\end{equation}
+where $\bp^\ast = \left(0, \frac{p_H\left(1 - p_{HD}\right)}{1 - p_Hp_{HD}}, \frac{1 - p_H}{1 - p_Hp_{HD}}\right)$. Similarly, if we consider
+\begin{equation}
+    \left(H^{X^\prime}_t, I^{X^\prime}_{2t}, D^{X^\prime}_{It} \mid I^{Y}_{1(t - 1)}\right) \sim \mbox{Multinomial}\left(I^{Y}_{1(t - 1)}, \bq\right),
+\end{equation}
+where $\bq = \left(p_{I_1}p_{I_1H}, p_{I_1}\left(1 - p_{I_1H} - p_{I_1D}\right), p_{I_1}p_{I_1D}, 1 - p_{I_1}\right)$, then we can derive the conditional:
+\begin{equation}
+    \left(H^{X^\prime}_t, I^{X^\prime}_{2t} \mid D^{X^\prime}_{It}, I^{Y}_{1(t - 1)}\right) \sim \mbox{Multinomial}\left(I^{Y}_{1(t - 1)} - D^{X^\prime}_{It}, \bq^\prime\right),\label{eq:dimult}
+\end{equation}
+where $\bq^\prime = \left(\frac{p_{I_1}p_{I_1H}}{1 - p_{I_1}p_{I_1D}}, \frac{p_{I_1}\left(1 - p_{I_1H} - p_{I_1D}\right)}{1 - p_{I_1}p_{I_1D}}, \frac{1 - p_{I_1}}{1 - p_{I_1}p_{I_1D}}\right)$. Therefore (\ref{eq:dimult}) is equivalent to sampling
+\begin{equation}
+    \left(H^{X^\prime}_t, I^{X^\prime}_{2t}, D^{\ast X^\prime}_{It} \mid I^{Y}_{1(t - 1)} - D^{X^\prime}_{It}\right) \sim \mbox{Multinomial}\left(I^{Y}_{1(t - 1)} - D^{X^\prime}_{It}, \bq^\ast\right),
+\end{equation}
+where $\bq^\ast = \left(\frac{p_{I_1}p_{I_1H}}{1 - p_{I_1}p_{I_1D}}, \frac{p_{I_1}\left(1 - p_{I_1H} - p_{I_1D}\right)}{1 - p_{I_1}p_{I_1D}}, 0, \frac{1 - p_{I_1}}{1 - p_{I_1}p_{I_1D}}\right)$. Hence we can use the simulator directly by slightly adjusting the inputs and parameters to sample from the correct conditional distribution.
+
+\subsection{Sampling from conditional model discrepancy distribution}\label{sec:condmdsim}
+
+The conditional model discrepancy distribution is:
+\begin{align}
+    f\left(\by^{-z}_t \mid \by^z_t, \bx^{-z}_t, \by_{t - 1}\right) &= p\left(\bR^{Y^\prime}_{Ht} \mid \bR^{X^\prime}_{Ht}, \bD^{Y^\prime}_{Ht}, \bH^{Y}_{t - 1}\right)\nonumber\\
+    & \qquad \times p\left(\bH^Y_t \mid \bH^X_t, \bH^{Y}_{t - 1}, \bD^{Y^\prime}_{Ht}, \bR^{Y^\prime}_{Ht}, \bD^{Y^\prime}_{It}, \bI^{Y}_{1(t - 1)}\right) p\left(\bR^{Y^\prime}_{It} \mid \bR^{X^\prime}_{It}, \bI^{Y}_{2(t - 1)}\right)\nonumber\\
+    &\qquad \qquad \times p\left(\bI^Y_{2t} \mid \bI^X_{2t}, \bI^{Y}_{2(t - 1)}, \bR^{Y^\prime}_{It}, \bD^{Y^\prime}_{It}, \bH^{Y^\prime}_t, \bI^{Y}_{1(t - 1)}\right)\nonumber\\
+    &\qquad \qquad \qquad \times p\left(\bI^Y_{1t} \mid \bI^X_{1t}, \bI^{Y}_{1(t - 1)}, \bI^{Y^\prime}_{2t}, \bD^{Y^\prime}_{It}, \bH^{Y^\prime}_t, \bP^{Y}_{t - 1}\right)\nonumber\\
+    &\qquad \qquad \qquad \qquad \times p\left(\bP^Y_t \mid \bP^X_t, \bP^{Y}_{t - 1}, \bI^{Y^\prime}_{1t}, \bE^{Y}_{t - 1}\right)p\left(\bR^{Y^\prime}_{At} \mid \bR^{X^\prime}_{At}, \bA^{Y}_{t - 1}\right)\nonumber\\
+    & \qquad \qquad \qquad \qquad \qquad \times p\left(\bA^Y_t \mid \bA^X_t, \bA^{Y}_{t - 1}, \bR^{Y^\prime}_{At}, \bE^{Y}_{t - 1}\right)\nonumber\\
+    & \qquad \qquad \qquad \qquad \qquad \qquad \times p\left(\bE^Y_t \mid \bE^X_t, \bE^{Y}_{t - 1}, \bP^{Y^\prime}_t, \bA^{Y^\prime}_t, \bS^{Y}_{t - 1}\right),\label{eq:mdlikecond}
+\end{align}
+and here all the component distributions in (\ref{eq:mdlikecond}) are independent over space and age given $\by^z_t$, $\bx^{-z}_t$ and $\by_{t - 1}$ and thus are straightforward to sample from.
+
+\subsection{Model discrepancy constraints}\label{sec:MD}
+
+\textcolor{red}{Note order is different to non-spatial model as have swapped DI and H}.
+
+For \textbf{absorbing states} ($D_H$, $R_H$, $D_I$, $R_I$ and $R_A$) we place the model discrepancy on the \textit{incidence} (i.e. new cases) rather than the state counts. For all other states, we place the model discrepancy on the numbers of individuals in each state directly. A key aspect is that we must ensure that any model discrepancy added results in states that are \textit{epidemiologically} valid. Hence we can't have more deaths than infections and such like. This means we add constraints onto the model discrepancy process based on the structure of the model.
+
+Because we're focusing on individual states, we will use the notation e.g. $D^X_{Ht}$ to denote the state counts from the \textit{simulator} at time $t$ (relating to $X_t$ above), $D^Y_{Ht}$ is the \textit{adjusted} state after model discrepancy is added, and e.g. $D^{X^\prime}_{Ht}$ is the \textit{incidence}.
+
+Thinking first about $D^Y_{Ht}$ we have that $D^Y_{Ht} = D^Y_{H(t - 1)} + D^{Y^\prime}_{Ht}$, and hence we can derive bounds:
+\begin{equation*}
+    0 \leq D^{Y^\prime}_{Ht} \leq H^Y_{t-1} \qquad \mbox{since $D^{Y^\prime}_{Ht} \leq H^Y_{t - 1}$}.
+\end{equation*}
+We let the adjusted incidence $D^{Y^\prime}_{Ht} = D^{X^\prime}_{Ht} + M^\prime_{D_Ht}$, and then place a truncated Skellam distribution on $M^\prime_{D_Ht}$, with constraints:
+\begin{equation*}
+    -D^{X^\prime}_{Ht} \leq M^\prime_{D_Ht} \leq H^Y_{t - 1} - D^{X^\prime}_{Ht}.
+\end{equation*}
+Then the adjusted count is given by
+\begin{equation*}
+    D^Y_{Ht} = D^X_{Ht} + M^\prime_{D_Ht}.
+\end{equation*}
+This holds since
+\begin{eqnarray*}
+    D^Y_{Ht} &=& D^Y_{H(t - 1)} + D^{Y^\prime}_{Ht}\\
+    &=& D^Y_{H(t - 1)} + D^{X^\prime}_{Ht} + M^\prime_{D_Ht}\\
+    &=& D^X_{Ht} + M^\prime_{D_Ht} \qquad \mbox{since}~D^X_{Ht} = D^Y_{H(t - 1)} + D^{X^\prime}_{Ht}.
+\end{eqnarray*}
+To summarise:
+\begin{align*}
+\Aboxed{M^\prime_{D_Ht} &\sim \mbox{Skellam}\left(\lambda_1, \lambda_2\right)I\left(-D^{X^\prime}_{Ht}, H^Y_{t - 1} - D^{X^\prime}_{Ht}\right)}\\
+    \Aboxed{D^{Y^\prime}_{Ht} &= D^{X^\prime}_{Ht} + M^\prime_{D_Ht}}\\
+    \Aboxed{D^Y_{Ht} &= D^X_{Ht} + M^\prime_{D_Ht}}
+\end{align*}
+
+Now consider $D^Y_{It}$. Since this is an absorbing state, we place MD on the \textit{incidence} $D^{Y^\prime}_{It}$, and hence we can derive bounds for the MD as:
+\begin{align*}
+    0 &\leq D^{Y^\prime}_{It} \leq I^Y_{1(t - 1)}\\
+    0 &\leq D^{X^\prime}_{It} + M^\prime_{D_It} \leq I^Y_{1(t - 1)}\\ 
+    -D^{X^\prime}_{It} &\leq M^\prime_{D_It} \leq I^Y_{1(t - 1)} - D^{X^\prime}_{It}.
+\end{align*}
+Hence
+\begin{align*}
+\Aboxed{M^\prime_{D_It} &\sim \mbox{Skellam}\left(\lambda_1, \lambda_2\right)I\left(-D^{X^\prime}_{It}, I^Y_{1(t - 1)} - D^{X^\prime}_{It}\right)}\\
+    \Aboxed{D^{Y^\prime}_{It} &= D^{X^\prime}_{It} + M^\prime_{D_It}}\\
+    \Aboxed{D^Y_{It} &= D^X_{It} + M^\prime_{D_It}}
+\end{align*}
+
+We also know that
+\begin{align*}
+    &D^{Y^\prime}_{Ht} + R^{Y^\prime}_{Ht} \leq H^Y_{t - 1}\\
+    \Rightarrow 0 &\leq R^{Y^\prime}_{Ht} \leq H^Y_{t - 1} - D^{Y^\prime}_{Ht},
+\end{align*}
+and hence we can derive a constraint for $M^\prime_{R_Ht}$ conditional on the adjusted $D^{Y^\prime}_{Ht}$, such that
+\begin{equation*}
+    -R^{X^\prime}_{Ht} \leq M^\prime_{R_Ht} \leq H^Y_{t - 1} - D^{Y^\prime}_{Ht} - R^{X^\prime}_{Ht}.
+\end{equation*}
+Hence we have:
+\begin{align*}
+\Aboxed{M^\prime_{R_Ht} &\sim \mbox{Skellam}\left(\lambda_1, \lambda_2\right)I\left(-R^{X^\prime}_{Ht}, H^Y_{t - 1} - D^{Y^\prime}_{Ht} - R^{X^\prime}_{Ht}\right)}\\
+    \Aboxed{R^{Y^\prime}_{Ht} &= R^{X^\prime}_{Ht} + M^\prime_{R_Ht}}\\
+    \Aboxed{R^Y_{Ht} &= R^X_{Ht} + M^\prime_{R_Ht}}
+\end{align*}
+
+Now consider $H^Y_t$. We know that
+\begin{equation*}
+    H^Y_t = H^Y_{t - 1} + H^{Y^\prime}_t - D^{Y^\prime}_{Ht} - R^{Y^\prime}_{Ht},
+\end{equation*}
+and we now place the model discrepancy on the state and \textit{not} the incidence, since $H^Y_t$ is not an absorbing state. Therefore, 
+\begin{equation*}
+    H^Y_t = H^X_t + M_{Ht}.
+\end{equation*}
+Hence
+\begin{align*}
+    H^Y_t &= H^Y_{t - 1} + H^{Y^\prime}_t - D^{Y^\prime}_{Ht} - R^{Y^\prime}_{Ht}\\
+    \Rightarrow H^{Y^\prime}_t &= H^Y_t - H^Y_{t - 1} + D^{Y^\prime}_{Ht} + R^{Y^\prime}_{Ht}\\
+    \Rightarrow H^{Y^\prime}_t &= H^X_t + M_{Ht} - H^Y_{t - 1} + D^{Y^\prime}_{Ht} + R^{Y^\prime}_{Ht}.
+\end{align*}
+Since $0 \leq H^{Y^\prime}_t \leq I^Y_{1(t - 1)} - D^{Y^\prime}_{It}$ we can thus derive bounds:
+\begin{align*}
+    0 &\leq H^X_t + M_{Ht} - H^Y_{t - 1} + D^{Y^\prime}_{Ht} + R^{Y^\prime}_{Ht} \leq I^Y_{1(t - 1)} - D^{Y^\prime}_{It}\\
+    \Rightarrow -H^X_t + H^Y_{t - 1} - D^{Y^\prime}_{Ht} - R^{Y^\prime}_{Ht} &\leq M_{Ht} \leq I^Y_{1(t - 1)}  - D^{Y^\prime}_{It} - H^X_t + H^Y_{t - 1} - D^{Y^\prime}_{Ht} - R^{Y^\prime}_{Ht}.
+\end{align*}
+Hence
+\begin{align*}
+\Aboxed{M_{Ht} &\sim \mbox{Skellam}\left(\lambda_1, \lambda_2\right)I\left(-H^X_t + H^Y_{t - 1} - D^{Y^\prime}_{Ht} - R^{Y^\prime}_{Ht}, I^Y_{1(t - 1)} - D^{Y^\prime}_{It} - H^X_t + H^Y_{t - 1} - D^{Y^\prime}_{Ht} - R^{Y^\prime}_{Ht}\right)}\\
+    \Aboxed{H^Y_{t} &= H^X_{t} + M_{Ht}}\\
+    \Aboxed{H^{Y^\prime}_{t} &= H^X_t + M_{Ht} - H^Y_{t - 1} + D^{Y^\prime}_{Ht} + R^{Y^\prime}_{Ht}}
+\end{align*}
+
+We also have that $0 \leq R^{Y^\prime}_{It} \leq I^{Y^\prime}_{2(t - 1)}$, leading to:
+\begin{align*}
+\Aboxed{M^\prime_{R_It} &\sim \mbox{Skellam}\left(\lambda_1, \lambda_2\right)I\left(-R^{X^\prime}_{It}, I^Y_{2(t - 1)} - R^{X^\prime}_{It}\right)}\\
+    \Aboxed{R^{Y^\prime}_{It} &= R^{X^\prime}_{It} + M^\prime_{R_It}}\\
+    \Aboxed{R^Y_{It} &= R^X_{It} + M^\prime_{R_It}}
+\end{align*}
+
+Next, we know that
+\begin{equation*}
+    I^Y_{2t} = I^Y_{2(t - 1)} + I^{Y^\prime}_{2t} - R^{Y^\prime}_{It},
+\end{equation*}
+and we place MD on the \textit{counts}, such that:
+\begin{equation*}
+    I^Y_{2t} = I^X_{2t} + M_{I_2t}
+\end{equation*}
+We know that:
+\begin{align*}
+    I^Y_{2t} &= I^Y_{2(t - 1)} + I^{Y^\prime}_{2t} - R^{Y^\prime}_{It}\\
+    \Rightarrow I^{Y^\prime}_{2t} &= I^Y_{2t} - I^Y_{2(t - 1)} + R^{Y^\prime}_{It}\\
+    \Rightarrow I^{Y^\prime}_{2t} &= I^X_{2t} + M_{I_2t} - I^Y_{2(t - 1)} + R^{Y^\prime}_{It}
+\end{align*}
+Since $0 \leq I^{Y^\prime}_{2t} \leq I^Y_{1(t - 1)} - D^{Y^\prime}_{It} - H^{Y^\prime}_t$, we can derive bounds:
+\begin{align*}
+    0 &\leq I^{Y^\prime}_{2t} \leq I^Y_{1(t - 1)} - D^{Y^\prime}_{It} - H^{Y^\prime}_t\\
+    \Rightarrow 0 &\leq I^X_{2t} + M_{I_2t} - I^Y_{2(t - 1)} + R^{Y^\prime}_{It} \leq I^Y_{1(t - 1)} - D^{Y^\prime}_{It} - H^{Y^\prime}_t\\
+    \Rightarrow -I^X_{2t} + I^Y_{2(t - 1)} - R^{Y^\prime}_{It} &\leq M_{I_2t} \leq I^Y_{1(t - 1)} - D^{Y^\prime}_{It} - H^{Y^\prime}_t - I^X_{2t} + I^Y_{2(t - 1)} - R^{Y^\prime}_{It}.
+\end{align*}
+Hence
+\begin{align*}
+\Aboxed{M_{I_2t} &\sim \mbox{Skellam}\left(\lambda_1, \lambda_2\right)I\left(-I^X_{2t} + I^Y_{2(t - 1)} - R^{Y^\prime}_{It}, I^Y_{1(t - 1)} - D^{Y^\prime}_{It} - H^{Y^\prime}_t - I^X_{2t} + I^Y_{2(t - 1)} - R^{Y^\prime}_{It}\right)}\\
+    \Aboxed{I^Y_{2t} &= I^X_{2t} + M_{I_2t}}\\
+    \Aboxed{I^{Y^\prime}_{2t} &= I^X_{2t} + M_{I_2t} - I^Y_{2(t - 1)} + R^{Y^\prime}_{It}}
+\end{align*}
+
+Then we can construct $I^Y_{1t}$ by considering
+\begin{equation*}
+    I^Y_{1t} = I^Y_{1(t - 1)} + I^{Y^\prime}_{1t} - I^{Y^\prime}_{2t} - D^{Y^\prime}_{It} - H^{Y^\prime}_t,
+\end{equation*}
+and we place MD on the \textit{counts}, such that:
+\begin{equation*}
+    I^Y_{1t} = I^X_{1t} + M_{I_1t}
+\end{equation*}
+Hence we have:
+\begin{align*}
+    I^Y_{1t} &= I^Y_{1(t - 1)} + I^{Y^\prime}_{1t} - I^{Y^\prime}_{2t} - D^{Y^\prime}_{It} - H^{Y^\prime}_t\\
+    I^{Y^\prime}_{1t} &= I^Y_{1t} - I^Y_{1(t - 1)} + I^{Y^\prime}_{2t} + D^{Y^\prime}_{It} + H^{Y^\prime}_t
+\end{align*}
+and since $0 \leq I^{Y^\prime}_{1t} \leq P^Y_{t - 1}$ we can derive bounds:
+\begin{align*}
+    0 &\leq I^{Y^\prime}_{1t} \leq P^Y_{t - 1}\\
+    0 &\leq I^Y_{1t} - I^Y_{1(t - 1)} + I^{Y^\prime}_{2t} + D^{Y^\prime}_{It} + H^{Y^\prime}_t \leq P^Y_{t - 1}\\
+    0 &\leq I^X_{1t} + M_{I_1t} - I^Y_{1(t - 1)} + I^{Y^\prime}_{2t} + D^{Y^\prime}_{It} + H^{Y^\prime}_t \leq P^Y_{t - 1}\\
+    -I^X_{1t} + I^Y_{1(t - 1)} - I^{Y^\prime}_{2t} - D^{Y^\prime}_{It} - H^{Y^\prime}_t &\leq M_{I_1t} \leq P^Y_{t - 1} - I^X_{1t} + I^Y_{1(t - 1)} - I^{Y^\prime}_{2t} - D^{Y^\prime}_{It} - H^{Y^\prime}_t
+\end{align*}
+Hence
+\begin{align*}
+\Aboxed{M_{I_1t} &\sim \mbox{Skellam}\left(\lambda_1, \lambda_2\right)I\left(-I^X_{1t} + I^Y_{1(t - 1)} - I^{Y^\prime}_{2t} - D^{Y^\prime}_{It} - H^{Y^\prime}_t, P^Y_{t - 1} - I^X_{1t} + I^Y_{1(t - 1)} - I^{Y^\prime}_{2t} - D^{Y^\prime}_{It} - H^{Y^\prime}_t\right)}\\
+    \Aboxed{I^Y_{1t} &= I^X_{1t} + M_{I_1t}}\\
+    \Aboxed{I^{Y^\prime}_{1t} &= I^X_{1t} + M_{I_1t} - I^Y_{1(t - 1)} + I^{Y^\prime}_{2t} + D^{Y^\prime}_{It} + H^{Y^\prime}_t}
+\end{align*}
+
+For $P^Y_t$ we can consider that
+\begin{equation*}
+    P^Y_t = P^Y_{t - 1} + P^{Y^\prime}_t - I^{Y^\prime}_{1t}
+\end{equation*}
+with MD placed on the \textit{counts} as
+\begin{equation*}
+    P^Y_t = P^X_T + M_{Pt}.
+\end{equation*}
+Since $0 \leq P^{Y^\prime}_t \leq E^Y_{t - 1}$, we can derive bounds
+\begin{align*}
+    0 &\leq P^{Y^\prime}_t \leq E^Y_{t - 1}\\
+    0 &\leq P^Y_t - P^Y_{t - 1} + I^{Y^\prime}_{1t} \leq E^Y_{t - 1}\\
+    0 &\leq P^X_t + M_{Pt} - P^Y_{t - 1} + I^{Y^\prime}_{1t} \leq E^Y_{t - 1}\\
+    -P^X_t + P^Y_{t - 1} - I^{Y^\prime}_{1t} &\leq M_{Pt} \leq E^Y_{t - 1} - P^X_t + P^Y_{t - 1} - I^{Y^\prime}_{1t}.
+\end{align*}
+Hence
+\begin{align*}
+\Aboxed{M_{Pt} &\sim \mbox{Skellam}\left(\lambda_1, \lambda_2\right)I\left(-P^X_t + P^Y_{t - 1} - I^{Y^\prime}_{1t}, E^Y_{t - 1} - P^X_t + P^Y_{t - 1} - I^{Y^\prime}_{1t}\right)}\\
+    \Aboxed{P^Y_t &= P^X_t + M_{Pt}}\\
+    \Aboxed{P^{Y^\prime}_t &= P^X_t + M_{Pt} - P^Y_{t - 1} + I^{Y^\prime}_{1t}}
+\end{align*}
+
+For $R^Y_{At}$ we can consider:
+\begin{equation*}
+    R^Y_{At} = R^Y_{A(t - 1)} + R^{Y^\prime}_{At}
+\end{equation*}
+and we place MD on the \textit{incidence} as
+\begin{equation*}
+    R^{Y^\prime}_{At} = R^{X^\prime}_{At} + M^\prime_{R_At}.
+\end{equation*}
+We can derive bounds as:
+\begin{align*}
+    0 &\leq R^{Y^\prime}_{At} \leq A^Y_{t - 1}\\
+    0 &\leq R^{X^\prime}_{At} + M^\prime_{At} \leq A^Y_{t - 1}\\
+    -R^{X^\prime}_{At} &\leq  M^\prime_{At} \leq A^Y_{t - 1} - R^{X^\prime}_{At}
+\end{align*}
+and thus:
+\begin{align*}
+\Aboxed{M_{R_At} &\sim \mbox{Skellam}\left(\lambda_1, \lambda_2\right)I\left(-R^{X^\prime}_{At}, A^Y_{t - 1} - R^{X^\prime}_{At}\right)}\\
+    \Aboxed{R^{Y^\prime}_{At} &= R^{X^\prime}_{At} + M^\prime_{R_At}}\\
+    \Aboxed{R^Y_{At} &= R^X_{At} + M^\prime_{R_At}}
+\end{align*}
+
+For $A^Y_t$ we can consider that
+\begin{equation*}
+    A^Y_t = A^Y_{t - 1} + A^{Y^\prime}_t - R^{Y^\prime}_{At}
+\end{equation*}
+and place MD on the \textit{counts}, such that
+\begin{equation*}
+    A^Y_t = A^X_t + M_{At}
+\end{equation*}
+Since $0 \leq A^{Y^\prime}_t \leq E^Y_{t - 1} - P^{Y^\prime}_t$, we can derive bounds:
+\begin{align*}
+    0 &\leq A^{Y^\prime}_t \leq E^Y_{t - 1} - P^{Y^\prime}_t\\
+    0 &\leq A^Y_t - A^Y_{t - 1} + R^{Y^\prime}_{At} \leq E^Y_{t - 1} - P^{Y^\prime}_t\\
+    0 &\leq A^X_t + M_{At} - A^Y_{t - 1} + R^{Y^\prime}_{At} \leq E^Y_{t - 1} - P^{Y^\prime}_t\\
+    -A^X_t + A^Y_{t - 1} - R^{Y^\prime}_{At} &\leq M_{At} \leq E^Y_{t - 1} - P^{Y^\prime}_t - A^X_t + A^Y_{t - 1} - R^{Y^\prime}_{At}
+\end{align*}
+Hence
+\begin{align*}
+\Aboxed{M_{At} &\sim \mbox{Skellam}\left(\lambda_1, \lambda_2\right)I\left(-A^X_t + A^Y_{t - 1} - R^{Y^\prime}_{At}, E^Y_{t - 1} - P^{Y^\prime}_t - A^X_t + A^Y_{t - 1} - R^{Y^\prime}_{At}\right)}\\
+    \Aboxed{A^Y_t &= A^X_t + M_{At}}\\
+    \Aboxed{A^{Y^\prime}_t &= A^X_t + M_{At} - A^Y_{t - 1} + R^{Y^\prime}_{At}}
+\end{align*}
+
+Then, we have that
+\begin{equation*}
+    E^Y_t = E^Y_{t - 1} + E^{Y^\prime}_t - P^{Y^\prime}_t - A^{Y^\prime}_t
+\end{equation*}
+and we place MD on the \textit{count}, such that
+\begin{equation*}
+    E^Y_t = E^X_t + M_{Et}
+\end{equation*}
+Since $0 \leq E^{Y^\prime}_t \leq S^Y_{t - 1}$ we can derive bounds:
+\begin{align*}
+    0 &\leq E^{Y^\prime}_t \leq S^Y_{t - 1}\\
+    0 &\leq E^Y_t - E^Y_{t - 1} + P^{Y^\prime}_t + A^{Y^\prime}_t \leq S^Y_{t - 1}\\
+    0 &\leq E^X_t + M_{Et} - E^Y_{t - 1} + P^{Y^\prime}_t + A^{Y^\prime}_t \leq S^Y_{t - 1}\\
+    -E^X_t + E^Y_{t - 1} - P^{Y^\prime}_t - A^{Y^\prime}_t &\leq M_{Et} \leq S^Y_{t - 1} - E^X_t + E^Y_{t - 1} - P^{Y^\prime}_t - A^{Y^\prime}_t 
+\end{align*}
+and hence
+\begin{align*}
+\Aboxed{M_{Et} &\sim \mbox{Skellam}\left(\lambda_1, \lambda_2\right)I\left(-E^X_t + E^Y_{t - 1} - P^{Y^\prime}_t - A^{Y^\prime}_t, S^Y_{t - 1} - E^X_t + E^Y_{t - 1} - P^{Y^\prime}_t - A^{Y^\prime}_t\right)}\\
+    \Aboxed{E^Y_t &= E^X_t + M_{Et}}\\
+    \Aboxed{E^{Y^\prime}_t &= E^X_t + M_{Et} - E^Y_{t - 1} + P^{Y^\prime}_t + A^{Y^\prime}_t}
+\end{align*}
+
+Finally we have
+\begin{align*}
+    \Aboxed{S^Y_t &= S^Y_{t - 1} - E^{Y^\prime}_t}
+\end{align*}
+
+\bibliography{/home/tj/Documents/ref}
+
+\end{document}
