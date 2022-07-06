@@ -72,9 +72,24 @@ u1 <- apply(EW19, 1, function(x, ageProbs) {
     abind(along = 3)
 u1_moves <- as.matrix(EW19[, 1:2])
 
+## read in player data
+PM19 <- read_delim("inputs/PlayMatrix19.dat", delim = " ", col_names = FALSE)
+PlaySize19 <- read_delim("inputs/PlaySize19.dat", delim = " ", col_names = FALSE)
+  
+## expand to deal with age-classes
+u2 <- apply(PlaySize19, 1, function(x, ageProbs) {
+        u <- matrix(0, 12, length(ageProbs))
+        u[1, ] <- smart_round(ageProbs * x[2])
+        list(u)
+    }, ageProbs = ageProbs) %>%
+    map(1) %>%
+    abind(along = 3)
+
 ## write inputs out
 saveRDS(u1, "outputs/u1.rds")
 saveRDS(u1_moves, "outputs/u1_moves.rds")
+saveRDS(u2, "outputs/u2.rds")
+saveRDS(as.matrix(PM19), "outputs/u2_moves.rds")
 
 ## set up stage names
 stageNms <- map(c("S", "E", "A", "RA", "P", "Ione", "DI", "Itwo", "RI", "H", "RH", "DH", "DIobs", "DHobs"), ~paste0(., "_", 1:8)) %>%
@@ -84,7 +99,7 @@ stageNms <- map(c("S", "E", "A", "RA", "P", "Ione", "DI", "Itwo", "RI", "H", "RH
 
 ## simulate discrete-time model
 disSims <- BPF(pars, C = contact, data = data, u1_moves = u1_moves,
-    u1 = u1, ndays = 100, npart = 24, PF = FALSE)
+    u1 = u1, u2_moves = as.matrix(PM19), u2 = u2, ndays = 100, npart = 8, PF = FALSE)
         
 ## collapse to data frame
 disSims <- map(1:length(disSims$particles[[1]]), function(i, x) {
