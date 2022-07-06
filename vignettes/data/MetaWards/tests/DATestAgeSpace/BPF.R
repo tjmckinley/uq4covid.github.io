@@ -34,7 +34,7 @@ log_sum_exp <- function(x, mn = FALSE) {
 ## parEnsemble: decides whether to parallelise across or within ensemble
 
 BPF <- function(pars, C, data, u1_moves, u1, u2_moves, u2, ndays, npart = 10, niter = 0, a1 = 0.01, a2 = 0.2, b = 0.1, 
-        a_dis = 0.05, b_dis = 0.05, saveAll = NA, writeExt = FALSE, PF = TRUE, ncores = NA, parEnsemble = FALSE) {
+        a_dis = 0.05, b_dis = 0.05, saveAll = NA, writeExt = FALSE, outputName = "saveOut", PF = TRUE, ncores = NA, parEnsemble = FALSE) {
                
     ## set default for saveAll if PF = FALSE
     if(!PF & is.na(saveAll)) saveAll <- TRUE
@@ -115,9 +115,8 @@ BPF <- function(pars, C, data, u1_moves, u1, u2_moves, u2, ndays, npart = 10, ni
     
     ## set up output folder
     if(writeExt) {
-        print("Reminder to write code to pass save folder out")
-        if(dir.exists("saveOut")) system("rm -rf saveOut")
-        dir.create("saveOut")
+        if(dir.exists(outputName)) system(paste0("rm -rf ", outputName))
+        dir.create(outputName, recursive = TRUE)
     }
     
     ## set up auxiliary parameters guiding parallelisation
@@ -129,7 +128,7 @@ BPF <- function(pars, C, data, u1_moves, u1, u2_moves, u2, ndays, npart = 10, ni
     }
     
     ## run particle filter for each set of inputs
-    runs <- mclapply(1:nrow(pars), function(k, pars, C, u1_moves, ncohorts1, u1, u2, playprobs, ncohorts2, npart, niter, ndays, data, a1, a2, b, a_dis, b_dis, saveAll, writeExt, PF, ncores) {
+    runs <- mclapply(1:nrow(pars), function(k, pars, C, u1_moves, ncohorts1, u1, u2, playprobs, ncohorts2, npart, niter, ndays, data, a1, a2, b, a_dis, b_dis, saveAll, writeExt, outputName, PF, ncores) {
         
         if(PF == 1) {
             ## extract observations
@@ -165,21 +164,21 @@ BPF <- function(pars, C, data, u1_moves, u1, u2_moves, u2, ndays, npart = 10, ni
             ## run particle filter
             particles <- BPF_cpp(pars, C, data, nclasses, nages, nlads, u1_moves, ncohorts1, u1,
                 u2, playprobs, ncohorts2, ndays, npart, niter, a1, a2, b, a_dis, b_dis, saveAll, 
-                writeExt, PF, ncores)
+                writeExt, outputName, PF, ncores)
             return(particles)
         }
         
         ## run particle filter
         particles <- BPF_cpp(pars, C, data, nclasses, nages, nlads, u1_moves, ncohorts1, u1, 
             u2, playprobs, ncohorts2, ndays, npart, niter, a1, a2, b, a_dis, b_dis, saveAll, 
-            writeExt, PF, ncores)
+            writeExt, outputName, PF, ncores)
         
         if(saveAll != 0 & writeExt == 0) {
             return(list(ll = particles$ll, particles = particles$particles))
         } else {
             return(list(ll = particles$ll))
         }
-    }, pars = pars, C = C, u1_moves = u1_moves, ncohorts1 = ncohorts1, u1 = u1, u2 = u2, playprobs = playprobs, ncohorts2 = ncohorts2, npart = npart, niter = niter, ndays = ndays, data = data, a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis, saveAll = saveAllint, writeExt = writeExtint, PF = PFint, ncores = ncores, mc.cores = ncoresEns)
+    }, pars = pars, C = C, u1_moves = u1_moves, ncohorts1 = ncohorts1, u1 = u1, u2 = u2, playprobs = playprobs, ncohorts2 = ncohorts2, npart = npart, niter = niter, ndays = ndays, data = data, a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis, saveAll = saveAllint, writeExt = writeExtint, outputName = outputName, PF = PFint, ncores = ncores, mc.cores = ncoresEns)
     if(!is.na(saveAll)) {
         if(!writeExt) {
             if(PF) {

@@ -1099,7 +1099,8 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
     arma::uword nages, arma::uword nlads, arma::imat u1_moves, arma::ivec ncohorts1, 
     arma::icube u1_comb, arma::icube u2_comb, arma::vec playprobs, arma::ivec ncohorts2, 
     arma::uword ndays, arma::uword npart, int niter, double a1, double a2, double b, 
-    double a_dis, double b_dis, int saveAll, int writeExt, int PF, int ncores) {
+    double a_dis, double b_dis, int saveAll, int writeExt, CharacterVector outputName,
+    int PF, int ncores) {
     
     // set counters
     arma::uword i, j, l, k, t = 0;
@@ -1202,7 +1203,7 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                 if(writeExt == 0) {
                     out[i] = u_night_reduced;
                 } else {
-                    std::sprintf(file_name, "saveOut/p_%u.csv", i);
+                    std::sprintf(file_name, "%s/p_%u.csv", std::string(outputName[0]).c_str(), i);
                     file.open(file_name);
                     file << "time, class, ";
                     for(j = 0; j < nages; j++) file << "age" << j + 1 << ", ";
@@ -1270,7 +1271,7 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                 if(writeExt == 0) {
                     out[i] = u_night_full;
                 } else {
-                    std::sprintf(file_name, "saveOut/p_%u.csv", i);
+                    std::sprintf(file_name, "%s/p_%u.csv", std::string(outputName[0]).c_str(), i);
                     file.open(file_name);
                     file << "time, class, ";
                     for(j = 0; j < nages; j++) file << "age" << j + 1 << ", ";
@@ -2339,7 +2340,7 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                     if(writeExt == 0) {
                         out[i + npart * (t + 1)] = u_night_reduced;
                     } else {
-                        std::sprintf(file_name, "saveOut/p_%u.csv", i);
+                        std::sprintf(file_name, "%s/p_%u.csv", std::string(outputName[0]).c_str(), i);
                         file.open(file_name, std::ios::app);
                         for(l = 0; l < nlads; l++) {
                             for(arma::uword r = 0; r < 4; r++) {
@@ -2397,7 +2398,7 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                     if(writeExt == 0) {
                         out[i + npart * (t + 1)] = u_night_full;
                     } else {
-                        std::sprintf(file_name, "saveOut/p_%u.csv", i);
+                        std::sprintf(file_name, "%s/p_%u.csv", std::string(outputName[0]).c_str(), i);
                         file.open(file_name, std::ios::app);
                         for(l = 0; l < nlads; l++) {
                             for(arma::uword r = 0; r < (nclasses + 2); r++) {
