@@ -340,7 +340,8 @@ int rbinom_cpp (int n, double p, sitmo::prng &eng, int approx = 1) {
         Rprintf("p = %f\n", p);
         stop("Must have 0 <= p <= 1 in rbinom\n");
     }
-    if(n == 0) return 0;
+    if(n == 0 || p <= 0.0) return 0;
+    if(p >= 1.0) return(n);
     // if approximation turned on then use truncated 
     // Gaussian approximation where appropriate
     if(approx == 1) {
@@ -529,7 +530,7 @@ void discreteStochModel(int ipart, int nclasses, int nages, int nlads,
         }
         
         // transmission probabilities (night), loop over LADs
-        for(i = 0; i < u1_night.n_slices; i++) {
+        for(i = 0; i < nlads; i++) {
             
             // update infective counts for rate
             for(j = 0; j < nages; j++) {
@@ -1369,13 +1370,15 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         }
                         if(tn > 0) {
                             int s = ncohorts1(l);
+                            int r;
                             while(s < (ncohorts1(l) + ncohorts2(l)) && tn > 0) {
-                                int r = rbinom_cpp(tn, playprobs(s), eng);
+                                r = rbinom_cpp(tn, playprobs(s), eng);
                                 u1[i](k, j, s) = r;
                                 tn -= r;
                                 if(tn < 0) stop("Error in multinomial sampling of play movements\n");
                                 s++;
                             }
+                            if(tn != 0) stop("Non-zero tn %d %d %f\n", tn, r, playprobs(s - 1));
                         }
                     }
                 }
@@ -1742,7 +1745,7 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                 for(l = 0; l < nlads; l++) {
                     for(k = 0; k < nclasses; k++) {
                         for(int r = ncohorts1(l); r < (ncohorts1(l) + ncohorts2(l)); r++) {
-                            u2_new[i](k, j, l) += u1[i](k, j, r);
+                            u2_new[i](k, j, l) += u1_new[i](k, j, r);
                         }
                     }
                 }
@@ -1815,9 +1818,9 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
          
                     // set up thread-safe RNG
                     uint32_t coreseed = static_cast<uint32_t>(seeds(0));
-    #ifdef _OPENMP
+#ifdef _OPENMP
                     coreseed = static_cast<uint32_t>(seeds((arma::uword) omp_get_thread_num()));
-    #endif
+#endif
                     sitmo::prng eng(coreseed);
                 
                     // set up auxiliary objects
@@ -2270,7 +2273,7 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             for(l = 0; l < nlads; l++) {
                                 for(k = 0; k < nclasses; k++) {
                                     for(int r = ncohorts1(l); r < (ncohorts1(l) + ncohorts2(l)); r++) {
-                                        u2_new[i](k, j, l) += u1[i](k, j, r);
+                                        u2_new[i](k, j, l) += u1_new[i](k, j, r);
                                     }
                                 }
                             }

@@ -95,6 +95,7 @@ BPF <- function(pars, C, data, u1_moves, u1, u2_moves, u2, ndays, npart = 10, ni
                 x[i:length(x)] <- x[i:length(x)] / sum(x[i:length(x)])
             }
         }
+        x[length(x)] <- 1
         y[!is.na(y)] <- x
         y
     })
