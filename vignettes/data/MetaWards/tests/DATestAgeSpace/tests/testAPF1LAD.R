@@ -55,6 +55,19 @@ u1 <- apply(EW19, 1, function(x, ageProbs) {
     }, ageProbs = ageProbs) %>%
     map(1) %>%
     abind(along = 3)
+    
+## read in player data
+PM19 <- read_delim("../inputs/PlayMatrix19.dat", delim = " ", col_names = FALSE)
+PlaySize19 <- read_delim("../inputs/PlaySize19.dat", delim = " ", col_names = FALSE)
+  
+## expand to deal with age-classes
+u2 <- apply(PlaySize19, 1, function(x, ageProbs) {
+        u <- matrix(0, 12, length(ageProbs))
+        u[1, ] <- smart_round(ageProbs * x[2])
+        list(u)
+    }, ageProbs = ageProbs) %>%
+    map(1) %>%
+    abind(along = 3)
 
 ## set seed for reproducibility
 set.seed(42)
@@ -75,8 +88,9 @@ plot_data <- pivot_longer(filter(data, t <= ndays), !t, names_to = "var", values
     
 ## run model with model discrepancy
 runs_md <- APF1(pars[6, ], C = contact, data = data, u1_moves = u1_moves,
-    u1 = u1, ndays = ndays, npart = 10, a_dis = 0.05, b_dis = 0.05,
-    a1 = 0.01, a2 = 0.2, b = 0.001, saveAll = TRUE, writeExt = TRUE)
+    u1 = u1, u2_moves = as.matrix(PM19), u2 = u2, ndays = ndays, npart = 10, 
+    a_dis = 0.05, b_dis = 0.05, a1 = 0.01, a2 = 0.2, b = 0.001, saveAll = TRUE, 
+    writeExt = TRUE)
 
 ## extract file names
 folder <- "saveOut"
