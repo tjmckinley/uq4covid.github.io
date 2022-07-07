@@ -3,6 +3,8 @@ library(tidyverse)
 library(Rcpp)
 library(RcppArmadillo)
 library(sitmo)
+library(abind)
+library(parallel)
 
 ## check if being run in batch mode
 args <- commandArgs(TRUE)
@@ -55,10 +57,10 @@ smart_round <- function(x) {
 }
 
 ## add age probabilities
-ageProbs <- read_csv("../inputs/age_seeds.csv", col_names = FALSE)$X2
+ageProbs <- read_csv("inputs/age_seeds.csv", col_names = FALSE)$X2
 
 ## read in commuter data
-EW19 <- read_delim("../inputs/EW19.dat", delim = " ", col_names = FALSE)
+EW19 <- read_delim("inputs/EW19.dat", delim = " ", col_names = FALSE)
 
 ## expand to deal with age-classes
 u1 <- apply(EW19, 1, function(x, ageProbs) {
