@@ -7,6 +7,7 @@ library(tidyverse)
 
 ## set name of directory to search for outcomes
 wave <- 1
+updateJobLookup <- TRUE
 
 ## read in input file
 pars <- readRDS(paste0("../wave", wave, "/disease.rds"))
@@ -26,9 +27,12 @@ ll <- map_dbl(1:nrow(pars), function(i, wave) {
 if(any(is.na(ll))) {
     cat("Missing runs:\n")
     print(which(is.na(ll)))
+    if(updateJobLookup) {
+        system("rm job_lookup.txt")
+        writeLines(as.character(which(is.na(ll))), "job_lookup.txt")
+    }
     stop("Stopped")
 }
-#write.table(data.frame(ind = which(is.na(ll))), "job_lookup.txt", row.names = FALSE, col.names = FALSE)
 
 ## cleanup
 map(1:nrow(pars), function(i, wave) {
