@@ -17,39 +17,41 @@ if(length(args) != 0) {
         }
     } else {
         stop("No arguments")
-        time <- "00:35:00"
     }
 } else {
     ## set name of directory to search for outcomes
     wave <- 1
     updateJobLookup <- TRUE
+    time <- "00:35:00"
 }
 
 ## read in input file
 pars <- readRDS(paste0("../wave", wave, "/disease.rds"))
 
-## extract log-likelihoods
-ll <- map_dbl(1:nrow(pars), function(i, wave) {
-    print(i)
-    if(file.exists(paste0("../wave", wave, "/runs_md_", i, ".rds"))) {
-        run <- readRDS(paste0("../wave", wave, "/runs_md_", i, ".rds"))$ll
+## check that all summaries are present
+runs <- map_lgl(1:nrow(pars), function(i, wave, lads) {
+    if(is.na(lads[1])) {
+        if(file.exists(paste0("../wave", wave, "/plotSum_", i, ".rds"))) {
+            run <- TRUE
+        } else {
+            run <- FALSE
+        }
     } else {
-        run <- NA
+        stop("Not yet implemented for individual LADs")
     }
     run
-}, wave = wave)
+}, wave = wave, lads = NA)
 
-## check all runs have completed
-if(any(is.na(ll))) {
+if(!all(runs)) {
     cat("Missing runs:\n")
-    print(which(is.na(ll)))
+    print(which(!runs))
     if(updateJobLookup) {
         system("rm job_lookup.txt")
-        writeLines(as.character(which(is.na(ll))), "job_lookup.txt")
+        writeLines(as.character(which(!runs)), "job_lookup.txt")
         code <- readLines("submit_job_template.sbatch")
-        code <- gsub("RANGES", paste0("1-", sum(is.na(ll))), code)
+        code <- gsub("RANGES", paste0("1-", sum(!runs)), code)
         code <- gsub("FILEDIR", wave, code)
-        code <- gsub("RUNCODE", "runDesign", code)
+        code <- gsub("RUNCODE", "runPlotSum", code)
         code <- gsub("TIME", time, code)
         writeLines(code, "submit_job.sbatch")
     }
@@ -57,9 +59,6 @@ if(any(is.na(ll))) {
 }
 
 ## cleanup
-map(1:nrow(pars), function(i, wave) {
-    system(paste0("rm ../wave", wave, "/wave", wave, "Runs_", i, ".Rout"))
-}, wave = wave)
+system(paste0("rm ../wave", wave, "/plot", wave, "Sum*.Rout"))
 
-## save
-saveRDS(ll, paste0("../wave", wave, "/ll.rds"))
+print("Finished")
