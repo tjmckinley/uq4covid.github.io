@@ -19,9 +19,15 @@ if(length(args) != 0) {
     hash <- 1
 }
 
-## set lads (eventually pass in as argument)
+## read in LADs from file
 ## (lad = NA gives national plots, else give vector of lads)
-lads <- NA
+if(file.exists("JASMINcode/lads.txt")) {
+    lads <- as.numeric(readLines("JASMINcode/lads.txt"))
+} else {
+    lads <- NA
+}
+
+## set writeExt (eventually pass in as argument)
 writeExt <- FALSE
 
 ## extract file names
@@ -34,28 +40,31 @@ lookup <- data.frame(var = c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "RI", "
 if(!writeExt) {
     file <- paste0(folder, "/runs_md_", hash, ".rds")
     runs <- readRDS(file)$particles[[1]]
-    if(is.na(lads[1])) {
-        ## aggregate to national level
-        runs <- map(1:length(runs), function(j, y) {
-            y <- y[[j]]
-            map(1:length(y), function(i, x) {
-                x <- apply(x[[i]], c(1, 2), sum)
-                as.vector(x) %>%
-                cbind(rep(1:dim(x)[2], each = dim(x)[1])) %>%
-                cbind(rep(1:dim(x)[1], times = dim(x)[2])) %>%
-                cbind(rep(i, nrow(.)))
-            }, x = y) %>%
-            {do.call("rbind", .)} %>%
-            cbind(rep(j, nrow(.)))
-        }, y = runs) %>%
-        {do.call("rbind", .)}
-        colnames(runs) <- c("n", "age", "class", "particle", "time")
-        runs <- as_tibble(runs) %>%
-            mutate(class = class - 1) %>%
-            inner_join(lookup, by = "class") %>%
-            select(!class)
-        saveRDS(runs, paste0(folder, "/plotSum_", hash, ".rds"))
-    } else {
+    
+    ## aggregate to national level
+    runs1 <- map(1:length(runs), function(j, y) {
+        y <- y[[j]]
+        map(1:length(y), function(i, x) {
+            x <- apply(x[[i]], c(1, 2), sum)
+            as.vector(x) %>%
+            cbind(rep(1:dim(x)[2], each = dim(x)[1])) %>%
+            cbind(rep(1:dim(x)[1], times = dim(x)[2])) %>%
+            cbind(rep(i, nrow(.)))
+        }, x = y) %>%
+        {do.call("rbind", .)} %>%
+        cbind(rep(j, nrow(.)))
+    }, y = runs) %>%
+    {do.call("rbind", .)}
+    colnames(runs1) <- c("n", "age", "class", "particle", "time")
+    runs1 <- as_tibble(runs1) %>%
+        mutate(class = class - 1) %>%
+        inner_join(lookup, by = "class") %>%
+        select(!class) %>%
+        mutate(lad = "agg") %>%
+        select(n, lad, age, particle, time, var)
+        
+    ## extract subset of LADs also if required
+    if(!is.na(lads[1])) {
         ## extract subset of LADs
         runs <- map(1:length(runs), function(j, y, lads) {
             y <- y[[j]]
@@ -72,19 +81,13 @@ if(!writeExt) {
         }, y = runs, lads = lads) %>%
         {do.call("rbind", .)}
         colnames(runs) <- c("n", "lad", "age", "class", "particle", "time")
-        runs <- as_tibble(runs)
+        runs <- as_tibble(runs) %>%
             mutate(class = class - 1) %>%
             inner_join(lookup, by = "class") %>%
             select(!class)
-        
-        ## split by LAD and save separately
-        map(1:length(unique(runs$lad)), function(i, lads, runs) {
-            lad <- lads[i]
-            runs <- filter(runs, lad == lads[i]) %>%
-                select(!lad)
-            saveRDS(runs, paste0(folder, "/plotSum_L", lad, "_", hash, ".rds"))
-        }, lads = unique(runs$lads), runs = runs)
+        runs1 <- rbind(runs1, runs)
     }
+    saveRDS(runs1, paste0(folder, "/plotSum_", hash, ".rds"))
 } else {
     stop("Not yet implemented when writeExt == FALSE")
 }

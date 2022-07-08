@@ -26,10 +26,10 @@ pars <- readRDS(paste0("wave", wave, "/disease.rds"))
 runs <- map(1:nrow(pars), function(i, t, wave) {
         readRDS(paste0("wave", wave, "/plotSum_", i, ".rds")) %>%
             filter(time == t) %>%
-            select(n, age, time, var)
+            select(n, age, time, var, lad)
     }, t = t, wave = wave) %>%
     bind_rows() %>%
-    group_by(age, time, var) %>%
+    group_by(age, time, var, lad) %>%
     summarise(
         LCI = quantile(n, probs = 0.025),
         LQ = quantile(n, probs = 0.25),

@@ -60,6 +60,12 @@ scheduler in the usual way. Currently this code will generate files called e.g.
 `plotSum_1.rds` containing aggregated counts of different class / age / time combinations
 for a given ensemble member.
 
+**NOTE**: if you want a subset of LADs to be extracted, then include a file called
+`lads.txt` where each row contains a single LAD ID to extract. This file needs to be
+created manually. If it is not present then the subsequent code only returns
+counts aggregated to the national level, if it is present then it produces counts
+at the national level as well as for the subset of chosen LADs.
+
 The file `checkEns.R` will check the design and update the scheduler files on failure
 if required (see above description of `concatenateRuns.R`) e.g.
 
