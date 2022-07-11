@@ -87,7 +87,7 @@ plot_data <- pivot_longer(filter(data, t <= ndays), !t, names_to = "var", values
     mutate(var = gsub("obs", "", var))
     
 ## run model with model discrepancy
-runs_md <- BPF(pars[6, ], C = contact, data = data, u1_moves = u1_moves,
+runs_md <- BPF(pars[100, ], C = contact, data = data, u1_moves = u1_moves,
     u1 = u1, u2_moves = as.matrix(PM19), u2 = u2, ndays = ndays, npart = 10, 
     a_dis = 0.05, b_dis = 0.05, a1 = 0.01, a2 = 0.2, b = 0.001, saveAll = TRUE, 
     writeExt = TRUE)
@@ -97,7 +97,7 @@ folder <- "saveOut"
 files <- list.files(folder)
 
 ## lookup table
-lookup <- data.frame(var = c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "RI", "H", "RH", "DH", "DIobs", "DHobs")) %>%
+lookup <- data.frame(var = c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "RI", "H", "RH", "DH", "DIobs", "Hobs", "DHobs")) %>%
     mutate(class = 0:(n() - 1))
     
 ## aggregate data

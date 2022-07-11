@@ -132,7 +132,7 @@ BPF <- function(pars, C, data, u1_moves, u1, u2_moves, u2, ndays, npart = 10, ni
         
         if(PF == 1) {
             ## extract observations
-            data <- select(data, t, (starts_with("DI") | starts_with("DH")) & contains("obs")) %>%
+            data <- select(data, t, (starts_with("DI") | starts_with("DH") | starts_with("H")) & contains("obs")) %>%
                 {rbind(rep(0, ncol(.)), .)} %>%
                 mutate(across(!t, ~. - lag(.))) %>%
                 slice(-1) %>%

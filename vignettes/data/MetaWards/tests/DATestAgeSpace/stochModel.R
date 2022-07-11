@@ -31,7 +31,7 @@ contact <- read_csv("inputs/POLYMOD_matrix.csv", col_names = FALSE) %>%
     as.matrix()
 
 ## extract parameters for simulation   
-pars <- select(slice(pars, 6), !output)
+pars <- select(slice(pars, 100), !output)
 
 ## solution to round numbers preserving sum
 ## adapted from:
@@ -92,7 +92,7 @@ saveRDS(u2, "outputs/u2.rds")
 saveRDS(as.matrix(PM19), "outputs/u2_moves.rds")
 
 ## set up stage names
-stageNms <- map(c("S", "E", "A", "RA", "P", "Ione", "DI", "Itwo", "RI", "H", "RH", "DH", "DIobs", "DHobs"), ~paste0(., "_", 1:8)) %>%
+stageNms <- map(c("S", "E", "A", "RA", "P", "Ione", "DI", "Itwo", "RI", "H", "RH", "DH", "DIobs", "Hobs", "DHobs"), ~paste0(., "_", 1:8)) %>%
     map(~map(., ~paste0(., "_", 1:max(EW19[, 1])))) %>%
     reduce(c) %>%
     reduce(c)
@@ -157,7 +157,7 @@ p <- pivot_longer(disSims, !c(rep, t), names_to = "var", values_to = "n") %>%
     mutate(var = gsub("two", "2", var))
     
 p1 <- list()     
-p1[[1]] <- filter(p, !(var %in% c("DHobs", "DIobs"))) %>%
+p1[[1]] <- filter(p, !(var %in% c("DHobs", "Hobs", "DIobs"))) %>%
     ggplot(aes(x = t)) +
         geom_ribbon(aes(ymin = LCI, ymax = UCI), alpha = 0.5) +
         geom_ribbon(aes(ymin = LQ, ymax = UQ), alpha = 0.5) +
@@ -178,7 +178,7 @@ p1[[1]] <- filter(p, !(var %in% c("DHobs", "DIobs"))) %>%
         xlab("Days") + 
         ylab("Counts") +
         ggtitle("Truth")
-p1[[2]] <- filter(p, var %in% c("DHobs", "DIobs")) %>%
+p1[[2]] <- filter(p, var %in% c("DHobs", "Hobs", "DIobs")) %>%
     mutate(var = gsub("obs", "", var)) %>%
     ggplot(aes(x = t)) +
         geom_ribbon(aes(ymin = LCI, ymax = UCI), alpha = 0.5) +
@@ -332,3 +332,4 @@ p <- inner_join(lad19, p, by = c("objectid" = "lad")) %>%
 p <- p + transition_time(t) + ggtitle("Day = {frame_time}")
 spatial_gif <- animate(p, nframes = 50, fps = 1, renderer = gifski_renderer())
 anim_save("outputs/simsSpatialE.gif", spatial_gif)
+
