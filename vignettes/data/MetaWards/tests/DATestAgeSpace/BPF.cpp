@@ -285,6 +285,12 @@ int rdtnorm_cpp(double mu, double sigma, double LB, double UB, sitmo::prng &eng)
     if(std::isinf(LB)) {
         stop("Lower bound of truncated Gaussian must be finite currently\n");
     }
+    if(LB > UB) {
+        stop("'LB' can't be > 'UB' in rdtnorm_cpp\n");
+    }
+    if(LB == UB) {
+        return (int) LB;
+    }
     int x;
     double u;
     if(std::isinf(UB)) {
