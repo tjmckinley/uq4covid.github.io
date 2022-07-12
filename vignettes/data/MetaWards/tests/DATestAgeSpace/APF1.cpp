@@ -1111,12 +1111,12 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
     std::vector<arma::icube> u1_new(npart);
     std::vector<arma::icube> u2(npart);
     std::vector<arma::icube> u2_new(npart);
-    arma::icube u_night_full(nclasses + 2, nages, nlads); u_night_full.zeros();
-    arma::icube u_night_reduced(4, nages, nlads); u_night_reduced.zeros();
+    arma::icube u_night_full(nclasses + 3, nages, nlads); u_night_full.zeros();
+    arma::icube u_night_reduced(6, nages, nlads); u_night_reduced.zeros();
     std::vector<arma::icube> u_night_obs(npart);
     std::vector<arma::icube> u_night_obs1(npart);
     for(i = 0; i < npart; i++) {
-        u_night_obs[i] = arma::icube (2, nages, nlads); u_night_obs[i].zeros();
+        u_night_obs[i] = arma::icube (3, nages, nlads); u_night_obs[i].zeros();
     }
     for(i = 0; i < npart; i++) {
         u1[i] = u1_comb;
@@ -1160,44 +1160,42 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                 for(l = 0; l < u1_moves.n_rows; l++) {
                     for(j = 0; j < nages; j++) {
                         u_night_reduced(0, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](6, j, l);
-                        u_night_reduced(1, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](11, j, l);
+                        u_night_reduced(1, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](9, j, l);
+                        u_night_reduced(2, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](11, j, l);
                         // incidence
-                        u_night_reduced(2, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](6, j, l);
-                        u_night_reduced(3, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](11, j, l);
+                        u_night_reduced(3, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](6, j, l);
+                        u_night_reduced(4, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](9, j, l);
+                        u_night_reduced(5, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](11, j, l);
                     }
                 }
                 for(l = 0; l < nlads; l++) {
                     for(j = 0; j < nages; j++) {
                         u_night_reduced(0, j, l) += u2[i](6, j, l);
-                        u_night_reduced(1, j, l) += u2[i](11, j, l);
+                        u_night_reduced(1, j, l) += u2[i](9, j, l);
+                        u_night_reduced(2, j, l) += u2[i](11, j, l);
                         // incidence
-                        u_night_reduced(2, j, l) += u2[i](6, j, l);
-                        u_night_reduced(3, j, l) += u2[i](11, j, l);
+                        u_night_reduced(3, j, l) += u2[i](6, j, l);
+                        u_night_reduced(4, j, l) += u2[i](9, j, l);
+                        u_night_reduced(5, j, l) += u2[i](11, j, l);
                     }
                 }
                 // apply observation error
                 muy = a1 - a2;
                 for(l = 0; l < nlads; l++) {
                     for(j = 0; j < nages; j++) {
-                        sigma2y = a1 + a2 + 2.0 * b * u_night_reduced(2, j, l);
-                        u_night_reduced(2, j, l) += rdtnorm_cpp(
-                            muy, 
-                            sqrt(sigma2y),
-                            -u_night_reduced(2, j, l),
-                            std::numeric_limits<double>::infinity(),
-                            engSerial
-                        );
-                        
-                        sigma2y = a1 + a2 + 2.0 * b * u_night_reduced(3, j, l);
-                        u_night_reduced(3, j, l) += rdtnorm_cpp(
-                            muy, 
-                            sqrt(sigma2y),
-                            -u_night_reduced(3, j, l),
-                            std::numeric_limits<double>::infinity(),
-                            engSerial
-                        );
-                        u_night_obs[i](0, j, l) = u_night_reduced(2, j, l);
-                        u_night_obs[i](1, j, l) = u_night_reduced(3, j, l);
+                        for(k = 3; k < 6; k++) {
+                            sigma2y = a1 + a2 + 2.0 * b * u_night_reduced(k, j, l);
+                            u_night_reduced(k, j, l) += rdtnorm_cpp(
+                                muy, 
+                                sqrt(sigma2y),
+                                -u_night_reduced(k, j, l),
+                                std::numeric_limits<double>::infinity(),
+                                engSerial
+                            );
+                        }
+                        u_night_obs[i](0, j, l) = u_night_reduced(3, j, l);
+                        u_night_obs[i](1, j, l) = u_night_reduced(4, j, l);
+                        u_night_obs[i](2, j, l) = u_night_reduced(5, j, l);
                     }
                 }
                 if(writeExt == 0) {
@@ -1209,7 +1207,7 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                     for(j = 0; j < nages; j++) file << "age" << j + 1 << ", ";
                     file << "lad\n";
                     for(l = 0; l < nlads; l++) {
-                        for(arma::uword r = 0; r < 4; r++) {
+                        for(arma::uword r = 0; r < 6; r++) {
                             file << t << ", " << r << ", ";
                             for(j = 0; j < nages; j++) {
                                 file << u_night_reduced(r, j, l) << ", ";
@@ -1230,7 +1228,8 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                         }
                         // incidence
                         u_night_full(nclasses, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](6, j, l);
-                        u_night_full(nclasses + 1, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](11, j, l);
+                        u_night_full(nclasses + 1, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](9, j, l);
+                        u_night_full(nclasses + 2, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](11, j, l);
                     }
                 }
                 for(l = 0; l < nlads; l++) {
@@ -1240,32 +1239,27 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                         }
                         // incidence
                         u_night_full(nclasses, j, l) += u2[i](6, j, l);
-                        u_night_full(nclasses + 1, j, l) += u2[i](11, j, l);
+                        u_night_full(nclasses + 1, j, l) += u2[i](9, j, l);
+                        u_night_full(nclasses + 2, j, l) += u2[i](11, j, l);
                     }
                 }
                 // apply observation error
                 muy = a1 - a2;
                 for(l = 0; l < nlads; l++) {
                     for(j = 0; j < nages; j++) {
-                        sigma2y = a1 + a2 + 2.0 * b * u_night_full(nclasses, j, l);
-                        u_night_full(nclasses, j, l) += rdtnorm_cpp(
-                            muy, 
-                            sqrt(sigma2y),
-                            -u_night_full(nclasses, j, l),
-                            std::numeric_limits<double>::infinity(),
-                            engSerial
-                        );
-                        
-                        sigma2y = a1 + a2 + 2.0 * b * u_night_full(nclasses + 1, j, l);
-                        u_night_full(nclasses + 1, j, l) += rdtnorm_cpp(
-                            muy, 
-                            sqrt(sigma2y),
-                            -u_night_full(nclasses + 1, j, l),
-                            std::numeric_limits<double>::infinity(),
-                            engSerial
-                        );
+                        for(k = 0; k < 3; k++) {
+                            sigma2y = a1 + a2 + 2.0 * b * u_night_full(nclasses + k, j, l);
+                            u_night_full(nclasses + k, j, l) += rdtnorm_cpp(
+                                muy, 
+                                sqrt(sigma2y),
+                                -u_night_full(nclasses + k, j, l),
+                                std::numeric_limits<double>::infinity(),
+                                engSerial
+                            );
+                        }
                         u_night_obs[i](0, j, l) = u_night_full(nclasses, j, l);
                         u_night_obs[i](1, j, l) = u_night_full(nclasses + 1, j, l);
+                        u_night_obs[i](2, j, l) = u_night_full(nclasses + 2, j, l);
                     }
                 }
                 if(writeExt == 0) {
@@ -1277,7 +1271,7 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                     for(j = 0; j < nages; j++) file << "age" << j + 1 << ", ";
                     file << "lad\n";
                     for(l = 0; l < nlads; l++) {
-                        for(arma::uword r = 0; r < (nclasses + 2); r++) {
+                        for(arma::uword r = 0; r < (nclasses + 3); r++) {
                             file << t << ", " << r << ", ";
                             for(j = 0; j < nages; j++) {
                                 file << u_night_full(r, j, l) << ", ";
@@ -1295,18 +1289,16 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
     arma::ivec nacc(npart); nacc.zeros();
     arma::mat MHweights(npart, data.n_cols); MHweights.zeros();
     
-    // parameters for conditional sampling
+    // parameters for conditional sampling of simulator
     arma::vec condpars (pars.n_elem); condpars.zeros();
     condpars = pars;
     for(j = 0; j < nages; j++) {
-        condpars(j + 4 * nages + 2) = pars(j + 4 * nages + 2) * (1.0 - pars(j + 6 * nages + 2));
-        condpars(j + 4 * nages + 2) /= (1.0 - pars(j + 4 * nages + 2) * pars(j + 6 * nages + 2));
-        condpars(j + 5 * nages + 2) = pars(j + 5 * nages + 2);
-        condpars(j + 5 * nages + 2) /= (1.0 - pars(j + 6 * nages + 2));
+        condpars(j + 4 * nages + 2) = pars(j + 4 * nages + 2) * (1.0 - pars(j + 5 * nages + 2) - pars(j + 6 * nages + 2));
+        condpars(j + 4 * nages + 2) /= (1.0 - pars(j + 4 * nages + 2) * pars(j + 5 * nages + 2) - pars(j + 4 * nages + 2) * pars(j + 6 * nages + 2));
+        condpars(j + 5 * nages + 2) = 0.0;
         condpars(j + 6 * nages + 2) = 0.0;
         
-        condpars(j + 8 * nages + 2) = pars(j + 8 * nages + 2) * (1.0 - pars(j + 9 * nages + 2));
-        condpars(j + 8 * nages + 2) /= (1.0 - pars(j + 8 * nages + 2) * pars(j + 9 * nages + 2));
+        condpars(j + 8 * nages + 2) = 0.0;
         condpars(j + 9 * nages + 2) = 0.0;
     }
     
@@ -1561,23 +1553,47 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
             }
             for(j = 0; j < nages; j++) {
                 for(l = 0; l < nlads; l++) {
-                    // let Hinc be count MD
-                    sigma2y = 2.0 * a_dis + 2.0 * b_dis * Hinc(j, l);
-                    tempMD(9, j, l) = rdtnorm_cpp(
-                        0.0, 
-                        sqrt(sigma2y),
-                        -Hinc(j, l) + u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l),
-                        u1_night(5, j, l) - DIinc(j, l) - Hinc(j, l) + u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l),
-                        eng
-                    );
-                    Hinc(j, l) += tempMD(9, j, l);
-                    if(Hinc(j, l) < 0) stop("Hinc error\n");
-                }
-            }
-            for(j = 0; j < nages; j++) {
-                for(l = 0; l < nlads; l++) {
-                    Hinc(j, l) = Hinc(j, l) - u1_night(9, j, l) + DHinc(j, l) + RHinc(j, l);
+                    
+                    // sample MD conditional on simulator
+                    arma::vec tempdensy (u1_night(5, j, l) - DIinc(j, l) + 1); 
+                    for(int s = 0; s <= (u1_night(5, j, l) - DIinc(j, l)); s++) {
+                        
+                        // observation error
+                        muy = a1 - a2;
+                        sigma2y = a1 + a2 + 2.0 * b * s;
+                        tempdensy(s) = ldtnorm_cpp(
+                            obsInc(2 * nlads * nages + j * nlads + l) - s, 
+                            muy, 
+                            sqrt(sigma2y), 
+                            -s, 
+                            std::numeric_limits<double>::infinity()
+                        );
+                        
+                        // MD density (NB: Hinc is count here and not incidence)
+                        int r = s - Hinc(j, l) + u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l);
+                        sigma2y = 2.0 * a_dis + 2.0 * b_dis * Hinc(j, l);
+                        tempdensy(s) += ldtnorm_cpp(
+                            r,
+                            0.0, 
+                            sqrt(sigma2y), 
+                            -Hinc(j, l) + u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l), 
+                            u1_night(5, j, l) - DIinc(j, l) - Hinc(j, l) + u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l)
+                        );
+                    }
+                    double tempnorm = log_sum_exp(tempdensy, 0);
+                    tempdensy = tempdensy - tempnorm;
+                    tempdensy = exp(tempdensy);
+                    tempdensy = tempdensy / sum(tempdensy);
+                    int s = rmultinom_cpp(tempdensy, eng);
+                    tempMD(9, j, l) = s - Hinc(j, l) + u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l);
+                    Hinc(j, l) = s;
                     if(Hinc(j, l) < 0 || Hinc(j, l) > u1_night(5, j, l) - DIinc(j, l)) stop("Hinc error1 %d\n", Hinc(j, l));
+                    
+                    // observation error for given incidence
+                    if(PF == 1) {
+                        weights(i) += tempnorm;
+                        MHweights(i, 2 * nlads * nages + j * nlads + l) = tempnorm;
+                    }
                 }
             }
                 
@@ -1858,7 +1874,9 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                     arma::imat DHinc1 (nages, nlads); DHinc1.zeros();
                     arma::imat DIinc1 (nages, nlads); DIinc1.zeros();
                     arma::imat RHinc (nages, nlads); RHinc.zeros();
+                    arma::imat RHinc1 (nages, nlads); RHinc1.zeros();
                     arma::imat Hinc (nages, nlads); Hinc.zeros();
+                    arma::imat Hinc1 (nages, nlads); Hinc1.zeros();
                     arma::imat RIinc (nages, nlads); RIinc.zeros();
                     arma::imat I2inc (nages, nlads); I2inc.zeros();
                     arma::imat I1inc (nages, nlads); I1inc.zeros();
@@ -1867,8 +1885,8 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                     arma::imat Ainc (nages, nlads); Ainc.zeros();
                     arma::imat Einc (nages, nlads); Einc.zeros();
                     arma::icube tempMD (nclasses, nages, nlads); tempMD.zeros();
-                    arma::icube tempMD1 (2, nages, nlads); tempMD1.zeros();
-                    arma::icube tempsim1 (2, nages, nlads); tempsim1.zeros();
+                    arma::icube tempMD1 (4, nages, nlads); tempMD1.zeros();
+                    arma::icube tempsim1 (4, nages, nlads); tempsim1.zeros();
                     
                     arma::icube u1_night(nclasses, nages, nlads); u1_night.zeros();
                     
@@ -1884,7 +1902,7 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                     }
                     
                     // set auxiliary variables
-                    double muy, sigma2y, pI1pI1D, pHpHD, acc, acccurr, accprop, u, tempnorm;
+                    double muy, sigma2y, pI1pI1D, pHpHD, pI1pI1H, pHpHR, acc, acccurr, accprop, u;
                 
                     // cols: c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "RI", "H", "RH", "DH")
                     //          0,   1,   2,   3,    4,   5,    6,    7,    8,    9,   10,   11
@@ -1910,12 +1928,14 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                         
                             // extract transition probabilities
                             pHpHD = pars(j + 8 * nages + 2) * pars(j + 9 * nages + 2);
+                            pHpHR = pars(j + 8 * nages + 2) * (1.0 - pars(j + 9 * nages + 2));
+                            pI1pI1H = pars(j + 4 * nages + 2) * pars(j + 5 * nages + 2);
                             pI1pI1D = pars(j + 4 * nages + 2) * pars(j + 6 * nages + 2);
                             
                             // loop over LADs
                             for(l = 0; l < nlads; l++) {
                             
-                                // sample from simulator
+                                // sample DH from simulator
                                 int r = rbinom_cpp(u1_night(9, j, l), pHpHD, eng);
                                 DHinc1(j, l) = r;
                     
@@ -1946,7 +1966,7 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                                         u1_night(9, j, l)
                                     );
                                 }
-                                tempnorm = log_sum_exp(tempdensy, 0);
+                                double tempnorm = log_sum_exp(tempdensy, 0);
                                 tempdensy = exp(tempdensy - tempnorm);
                                 tempdensy = tempdensy / sum(tempdensy);
                                 s = rmultinom_cpp(tempdensy, eng);
@@ -1955,7 +1975,23 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                                 // update accprop
                                 accprop += tempnorm;
                                 
-                                // sample from simulator
+                                // sample RH from simulator given DH
+                                r = rbinom_cpp(u1_night(9, j, l) - DHinc1(j, l), pHpHR / (1.0 - pHpHD), eng);
+                                RHinc1(j, l) = r;
+                            
+                                // sample MD conditional on simulator
+                                sigma2y = 2.0 * a_dis + 2.0 * b_dis * RHinc1(j, l);
+                                muy = (double) RHinc1(j, l);
+                                s = rdtnorm_cpp(
+                                    muy, 
+                                    sqrt(sigma2y),
+                                    0.0,
+                                    u1_night(9, j, l) - DHinc(j, l),
+                                    eng
+                                );
+                                RHinc(j, l) = s;
+                                
+                                // sample DI from simulator
                                 r = rbinom_cpp(u1_night(5, j, l), pI1pI1D, eng);
                                 DIinc1(j, l) = r;
                     
@@ -1993,6 +2029,48 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                                 
                                 // update accprop
                                 accprop += tempnorm;
+                                
+                                // sample H from conditional simulator
+                                r = rbinom_cpp(u1_night(5, j, l) - DIinc1(j, l), pI1pI1H / (1.0 - pI1pI1D), eng);
+                                Hinc1(j, l) = r;
+                                    
+                                // extract simulator count
+                                int H1 = u1_night(9, j, l) + Hinc1(j, l) - DHinc1(j, l) - RHinc1(j, l);
+                    
+                                // sample MD conditional on simulator
+                                arma::vec tempdensy2 (u1_night(5, j, l) - DIinc(j, l) + 1); 
+                                for(s = 0; s <= (u1_night(5, j, l) - DIinc(j, l)); s++) {
+                                    
+                                    // observation error
+                                    muy = a1 - a2;
+                                    sigma2y = a1 + a2 + 2.0 * b * s;
+                                    tempdensy2(s) = ldtnorm_cpp(
+                                        obsInc(2 * nlads * nages + j * nlads + l) - s, 
+                                        muy, 
+                                        sqrt(sigma2y), 
+                                        -s, 
+                                        std::numeric_limits<double>::infinity()
+                                    );
+                                    
+                                    // MD density
+                                    r = s - H1 + u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l);
+                                    sigma2y = 2.0 * a_dis + 2.0 * b_dis * H1;
+                                    tempdensy2(s) += ldtnorm_cpp(
+                                        r, 
+                                        0.0, 
+                                        sqrt(sigma2y), 
+                                        -H1 + u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l), 
+                                        u1_night(5, j, l) - DIinc(j, l) - H1 + u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l)
+                                    );
+                                }
+                                tempnorm = log_sum_exp(tempdensy2, 0);
+                                tempdensy2 = exp(tempdensy2 - tempnorm);
+                                tempdensy2 = tempdensy2 / sum(tempdensy2);
+                                s = rmultinom_cpp(tempdensy2, eng);
+                                Hinc(j, l) = s;
+                                
+                                // update accprop
+                                accprop += tempnorm;
                             }
                         }
                                 
@@ -2005,9 +2083,13 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                             for(j = 0; j < nages; j++) {
                                 for(l = 0; l < nlads; l++) {
                                     tempsim1(0, j, l) = DIinc1(j, l);
-                                    tempsim1(1, j, l) = DHinc1(j, l);
+                                    tempsim1(1, j, l) = Hinc1(j, l);
+                                    tempsim1(2, j, l) = RHinc1(j, l);
+                                    tempsim1(3, j, l) = DHinc1(j, l);
                                     tempMD1(0, j, l) = DIinc(j, l);
-                                    tempMD1(1, j, l) = DHinc(j, l);
+                                    tempMD1(1, j, l) = Hinc(j, l);
+                                    tempMD1(2, j, l) = RHinc(j, l);
+                                    tempMD1(3, j, l) = DHinc(j, l);
                                 }
                             }
                         }
@@ -2024,7 +2106,9 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                         for(l = 0; l < nlads; l++) {
                             for(j = 0; j < nages; j++) {
                                 tempMD(6, j, l) = tempsim1(0, j, l);
-                                tempMD(11, j, l) = tempsim1(1, j, l);
+                                tempMD(9, j, l) = tempsim1(1, j, l);
+                                tempMD(10, j, l) = tempsim1(2, j, l);
+                                tempMD(11, j, l) = tempsim1(3, j, l);
                             }
                         }
                 
@@ -2039,66 +2123,18 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                         for(l = 0; l < nlads; l++) {
                             for(j = 0; j < nages; j++) {
                                 tempMD(6, j, l) = tempMD1(0, j, l) - tempsim1(0, j, l);
-                                tempMD(11, j, l) = tempMD1(1, j, l) - tempsim1(1, j, l);
+                                tempMD(9, j, l) = tempMD1(1, j, l) - tempMD1(2, j, l) - tempMD1(3, j, l);
+                                tempMD(9, j, l) -= (tempsim1(1, j, l) - tempsim1(2, j, l) - tempsim1(3, j, l));
+                                tempMD(10, j, l) = tempMD1(2, j, l) - tempsim1(2, j, l);
+                                tempMD(11, j, l) = tempMD1(3, j, l) - tempsim1(3, j, l);
                                 DIinc(j, l) = tempMD1(0, j, l);
-                                DHinc(j, l) = tempMD1(1, j, l);
+                                Hinc(j, l) = tempMD1(1, j, l);
+                                RHinc(j, l) = tempMD1(2, j, l);
+                                DHinc(j, l) = tempMD1(3, j, l);
                             }
                         }
                         
                         // calculate remaining MD terms
-                        
-                        // RH given DH (MD on incidence)
-                        std::strcpy(str1, "RHinc");
-                        // aggregate incidence to LAD-level
-                        for(j = 0; j < nages; j++) {                    
-                            for(l = 0; l < u1_moves.n_rows; l++) {
-                                RHinc(j, u1_moves(l, 0) - 1) += u1_new[i](10, j, l) - u1[i](10, j, l);
-                            }
-                        }
-                        for(j = 0; j < nages; j++) {
-                            for(l = 0; l < nlads; l++) {
-                                sigma2y = 2.0 * a_dis + 2.0 * b_dis * RHinc(j, l);
-                                tempMD(10, j, l) = rdtnorm_cpp(
-                                    0.0, 
-                                    sqrt(sigma2y),
-                                    -RHinc(j, l),
-                                    u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l),
-                                    eng
-                                );
-                                RHinc(j, l) += tempMD(10, j, l);
-                                if(RHinc(j, l) < 0 || RHinc(j, l) > u1_night(9, j, l) - DHinc(j, l)) stop("RHinc error\n");
-                            }
-                        }
-                            
-                        // H given later
-                        std::strcpy(str1, "H");
-                        // aggregate count to LAD-level
-                        for(j = 0; j < nages; j++) {
-                            for(l = 0; l < u1_moves.n_rows; l++) {
-                                Hinc(j, u1_moves(l, 0) - 1) += u1_new[i](9, j, l);
-                            }
-                        }
-                        for(j = 0; j < nages; j++) {
-                            for(l = 0; l < nlads; l++) {
-                                // let Hinc be count MD
-                                sigma2y = 2.0 * a_dis + 2.0 * b_dis * Hinc(j, l);
-                                tempMD(9, j, l) = rdtnorm_cpp(
-                                    0.0, 
-                                    sqrt(sigma2y),
-                                    -Hinc(j, l) + u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l),
-                                    u1_night(5, j, l) - DIinc(j, l) - Hinc(j, l) + u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l),
-                                    eng
-                                );
-                                Hinc(j, l) += tempMD(9, j, l);
-                                if(Hinc(j, l) < 0) stop("Hinc error\n");
-                            }
-                        }
-                        for(j = 0; j < nages; j++) {
-                            for(l = 0; l < nlads; l++) {
-                                Hinc(j, l) = Hinc(j, l) - u1_night(9, j, l) + DHinc(j, l) + RHinc(j, l);
-                                if(Hinc(j, l) < 0 || Hinc(j, l) > u1_night(5, j, l) - DIinc(j, l)) stop("Hinc error1 %d\n", Hinc(j, l));
-                            }
-                        }
                             
                         // RI (MD on incidence)
                         std::strcpy(str1, "RIinc");
@@ -2323,38 +2359,35 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                     for(l = 0; l < u1_moves.n_rows; l++) {
                         for(j = 0; j < nages; j++) {
                             u_night_reduced(0, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](6, j, l);
-                            u_night_reduced(1, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](11, j, l);
+                            u_night_reduced(1, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](9, j, l);
+                            u_night_reduced(2, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](11, j, l);
                             // incidence
-                            u_night_reduced(2, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](6, j, l) - u1[i](6, j, l));
-                            u_night_reduced(3, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](11, j, l) - u1[i](11, j, l));
+                            u_night_reduced(3, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](6, j, l) - u1[i](6, j, l));
+                            u_night_reduced(4, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](9, j, l) - u1[i](9, j, l) + (u1_new[i](10, j, l) - u1[i](10, j, l)) + (u1_new[i](11, j, l) - u1[i](11, j, l)));
+                            u_night_reduced(5, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](11, j, l) - u1[i](11, j, l));
                         }
                     }
                     // adjust for observation error
                     muy = a1 - a2;
                     for(l = 0; l < nlads; l++) {
                         for(j = 0; j < nages; j++) {
-                            sigma2y = a1 + a2 + 2.0 * b * u_night_reduced(2, j, l);
-                            u_night_reduced(2, j, l) += rdtnorm_cpp(
-                                muy, 
-                                sqrt(sigma2y),
-                                -u_night_reduced(2, j, l),
-                                std::numeric_limits<double>::infinity(),
-                                engSerial
-                            );
-                            
-                            sigma2y = a1 + a2 + 2.0 * b * u_night_reduced(3, j, l);
-                            u_night_reduced(3, j, l) += rdtnorm_cpp(
-                                muy, 
-                                sqrt(sigma2y),
-                                -u_night_reduced(3, j, l),
-                                std::numeric_limits<double>::infinity(),
-                                engSerial
-                            );
+                            for(k = 3; k < 6; k++) {
+                                sigma2y = a1 + a2 + 2.0 * b * u_night_reduced(k, j, l);
+                                u_night_reduced(k, j, l) += rdtnorm_cpp(
+                                    muy, 
+                                    sqrt(sigma2y),
+                                    -u_night_reduced(k, j, l),
+                                    std::numeric_limits<double>::infinity(),
+                                    engSerial
+                                );
+                            }
                             // cumulate
-                            u_night_reduced(2, j, l) += u_night_obs[i](0, j, l);
-                            u_night_reduced(3, j, l) += u_night_obs[i](1, j, l);
-                            u_night_obs[i](0, j, l) = u_night_reduced(2, j, l);
-                            u_night_obs[i](1, j, l) = u_night_reduced(3, j, l);
+                            u_night_reduced(3, j, l) += u_night_obs[i](0, j, l);
+                            u_night_reduced(4, j, l) += u_night_obs[i](1, j, l);
+                            u_night_reduced(5, j, l) += u_night_obs[i](2, j, l);
+                            u_night_obs[i](0, j, l) = u_night_reduced(3, j, l);
+                            u_night_obs[i](1, j, l) = u_night_reduced(4, j, l);
+                            u_night_obs[i](2, j, l) = u_night_reduced(5, j, l);
                         }
                     }
                     if(writeExt == 0) {
@@ -2363,7 +2396,7 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                         std::sprintf(file_name, "%s/p_%u.csv", std::string(outputName[0]).c_str(), i);
                         file.open(file_name, std::ios::app);
                         for(l = 0; l < nlads; l++) {
-                            for(arma::uword r = 0; r < 4; r++) {
+                            for(arma::uword r = 0; r < 6; r++) {
                                 file << t + 1 << ", " << r << ", ";
                                 for(j = 0; j < nages; j++) {
                                     file << u_night_reduced(r, j, l) << ", ";
@@ -2384,35 +2417,31 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                             }
                             // incidence
                             u_night_full(nclasses, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](6, j, l) - u1[i](6, j, l));
-                            u_night_full(nclasses + 1, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](11, j, l) - u1[i](11, j, l));
+                            u_night_full(nclasses + 1, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](9, j, l) - u1[i](9, j, l) + (u1_new[i](10, j, l) - u1[i](10, j, l)) + (u1_new[i](11, j, l) - u1[i](11, j, l)));
+                            u_night_full(nclasses + 2, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](11, j, l) - u1[i](11, j, l));
                         }
                     }
                     // adjust for observation error
                     muy = a1 - a2;
                     for(l = 0; l < nlads; l++) {
                         for(j = 0; j < nages; j++) {
-                            sigma2y = a1 + a2 + 2.0 * b * u_night_full(nclasses, j, l);
-                            u_night_full(nclasses, j, l) += rdtnorm_cpp(
-                                muy, 
-                                sqrt(sigma2y),
-                                -u_night_full(nclasses, j, l),
-                                std::numeric_limits<double>::infinity(),
-                                engSerial
-                            );
-                            
-                            sigma2y = a1 + a2 + 2.0 * b * u_night_full(nclasses + 1, j, l);
-                            u_night_full(nclasses + 1, j, l) += rdtnorm_cpp(
-                                muy, 
-                                sqrt(sigma2y),
-                                -u_night_full(nclasses + 1, j, l),
-                                std::numeric_limits<double>::infinity(),
-                                engSerial
-                            );
+                            for(k = 0; k < 3; k++) {
+                                sigma2y = a1 + a2 + 2.0 * b * u_night_full(nclasses + k, j, l);
+                                u_night_full(nclasses + k, j, l) += rdtnorm_cpp(
+                                    muy, 
+                                    sqrt(sigma2y),
+                                    -u_night_full(nclasses + k, j, l),
+                                    std::numeric_limits<double>::infinity(),
+                                    engSerial
+                                );
+                            }
                             // cumulate
                             u_night_full(nclasses, j, l) += u_night_obs[i](0, j, l);
                             u_night_full(nclasses + 1, j, l) += u_night_obs[i](1, j, l);
+                            u_night_full(nclasses + 2, j, l) += u_night_obs[i](2, j, l);
                             u_night_obs[i](0, j, l) = u_night_full(nclasses, j, l);
                             u_night_obs[i](1, j, l) = u_night_full(nclasses + 1, j, l);
+                            u_night_obs[i](2, j, l) = u_night_full(nclasses + 2, j, l);
                         }
                     }
                     if(writeExt == 0) {
@@ -2421,7 +2450,7 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                         std::sprintf(file_name, "%s/p_%u.csv", std::string(outputName[0]).c_str(), i);
                         file.open(file_name, std::ios::app);
                         for(l = 0; l < nlads; l++) {
-                            for(arma::uword r = 0; r < (nclasses + 2); r++) {
+                            for(arma::uword r = 0; r < (nclasses + 3); r++) {
                                 file << t + 1 << ", " << r << ", ";
                                 for(j = 0; j < nages; j++) {
                                     file << u_night_full(r, j, l) << ", ";
