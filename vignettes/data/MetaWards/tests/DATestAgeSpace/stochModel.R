@@ -92,7 +92,7 @@ saveRDS(u2, "outputs/u2.rds")
 saveRDS(as.matrix(PM19), "outputs/u2_moves.rds")
 
 ## set up stage names
-stageNms <- map(c("S", "E", "A", "RA", "P", "Ione", "DI", "Itwo", "RI", "H", "RH", "DH", "DIobs", "Hobs", "DHobs"), ~paste0(., "_", 1:8)) %>%
+stageNms <- map(c("S", "E", "A", "RA", "P", "Ione", "DI", "Itwo", "RI", "H", "RH", "DH", "DIobs", "Hcumobs", "DHobs", "Hobs"), ~paste0(., "_", 1:8)) %>%
     map(~map(., ~paste0(., "_", 1:max(EW19[, 1])))) %>%
     reduce(c) %>%
     reduce(c)
@@ -157,7 +157,7 @@ p <- pivot_longer(disSims, !c(rep, t), names_to = "var", values_to = "n") %>%
     mutate(var = gsub("two", "2", var))
     
 p1 <- list()     
-p1[[1]] <- filter(p, !(var %in% c("DHobs", "Hobs", "DIobs"))) %>%
+p1[[1]] <- filter(p, !(var %in% c("DHobs", "Hcumobs", "DIobs", "Hobs"))) %>%
     ggplot(aes(x = t)) +
         geom_ribbon(aes(ymin = LCI, ymax = UCI), alpha = 0.5) +
         geom_ribbon(aes(ymin = LQ, ymax = UQ), alpha = 0.5) +
@@ -178,7 +178,7 @@ p1[[1]] <- filter(p, !(var %in% c("DHobs", "Hobs", "DIobs"))) %>%
         xlab("Days") + 
         ylab("Counts") +
         ggtitle("Truth")
-p1[[2]] <- filter(p, var %in% c("DHobs", "Hobs", "DIobs")) %>%
+p1[[2]] <- filter(p, var %in% c("DHobs", "Hcumobs", "DIobs", "Hobs")) %>%
     mutate(var = gsub("obs", "", var)) %>%
     ggplot(aes(x = t)) +
         geom_ribbon(aes(ymin = LCI, ymax = UCI), alpha = 0.5) +

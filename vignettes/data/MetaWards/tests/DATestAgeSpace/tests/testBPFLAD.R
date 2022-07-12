@@ -97,7 +97,7 @@ folder <- "saveOut"
 files <- list.files(folder)
 
 ## lookup table
-lookup <- data.frame(var = c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "RI", "H", "RH", "DH", "DIobs", "Hobs", "DHobs")) %>%
+lookup <- data.frame(var = c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "RI", "H", "RH", "DH", "DIobs", "Hcumobs", "DHobs", "Hobs")) %>%
     mutate(class = 0:(n() - 1))
     
 ## aggregate data

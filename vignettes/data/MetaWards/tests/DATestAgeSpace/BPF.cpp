@@ -1117,8 +1117,8 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
     std::vector<arma::icube> u1_new(npart);
     std::vector<arma::icube> u2(npart);
     std::vector<arma::icube> u2_new(npart);
-    arma::icube u_night_full(nclasses + 3, nages, nlads); u_night_full.zeros();
-    arma::icube u_night_reduced(6, nages, nlads); u_night_reduced.zeros();
+    arma::icube u_night_full(nclasses + 4, nages, nlads); u_night_full.zeros();
+    arma::icube u_night_reduced(7, nages, nlads); u_night_reduced.zeros();
     std::vector<arma::icube> u_night_obs(npart);
     std::vector<arma::icube> u_night_obs1(npart);
     for(i = 0; i < npart; i++) {
@@ -1172,6 +1172,8 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         u_night_reduced(3, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](6, j, l);
                         u_night_reduced(4, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](9, j, l);
                         u_night_reduced(5, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](11, j, l);
+                        // hosp count
+                        u_night_reduced(6, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](9, j, l);
                     }
                 }
                 for(l = 0; l < nlads; l++) {
@@ -1183,13 +1185,15 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         u_night_reduced(3, j, l) += u2[i](6, j, l);
                         u_night_reduced(4, j, l) += u2[i](9, j, l);
                         u_night_reduced(5, j, l) += u2[i](11, j, l);
+                        // hosp count
+                        u_night_reduced(6, j, l) += u2[i](9, j, l);
                     }
                 }
                 // apply observation error
                 muy = a1 - a2;
                 for(l = 0; l < nlads; l++) {
                     for(j = 0; j < nages; j++) {
-                        for(k = 3; k < 6; k++) {
+                        for(k = 3; k < 7; k++) {
                             sigma2y = a1 + a2 + 2.0 * b * u_night_reduced(k, j, l);
                             u_night_reduced(k, j, l) += rdtnorm_cpp(
                                 muy, 
@@ -1199,6 +1203,7 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                                 engSerial
                             );
                         }
+                        // cumulate incidence
                         u_night_obs[i](0, j, l) = u_night_reduced(3, j, l);
                         u_night_obs[i](1, j, l) = u_night_reduced(4, j, l);
                         u_night_obs[i](2, j, l) = u_night_reduced(5, j, l);
@@ -1213,7 +1218,7 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                     for(j = 0; j < nages; j++) file << "age" << j + 1 << ", ";
                     file << "lad\n";
                     for(l = 0; l < nlads; l++) {
-                        for(arma::uword r = 0; r < 6; r++) {
+                        for(arma::uword r = 0; r < 7; r++) {
                             file << t << ", " << r << ", ";
                             for(j = 0; j < nages; j++) {
                                 file << u_night_reduced(r, j, l) << ", ";
@@ -1236,6 +1241,8 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         u_night_full(nclasses, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](6, j, l);
                         u_night_full(nclasses + 1, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](9, j, l);
                         u_night_full(nclasses + 2, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](11, j, l);
+                        // hosp count
+                        u_night_full(nclasses + 3, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](9, j, l);
                     }
                 }
                 for(l = 0; l < nlads; l++) {
@@ -1247,13 +1254,15 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         u_night_full(nclasses, j, l) += u2[i](6, j, l);
                         u_night_full(nclasses + 1, j, l) += u2[i](9, j, l);
                         u_night_full(nclasses + 2, j, l) += u2[i](11, j, l);
+                        // hosp count
+                        u_night_full(nclasses + 3, j, l) += u2[i](9, j, l);
                     }
                 }
                 // apply observation error
                 muy = a1 - a2;
                 for(l = 0; l < nlads; l++) {
                     for(j = 0; j < nages; j++) {
-                        for(k = 0; k < 3; k++) {
+                        for(k = 0; k < 4; k++) {
                             sigma2y = a1 + a2 + 2.0 * b * u_night_full(nclasses + k, j, l);
                             u_night_full(nclasses + k, j, l) += rdtnorm_cpp(
                                 muy, 
@@ -1263,6 +1272,7 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                                 engSerial
                             );
                         }
+                        // cumulate incidence
                         u_night_obs[i](0, j, l) = u_night_full(nclasses, j, l);
                         u_night_obs[i](1, j, l) = u_night_full(nclasses + 1, j, l);
                         u_night_obs[i](2, j, l) = u_night_full(nclasses + 2, j, l);
@@ -1277,7 +1287,7 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                     for(j = 0; j < nages; j++) file << "age" << j + 1 << ", ";
                     file << "lad\n";
                     for(l = 0; l < nlads; l++) {
-                        for(arma::uword r = 0; r < (nclasses + 3); r++) {
+                        for(arma::uword r = 0; r < (nclasses + 4); r++) {
                             file << t << ", " << r << ", ";
                             for(j = 0; j < nages; j++) {
                                 file << u_night_full(r, j, l) << ", ";
@@ -1543,6 +1553,21 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
             }
             for(j = 0; j < nages; j++) {
                 for(l = 0; l < nlads; l++) {
+                
+                    // observation error for given count
+                    if(PF == 1) {
+                        muy = a1 - a2;
+                        sigma2y = a1 + a2 + 2.0 * b * Hinc(j, l);
+                        weights(i) += ldtnorm_cpp(
+                            obsInc(3 * nlads * nages + j * nlads + l) - Hinc(j, l), 
+                            muy, 
+                            sqrt(sigma2y), 
+                            -Hinc(j, l), 
+                            std::numeric_limits<double>::infinity()
+                        );
+                    }
+                    
+                    // convert count to incidence
                     Hinc(j, l) = Hinc(j, l) - u1_night(9, j, l) + DHinc(j, l) + RHinc(j, l);
                     if(Hinc(j, l) < 0 || Hinc(j, l) > u1_night(5, j, l) - DIinc(j, l)) stop("Hinc error1 %d\n", Hinc(j, l));
                     // observation error for given incidence
@@ -1876,6 +1901,7 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                     for(j = 0; j < nages; j++) {                    
                         for(l = 0; l < u1_moves.n_rows; l++) {
                             DIinc(j, u1_moves(l, 0) - 1) += (u1_new[i](6, j, l) - u1[i](6, j, l));
+                            Hinc1(j, u1_moves(l, 0) - 1) += u1_new[i](9, j, l);
                             Hinc(j, u1_moves(l, 0) - 1) += (u1_new[i](9, j, l) - u1[i](9, j, l)) + (u1_new[i](10, j, l) - u1[i](10, j, l)) + (u1_new[i](11, j, l) - u1[i](11, j, l));
                             DHinc(j, u1_moves(l, 0) - 1) += (u1_new[i](11, j, l) - u1[i](11, j, l));
                         }
@@ -1885,8 +1911,16 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                     for(j = 0; j < nages; j++) {
                         // extract transition probabilities
                         for(l = 0; l < nlads; l++) {
-                            // observation error for current incidence
+                            // observation error for current incidence / count
                             muy = a1 - a2;
+                            sigma2y = a1 + a2 + 2.0 * b * Hinc1(j, l);
+                            acccurr += ldtnorm_cpp(
+                                obsInc(3 * nlads * nages + j * nlads + l) - Hinc1(j, l), 
+                                muy, 
+                                sqrt(sigma2y), 
+                                -Hinc1(j, l), 
+                                std::numeric_limits<double>::infinity()
+                            );
                             sigma2y = a1 + a2 + 2.0 * b * Hinc(j, l);
                             acccurr += ldtnorm_cpp(
                                 obsInc(2 * nlads * nages + j * nlads + l) - Hinc(j, l), 
@@ -2019,9 +2053,18 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                                     eng
                                 );
                                 Hinc(j, l) = H1 + s - u1_night(9, j, l) + DHinc(j, l) + RHinc(j, l);
+                                H1 += s;
                                 
                                 // observation error for given incidence
                                 muy = a1 - a2;
+                                sigma2y = a1 + a2 + 2.0 * b * H1;
+                                accprop += ldtnorm_cpp(
+                                    obsInc(3 * nlads * nages + j * nlads + l) - H1, 
+                                    muy, 
+                                    sqrt(sigma2y), 
+                                    -H1, 
+                                    std::numeric_limits<double>::infinity()
+                                );
                                 sigma2y = a1 + a2 + 2.0 * b * Hinc(j, l);
                                 accprop += ldtnorm_cpp(
                                     obsInc(2 * nlads * nages + j * nlads + l) - Hinc(j, l), 
@@ -2326,13 +2369,15 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             u_night_reduced(3, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](6, j, l) - u1[i](6, j, l));
                             u_night_reduced(4, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](9, j, l) - u1[i](9, j, l) + (u1_new[i](10, j, l) - u1[i](10, j, l)) + (u1_new[i](11, j, l) - u1[i](11, j, l)));
                             u_night_reduced(5, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](11, j, l) - u1[i](11, j, l));
+                            // hosp counts
+                            u_night_reduced(6, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](9, j, l);
                         }
                     }
                     // adjust for observation error
                     muy = a1 - a2;
                     for(l = 0; l < nlads; l++) {
                         for(j = 0; j < nages; j++) {
-                            for(k = 3; k < 6; k++) {
+                            for(k = 3; k < 7; k++) {
                                 sigma2y = a1 + a2 + 2.0 * b * u_night_reduced(k, j, l);
                                 u_night_reduced(k, j, l) += rdtnorm_cpp(
                                     muy, 
@@ -2342,7 +2387,7 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                                     engSerial
                                 );
                             }
-                            // cumulate
+                            // cumulate incidence
                             u_night_reduced(3, j, l) += u_night_obs[i](0, j, l);
                             u_night_reduced(4, j, l) += u_night_obs[i](1, j, l);
                             u_night_reduced(5, j, l) += u_night_obs[i](2, j, l);
@@ -2357,7 +2402,7 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         std::sprintf(file_name, "%s/p_%u.csv", std::string(outputName[0]).c_str(), i);
                         file.open(file_name, std::ios::app);
                         for(l = 0; l < nlads; l++) {
-                            for(arma::uword r = 0; r < 6; r++) {
+                            for(arma::uword r = 0; r < 7; r++) {
                                 file << t + 1 << ", " << r << ", ";
                                 for(j = 0; j < nages; j++) {
                                     file << u_night_reduced(r, j, l) << ", ";
@@ -2380,13 +2425,15 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                             u_night_full(nclasses, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](6, j, l) - u1[i](6, j, l));
                             u_night_full(nclasses + 1, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](9, j, l) - u1[i](9, j, l) + (u1_new[i](10, j, l) - u1[i](10, j, l)) + (u1_new[i](11, j, l) - u1[i](11, j, l)));
                             u_night_full(nclasses + 2, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](11, j, l) - u1[i](11, j, l));
+                            // hosp count
+                            u_night_full(nclasses + 3, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](9, j, l);
                         }
                     }
                     // adjust for observation error
                     muy = a1 - a2;
                     for(l = 0; l < nlads; l++) {
                         for(j = 0; j < nages; j++) {
-                            for(k = 0; k < 3; k++) {
+                            for(k = 0; k < 4; k++) {
                                 sigma2y = a1 + a2 + 2.0 * b * u_night_full(nclasses + k, j, l);
                                 u_night_full(nclasses + k, j, l) += rdtnorm_cpp(
                                     muy, 
@@ -2411,7 +2458,7 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses
                         std::sprintf(file_name, "%s/p_%u.csv", std::string(outputName[0]).c_str(), i);
                         file.open(file_name, std::ios::app);
                         for(l = 0; l < nlads; l++) {
-                            for(arma::uword r = 0; r < (nclasses + 3); r++) {
+                            for(arma::uword r = 0; r < (nclasses + 4); r++) {
                                 file << t + 1 << ", " << r << ", ";
                                 for(j = 0; j < nages; j++) {
                                     file << u_night_full(r, j, l) << ", ";
