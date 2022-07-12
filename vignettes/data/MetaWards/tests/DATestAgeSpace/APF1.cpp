@@ -1404,7 +1404,7 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
             weights(i) = 0.0;
             
             // set auxiliary variables
-            double muy, sigma2y, pI1pI1D, pHpHD;
+            double muy, sigma2y;
             
             // run model and return u1
             discreteStochModel(i, nclasses, nages, nlads, pars, t - 1, t, u1_moves, u1_new, C, eng);
@@ -1425,7 +1425,6 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
             for(j = 0; j < nages; j++) {
             
                 // extract transition probabilities
-                pHpHD = pars(j + 8 * nages + 2) * pars(j + 9 * nages + 2);
                 for(l = 0; l < nlads; l++) {
                 
                     // sample MD conditional on simulator
@@ -1445,7 +1444,7 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                         
                         // MD density
                         muy = (double) DHinc(j, l);
-                        sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(9, j, l) * pHpHD;
+                        sigma2y = 2.0 * a_dis + 2.0 * b_dis * DHinc(j, l);
                         tempdensy(s) += ldtnorm_cpp(
                             s, 
                             muy, 
@@ -1482,7 +1481,6 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
             for(j = 0; j < nages; j++) {
                 
                 // set transition probability
-                pI1pI1D = pars(j + 4 * nages + 2) * pars(j + 6 * nages + 2);
                 for(l = 0; l < nlads; l++) {
                     
                     // sample MD conditional on simulator
@@ -1502,7 +1500,7 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                         
                         // MD density
                         muy = (double) DIinc(j, l);
-                        sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(5, j, l) * pI1pI1D;
+                        sigma2y = 2.0 * a_dis + 2.0 * b_dis * DIinc(j, l);
                         tempdensy(s) += ldtnorm_cpp(
                             s, 
                             muy, 
@@ -1951,7 +1949,7 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                                     
                                     // MD density
                                     muy = (double) DHinc1(j, l);
-                                    sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(9, j, l) * pHpHD;
+                                    sigma2y = 2.0 * a_dis + 2.0 * b_dis * DHinc1(j, l);
                                     tempdensy(s) += ldtnorm_cpp(
                                         s, 
                                         muy, 
@@ -1990,7 +1988,7 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                                     
                                     // MD density
                                     muy = (double) DIinc1(j, l);
-                                    sigma2y = 2.0 * a_dis + 2.0 * b_dis * u1_night(5, j, l) * pI1pI1D;
+                                    sigma2y = 2.0 * a_dis + 2.0 * b_dis * DIinc1(j, l);
                                     tempdensy1(s) += ldtnorm_cpp(
                                         s, 
                                         muy, 
