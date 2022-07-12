@@ -1891,18 +1891,6 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                     
                     // adjust states according to model discrepancy
                     
-                    // aggregate incidence to LAD-level
-                    for(j = 0; j < nages; j++) {                    
-                        for(l = 0; l < u1_moves.n_rows; l++) {
-                            DHinc(j, u1_moves(l, 0) - 1) += u1_new[i](11, j, l) - u1[i](11, j, l);
-                        }
-                    }
-                    // aggregate incidence to LAD-level
-                    for(j = 0; j < nages; j++) {                    
-                        for(l = 0; l < u1_moves.n_rows; l++) {
-                            DIinc(j, u1_moves(l, 0) - 1) += u1_new[i](6, j, l) - u1[i](6, j, l);
-                        }
-                    }
                     // current likelihood
                     acccurr = 0.0;
                     for(j = 0; j < MHweights.n_cols; j++) {
