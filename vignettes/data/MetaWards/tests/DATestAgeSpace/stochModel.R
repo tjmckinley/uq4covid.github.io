@@ -92,17 +92,28 @@ saveRDS(u2, "outputs/u2.rds")
 saveRDS(as.matrix(PM19), "outputs/u2_moves.rds")
 
 ## set up stage names
-stageNms <- map(c("S", "E", "A", "RA", "P", "Ione", "DI", "Itwo", "RI", "H", "RH", "DH", "DIobs", "Hcumobs", "DHobs", "Hobs"), ~paste0(., "_", 1:8)) %>%
+stageNms <- map(c("S", "E", "A", "RA", "P", "Ione", "DI", "Itwo", "RI", "H", "RH", "DH"), ~paste0(., "_", 1:8)) %>%
     map(~map(., ~paste0(., "_", 1:max(EW19[, 1])))) %>%
     reduce(c) %>%
     reduce(c)
+    
+## load lookups
+lookup <- readRDS("data/lookup.rds")
+lookup <- select(lookup, starts_with("FID"))
+age_lookup <- readRDS("data/age_lookup.rds")
+saveRDS(lookup, "outputs/lookup.rds")
+saveRDS(age_lookup, "outputs/age_lookup.rds")
 
 ## simulate discrete-time model
-disSims <- BPF(pars, C = contact, data = data, u1_moves = u1_moves,
+disSims_full <- BPF(pars, C = contact, lookup = lookup, age_lookup = age_lookup, u1_moves = u1_moves,
     u1 = u1, u2_moves = as.matrix(PM19), u2 = u2, ndays = 100, npart = 8, PF = FALSE)
+    
+###############################################
+#######        LAD-level truth          #######
+###############################################
         
 ## collapse to data frame
-disSims <- map(1:length(disSims$particles[[1]]), function(i, x) {
+disSims <- map(1:length(disSims_full$particles[[1]]$full), function(i, x) {
         ## loop over particles
         map(1:length(x[[i]]), function(i, x) {
             ## collapse to vector in order: stage, age, LAD
@@ -112,14 +123,14 @@ disSims <- map(1:length(disSims$particles[[1]]), function(i, x) {
         }, x = x[[i]]) %>%
         {do.call("rbind", .)} %>%
         cbind(rep(i, nrow(.)))
-    }, x = disSims$particles[[1]]) %>%
+    }, x = disSims_full$particles[[1]]$full) %>%
     {do.call("rbind", .)}
 colnames(disSims) <- c(stageNms, "rep", "t")
-disSims <- as_tibble(disSims)
+disSims <- as_tibble(disSims) %>%
+    mutate(t = t - 1)
 
 ## extract simulation closest to median
-medRep <- select(disSims, !contains("obs")) %>%
-    pivot_longer(!c(rep, t), names_to = "var", values_to = "n") %>%
+medRepInd <- pivot_longer(disSims, !c(rep, t), names_to = "var", values_to = "n") %>%
     group_by(t, var) %>%
     summarise(
         median = median(n),
@@ -133,8 +144,8 @@ medRep <- select(disSims, !contains("obs")) %>%
     group_by(rep) %>%
     summarise(diff = sum(diff), .groups = "drop") %>%
     arrange(diff) %>%
-    slice(1) %>%
-    inner_join(disSims, by = "rep") %>%
+    slice(1) 
+medRep <- inner_join(medRepInd, disSims, by = "rep") %>%
     select(!c(diff, rep))
 
 ## plot replicates at national level
@@ -157,57 +168,425 @@ p <- pivot_longer(disSims, !c(rep, t), names_to = "var", values_to = "n") %>%
     mutate(var = gsub("two", "2", var))
     
 p1 <- list()     
-p1[[1]] <- filter(p, !(var %in% c("DHobs", "Hcumobs", "DIobs", "Hobs"))) %>%
-    ggplot(aes(x = t)) +
-        geom_ribbon(aes(ymin = LCI, ymax = UCI), alpha = 0.5) +
-        geom_ribbon(aes(ymin = LQ, ymax = UQ), alpha = 0.5) +
-        geom_line(aes(y = median)) +
-        geom_line(
-            aes(y = n), 
-            data = pivot_longer(select(medRep, !contains("obs")), !t, names_to = "var", values_to = "n") %>%
-                mutate(var = gsub("_[0-9]*$", "", var)) %>%
-                group_by(t, var) %>%
-                summarise(n = sum(n), .groups = "drop") %>%
-                mutate(age = gsub("[^0-9]", "", var)) %>%
-                mutate(var = gsub("[^a-zA-Z]", "", var)) %>%
-                mutate(var = gsub("one", "1", var)) %>%
-                mutate(var = gsub("two", "2", var)),
-            col = "red", linetype = "dashed"
-        ) +
-        facet_grid(var ~ age, scales = "free") +
-        xlab("Days") + 
-        ylab("Counts") +
-        ggtitle("Truth")
-p1[[2]] <- filter(p, var %in% c("DHobs", "Hcumobs", "DIobs", "Hobs")) %>%
-    mutate(var = gsub("obs", "", var)) %>%
-    ggplot(aes(x = t)) +
-        geom_ribbon(aes(ymin = LCI, ymax = UCI), alpha = 0.5) +
-        geom_ribbon(aes(ymin = LQ, ymax = UQ), alpha = 0.5) +
-        geom_line(aes(y = median)) +
-        geom_line(
-            aes(y = n), 
-            data = pivot_longer(select(medRep, t, contains("obs")), !t, names_to = "var", values_to = "n") %>%
-                mutate(var = gsub("obs", "", var)) %>%
-                mutate(var = gsub("_[0-9]*$", "", var)) %>%
-                group_by(t, var) %>%
-                summarise(n = sum(n), .groups = "drop") %>%
-                mutate(age = gsub("[^0-9]", "", var)) %>%
-                mutate(var = gsub("[^a-zA-Z]", "", var)) %>%
-                mutate(var = gsub("one", "1", var)) %>%
-                mutate(var = gsub("two", "2", var)),
-            col = "red", linetype = "dashed"
-        ) +
-        facet_grid(var ~ age, scales = "free") +
-        xlab("Days") + 
-        ylab("Counts") + 
-        ggtitle("Observed")
-p1 <- wrap_plots(p1, nrow = 2, heights = c(0.8, 0.2)) +
-    plot_layout(guides = "collect")
-ggsave("outputs/simsNational.pdf", p1, width = 10, height = 10)
+p1[[1]] <- ggplot(p, aes(x = t)) +
+    geom_ribbon(aes(ymin = LCI, ymax = UCI), alpha = 0.5) +
+    geom_ribbon(aes(ymin = LQ, ymax = UQ), alpha = 0.5) +
+    geom_line(aes(y = median)) +
+    geom_line(
+        aes(y = n), 
+        data = pivot_longer(medRep, !t, names_to = "var", values_to = "n") %>%
+            mutate(var = gsub("_[0-9]*$", "", var)) %>%
+            group_by(t, var) %>%
+            summarise(n = sum(n), .groups = "drop") %>%
+            mutate(age = gsub("[^0-9]", "", var)) %>%
+            mutate(var = gsub("[^a-zA-Z]", "", var)) %>%
+            mutate(var = gsub("one", "1", var)) %>%
+            mutate(var = gsub("two", "2", var)),
+        col = "red", linetype = "dashed"
+    ) +
+    facet_grid(var ~ age, scales = "free") +
+    xlab("Days") + 
+    ylab("Counts") +
+    ggtitle("Truth")
+        
+###############################################
+#######     LAD-level observations      #######
+###############################################
+        
+## collapse to data frame
+disSims <- map(1:length(disSims_full$particles[[1]]$lads), function(i, x) {
+        ## loop over particles
+        map(1:length(x[[i]]), function(i, x) {
+            as.vector(x[[i]]) %>%
+            c(i)
+        }, x = x[[i]]) %>%
+        {do.call("rbind", .)} %>%
+        cbind(rep(i, nrow(.)))
+    }, x = disSims_full$particles[[1]]$lads) %>%
+    {do.call("rbind", .)}
+colnames(disSims) <- c(paste0("deaths_", 1:(ncol(disSims) - 2)), "rep", "t")
+disSims <- as_tibble(disSims) %>%
+    mutate(t = t - 1)
+
+## extract simulation closest to median
+medRep <- inner_join(medRepInd, disSims, by = "rep") %>%
+    select(!c(diff, rep))
+
+## plot replicates at national level
+p <- pivot_longer(disSims, !c(rep, t), names_to = "var", values_to = "n") %>%
+    group_by(rep, t) %>%
+    summarise(n = sum(n), .groups = "drop") %>%
+    group_by(t) %>%
+    summarise(
+        LCI = quantile(n, probs = 0.025),
+        LQ = quantile(n, probs = 0.25),
+        median = median(n),
+        UQ = quantile(n, probs = 0.75),
+        UCI = quantile(n, probs = 0.975),
+        .groups = "drop"
+    )
+     
+p1[[2]] <- ggplot(p, aes(x = t)) +
+    geom_ribbon(aes(ymin = LCI, ymax = UCI), alpha = 0.5) +
+    geom_ribbon(aes(ymin = LQ, ymax = UQ), alpha = 0.5) +
+    geom_line(aes(y = median)) +
+    geom_line(
+        aes(y = n), 
+        data = pivot_longer(medRep, !t, names_to = "var", values_to = "n") %>%
+            group_by(t) %>%
+            summarise(n = sum(n), .groups = "drop"),
+        col = "red", linetype = "dashed"
+    ) +
+    xlab("Days") + 
+    ylab("Counts") +
+    ggtitle("Observed cumulative deaths (aggregated over LADs)")
+              
+###############################################
+#######  age/region-level observations  #######
+###############################################
+
+## load lookup for labels
+region_lookup <- readRDS("data/region_lookup.rds")
+        
+## collapse to data frame
+disSims <- map(1:length(disSims_full$particles[[1]]$age_region), function(i, x) {
+        ## loop over particles
+        map(1:length(x[[i]]), function(i, x) {
+            as.vector(x[[i]]) %>%
+            c(i)
+        }, x = x[[i]]) %>%
+        {do.call("rbind", .)} %>%
+        cbind(rep(i, nrow(.)))
+    }, x = disSims_full$particles[[1]]$age_region) %>%
+    {do.call("rbind", .)}
+temp <- disSims_full$particles[[1]]$age_region[[1]][[1]]
+tempNames <- rep(1:nrow(temp), times = ncol(temp))
+tempNames <- cbind(tempNames, rep(1:ncol(temp), each = nrow(temp)))
+tempNames <- paste0("deaths_", apply(tempNames, 1, paste, collapse = "_"))
+colnames(disSims) <- c(tempNames, "rep", "t")
+disSims <- as_tibble(disSims) %>%
+    mutate(t = t - 1)
+
+## extract simulation closest to median
+medRep <- inner_join(medRepInd, disSims, by = "rep") %>%
+    select(!c(diff, rep))
+
+## plot replicates at national level
+p <- pivot_longer(disSims, !c(rep, t), names_to = "var", values_to = "n") %>%
+    mutate(var = gsub("deaths_", "", var)) %>%
+    separate(var, c("age", "region"), sep = "_") %>%
+    mutate(across(c(age, region), as.numeric)) %>%
+    inner_join(region_lookup, by = c("region" = "FID")) %>%
+    group_by(t, age, RGN19NM) %>%
+    summarise(
+        LCI = quantile(n, probs = 0.025),
+        LQ = quantile(n, probs = 0.25),
+        median = median(n),
+        UQ = quantile(n, probs = 0.75),
+        UCI = quantile(n, probs = 0.975),
+        .groups = "drop"
+    )
+     
+p1[[3]] <- ggplot(p, aes(x = t)) +
+    geom_ribbon(aes(ymin = LCI, ymax = UCI), alpha = 0.5) +
+    geom_ribbon(aes(ymin = LQ, ymax = UQ), alpha = 0.5) +
+    geom_line(aes(y = median)) +
+    geom_line(
+        aes(y = n), 
+        data = pivot_longer(medRep, !t, names_to = "var", values_to = "n") %>%
+            mutate(var = gsub("deaths_", "", var)) %>%
+            separate(var, c("age", "region"), sep = "_") %>%
+            mutate(across(c(age, region), as.numeric)) %>%
+            inner_join(region_lookup, by = c("region" = "FID")),
+        col = "red", linetype = "dashed"
+    ) +
+    facet_grid(RGN19NM ~ age, labeller = label_wrap_gen(width = 10)) +
+    xlab("Days") + 
+    ylab("Counts") +
+    ggtitle("Observed cumulative deaths (age / region)")
+        
+###############################################
+#######     NHS region observations     #######
+###############################################
+
+## load lookup for labels
+nhsregion_lookup <- readRDS("data/nhsregion_lookup.rds")
+        
+## collapse to data frame
+disSims <- map(1:length(disSims_full$particles[[1]]$nhsregion), function(i, x) {
+        ## loop over particles
+        map(1:length(x[[i]]), function(i, x) {
+            as.vector(x[[i]]) %>%
+            c(i)
+        }, x = x[[i]]) %>%
+        {do.call("rbind", .)} %>%
+        cbind(rep(i, nrow(.)))
+    }, x = disSims_full$particles[[1]]$nhsregion) %>%
+    {do.call("rbind", .)}
+colnames(disSims) <- c(paste0("hosp_", 1:(ncol(disSims) - 2)), "rep", "t")
+disSims <- as_tibble(disSims) %>%
+    mutate(t = t - 1)
+
+## extract simulation closest to median
+medRep <- inner_join(medRepInd, disSims, by = "rep") %>%
+    select(!c(diff, rep))
+    
+## plot replicates at national level
+p <- pivot_longer(disSims, !c(rep, t), names_to = "region", values_to = "n") %>%
+    mutate(region = as.numeric(gsub("hosp_", "", region))) %>%
+    inner_join(nhsregion_lookup, by = c("region" = "FID")) %>%
+    group_by(t, areaName) %>%
+    summarise(
+        LCI = quantile(n, probs = 0.025),
+        LQ = quantile(n, probs = 0.25),
+        median = median(n),
+        UQ = quantile(n, probs = 0.75),
+        UCI = quantile(n, probs = 0.975),
+        .groups = "drop"
+    )
+     
+p1[[4]] <- ggplot(p, aes(x = t)) +
+    geom_ribbon(aes(ymin = LCI, ymax = UCI), alpha = 0.5) +
+    geom_ribbon(aes(ymin = LQ, ymax = UQ), alpha = 0.5) +
+    geom_line(aes(y = median)) +
+    geom_line(
+        aes(y = n), 
+        data = pivot_longer(medRep, !t, names_to = "region", values_to = "n") %>%
+            mutate(region = as.numeric(gsub("hosp_", "", region))) %>%
+            inner_join(nhsregion_lookup, by = c("region" = "FID")),
+        col = "red", linetype = "dashed"
+    ) +
+    facet_wrap(~ areaName, nrow = 1, labeller = label_wrap_gen(width = 10)) +
+    xlab("Days") + 
+    ylab("Counts") +
+    ggtitle("Observed hospital cases (NHS region)")
+        
+###############################################
+#####  NHS age/region-level observations  #####
+###############################################
+        
+## collapse to data frame
+disSims <- map(1:length(disSims_full$particles[[1]]$age_nhsregion), function(i, x) {
+        ## loop over particles
+        map(1:length(x[[i]]), function(i, x) {
+            as.vector(x[[i]]) %>%
+            c(i)
+        }, x = x[[i]]) %>%
+        {do.call("rbind", .)} %>%
+        cbind(rep(i, nrow(.)))
+    }, x = disSims_full$particles[[1]]$age_nhsregion) %>%
+    {do.call("rbind", .)}
+temp <- disSims_full$particles[[1]]$age_nhsregion[[1]][[1]]
+tempNames <- rep(1:nrow(temp), times = ncol(temp))
+tempNames <- cbind(tempNames, rep(1:ncol(temp), each = nrow(temp)))
+tempNames <- paste0("hospInc_", apply(tempNames, 1, paste, collapse = "_"))
+colnames(disSims) <- c(tempNames, "rep", "t")
+disSims <- as_tibble(disSims) %>%
+    mutate(t = t - 1)
+
+## extract simulation closest to median
+medRep <- inner_join(medRepInd, disSims, by = "rep") %>%
+    select(!c(diff, rep))
+
+## plot replicates at national level
+p <- pivot_longer(disSims, !c(rep, t), names_to = "var", values_to = "n") %>%
+    mutate(var = gsub("hospInc_", "", var)) %>%
+    separate(var, c("age", "region"), sep = "_") %>%
+    mutate(across(c(age, region), as.numeric)) %>%
+    inner_join(nhsregion_lookup, by = c("region" = "FID")) %>%
+    group_by(t, age, areaName) %>%
+    summarise(
+        LCI = quantile(n, probs = 0.025),
+        LQ = quantile(n, probs = 0.25),
+        median = median(n),
+        UQ = quantile(n, probs = 0.75),
+        UCI = quantile(n, probs = 0.975),
+        .groups = "drop"
+    )
+     
+p1[[5]] <- ggplot(p, aes(x = t)) +
+    geom_ribbon(aes(ymin = LCI, ymax = UCI), alpha = 0.5) +
+    geom_ribbon(aes(ymin = LQ, ymax = UQ), alpha = 0.5) +
+    geom_line(aes(y = median)) +
+    geom_line(
+        aes(y = n), 
+        data = pivot_longer(medRep, !t, names_to = "var", values_to = "n") %>%
+            mutate(var = gsub("hospInc_", "", var)) %>%
+            separate(var, c("age", "region"), sep = "_") %>%
+            mutate(across(c(age, region), as.numeric)) %>%
+            inner_join(nhsregion_lookup, by = c("region" = "FID")),
+        col = "red", linetype = "dashed"
+    ) +
+    facet_grid(areaName ~ age, labeller = label_wrap_gen(width = 10)) +
+    xlab("Days") + 
+    ylab("Counts") +
+    ggtitle("Observed cumulative hospital incidence (NHS age / region)")
+        
+###############################################
+#####   combine plots and save outputs    #####
+###############################################
+
+## combine plots
+p1[[4]] <- p1[[4]] / p1[[2]]
+p1 <- p1[-2]
+p1 <- wrap_plots(p1, nrow = 2, heights = c(0.8, 0.5))
+ggsave("outputs/simsNational.pdf", p1, width = 15, height = 15)
+
+## save parameters
+saveRDS(pars, "outputs/pars.rds")
+
+## truth
+disSims <- map(1:length(disSims_full$particles[[1]]$full), function(i, x) {
+        ## loop over particles
+        map(1:length(x[[i]]), function(i, x) {
+            ## collapse to vector in order: stage, age, LAD
+            aperm(x[[i]], 3:1) %>%
+            as.vector() %>%
+            c(i)
+        }, x = x[[i]]) %>%
+        {do.call("rbind", .)} %>%
+        cbind(rep(i, nrow(.)))
+    }, x = disSims_full$particles[[1]]$full) %>%
+    {do.call("rbind", .)}
+colnames(disSims) <- c(stageNms, "rep", "t")
+disSims <- as_tibble(disSims) %>%
+    mutate(t = t - 1)
+
+## extract simulation closest to median
+medRep <- inner_join(medRepInd, disSims, by = "rep") %>%
+    select(!c(diff, rep)) %>%
+    select(t, everything())
+    
+## save outputs
+saveRDS(medRep, "outputs/disSims.rds")
+
+## lad-level observed deaths
+disSims <- map(1:length(disSims_full$particles[[1]]$lads), function(i, x) {
+        ## loop over particles
+        map(1:length(x[[i]]), function(i, x) {
+            as.vector(x[[i]]) %>%
+            c(i)
+        }, x = x[[i]]) %>%
+        {do.call("rbind", .)} %>%
+        cbind(rep(i, nrow(.)))
+    }, x = disSims_full$particles[[1]]$lads) %>%
+    {do.call("rbind", .)}
+colnames(disSims) <- c(paste0("deaths_", 1:(ncol(disSims) - 2)), "rep", "t")
+disSims <- as_tibble(disSims) %>%
+    mutate(t = t - 1)
+
+## extract simulation closest to median
+medRep <- inner_join(medRepInd, disSims, by = "rep") %>%
+    select(!c(diff, rep)) %>%
+    select(t, everything())
+    
+## save outputs
+saveRDS(medRep, "outputs/cumDeath_lad.rds")
+
+## age / region observed deaths
+disSims <- map(1:length(disSims_full$particles[[1]]$age_region), function(i, x) {
+        ## loop over particles
+        map(1:length(x[[i]]), function(i, x) {
+            as.vector(t(x[[i]])) %>%
+            c(i)
+        }, x = x[[i]]) %>%
+        {do.call("rbind", .)} %>%
+        cbind(rep(i, nrow(.)))
+    }, x = disSims_full$particles[[1]]$age_region) %>%
+    {do.call("rbind", .)}
+temp <- t(disSims_full$particles[[1]]$age_region[[1]][[1]])
+tempNames <- rep(1:ncol(temp), each = nrow(temp))
+tempNames <- cbind(tempNames, rep(1:nrow(temp), times = ncol(temp)))
+tempNames <- paste0("deaths_", apply(tempNames, 1, paste, collapse = "_"))
+colnames(disSims) <- c(tempNames, "rep", "t")
+disSims <- as_tibble(disSims) %>%
+    mutate(t = t - 1)
+
+## extract simulation closest to median
+medRep <- inner_join(medRepInd, disSims, by = "rep") %>%
+    select(!c(diff, rep)) %>%
+    select(t, everything())
+    
+## save outputs
+saveRDS(medRep, "outputs/cumDeath_age_region.rds")
+
+## NHS region observed hospital cases
+disSims <- map(1:length(disSims_full$particles[[1]]$nhsregion), function(i, x) {
+        ## loop over particles
+        map(1:length(x[[i]]), function(i, x) {
+            as.vector(x[[i]]) %>%
+            c(i)
+        }, x = x[[i]]) %>%
+        {do.call("rbind", .)} %>%
+        cbind(rep(i, nrow(.)))
+    }, x = disSims_full$particles[[1]]$nhsregion) %>%
+    {do.call("rbind", .)}
+colnames(disSims) <- c(paste0("hosp_", 1:(ncol(disSims) - 2)), "rep", "t")
+disSims <- as_tibble(disSims) %>%
+    mutate(t = t - 1)
+
+## extract simulation closest to median
+medRep <- inner_join(medRepInd, disSims, by = "rep") %>%
+    select(!c(diff, rep)) %>%
+    select(t, everything())
+    
+## save outputs
+saveRDS(medRep, "outputs/hosp_nhsregion.rds")
+
+## NHS region and age observed hospital incidence
+disSims <- map(1:length(disSims_full$particles[[1]]$age_nhsregion), function(i, x) {
+        ## loop over particles
+        map(1:length(x[[i]]), function(i, x) {
+            as.vector(t(x[[i]])) %>%
+            c(i)
+        }, x = x[[i]]) %>%
+        {do.call("rbind", .)} %>%
+        cbind(rep(i, nrow(.)))
+    }, x = disSims_full$particles[[1]]$age_nhsregion) %>%
+    {do.call("rbind", .)}
+temp <- t(disSims_full$particles[[1]]$age_nhsregion[[1]][[1]])
+tempNames <- rep(1:ncol(temp), each = nrow(temp))
+tempNames <- cbind(tempNames, rep(1:nrow(temp), times = ncol(temp)))
+tempNames <- paste0("hospInc_", apply(tempNames, 1, paste, collapse = "_"))
+colnames(disSims) <- c(tempNames, "rep", "t")
+disSims <- as_tibble(disSims) %>%
+    mutate(t = t - 1)
+
+## extract simulation closest to median
+medRep <- inner_join(medRepInd, disSims, by = "rep") %>%
+    select(!c(diff, rep)) %>%
+    select(t, everything())
+    
+## save outputs
+saveRDS(medRep, "outputs/cumHospAd_age_nhsregion.rds")
+
+###############################################
+#####          LAD-level plots            #####
+###############################################
+
+## collapse to data frame
+disSims <- map(1:length(disSims_full$particles[[1]]$full), function(i, x) {
+        ## loop over particles
+        map(1:length(x[[i]]), function(i, x) {
+            ## collapse to vector in order: stage, age, LAD
+            aperm(x[[i]], 3:1) %>%
+            as.vector() %>%
+            c(i)
+        }, x = x[[i]]) %>%
+        {do.call("rbind", .)} %>%
+        cbind(rep(i, nrow(.)))
+    }, x = disSims_full$particles[[1]]$full) %>%
+    {do.call("rbind", .)}
+colnames(disSims) <- c(stageNms, "rep", "t")
+disSims <- as_tibble(disSims) %>%
+    mutate(t = t - 1)
+
+## extract simulation closest to median
+medRep <- inner_join(medRepInd, disSims, by = "rep") %>%
+    select(!c(diff, rep))
 
 ## plot medRep at LAD level for LADs with largest epidemic load
-p <- select(medRep, !contains("obs")) %>%
-    pivot_longer(!t, names_to = "var", values_to = "n") %>%
+top5 <- pivot_longer(medRep, !t, names_to = "var", values_to = "n") %>%
     mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
     mutate(LAD = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
     mutate(age = gsub('(.*)_[0-9]*', '\\1', age)) %>%
@@ -219,21 +598,8 @@ p <- select(medRep, !contains("obs")) %>%
     arrange(desc(n)) %>%
     slice(1:5) %>%
     select(-n)
-pobs <- inner_join(p,
-        select(medRep, t, contains("obs")) %>%
-            pivot_longer(!t, names_to = "var", values_to = "n") %>%
-            mutate(var = gsub("obs", "", var)) %>%
-            mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
-            mutate(LAD = gsub('^(?:[^_]*_)(.*)', '\\1', age)),
-        by = "LAD"
-    ) %>%
-    mutate(age = gsub('(.*)_[0-9]*', '\\1', age)) %>%
-    mutate(var = gsub('^(.*)_[0-9]*_.*', '\\1', var)) %>%
-    mutate(var = gsub("one", "1", var)) %>%
-    mutate(var = gsub("two", "2", var)) 
-p <- inner_join(p,
-        select(medRep, !contains("obs")) %>%
-            pivot_longer(!t, names_to = "var", values_to = "n") %>%
+p <- inner_join(top5,
+        pivot_longer(medRep, !t, names_to = "var", values_to = "n") %>%
             mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
             mutate(LAD = gsub('^(?:[^_]*_)(.*)', '\\1', age)),
         by = "LAD"
@@ -242,26 +608,13 @@ p <- inner_join(p,
     mutate(var = gsub('^(.*)_[0-9]*_.*', '\\1', var)) %>%
     mutate(var = gsub("one", "1", var)) %>%
     mutate(var = gsub("two", "2", var))
-p1 <- list()
-p1[[1]] <- ggplot(p, aes(x = t, y = n, colour = LAD)) +
+p1 <- ggplot(p, aes(x = t, y = n, colour = LAD)) +
     geom_line() +
     facet_grid(var ~ age, scales = "free") +
     xlab("Days") + 
     ylab("Counts") +
     ggtitle("Truth")
-p1[[2]] <- ggplot(pobs, aes(x = t, y = n, colour = LAD)) +
-    geom_line() +
-    facet_grid(var ~ age, scales = "free") +
-    xlab("Days") + 
-    ylab("Counts") +
-    ggtitle("Observed")
-p1 <- wrap_plots(p1, nrow = 2, heights = c(0.8, 0.2)) +
-    plot_layout(guides = "collect")
 ggsave("outputs/simsTopLADs.pdf", p1, width = 10, height = 10)
-
-## save outputs
-saveRDS(medRep, "outputs/disSims.rds")
-saveRDS(pars, "outputs/pars.rds")
 
 ## spatial animation of simulation
 
@@ -270,8 +623,6 @@ lad19 <- st_read("inputs/LAD19_shapefile/LAD19_shapefile.shp")
 
 ## extract cases over time in each age-group
 p <- select(medRep, t, starts_with("DH_")) %>%
-    select(!contains("obs")) %>%
-    filter(t <= 100) %>%
     pivot_longer(!t, values_to = "counts", names_to = "var") %>%
     separate(var, c("var", "age", "lad"), sep = "_") %>%
     select(!var) %>%
@@ -303,7 +654,6 @@ anim_save("outputs/simsSpatialDH.gif", spatial_gif)
 
 ## extract cases over time in each age-group
 p <- select(medRep, t, starts_with("E")) %>%
-    filter(t <= 100) %>%
     pivot_longer(!t, values_to = "counts", names_to = "var") %>%
     separate(var, c("var", "age", "lad"), sep = "_") %>%
     select(!var) %>%
