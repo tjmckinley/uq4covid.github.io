@@ -1,0 +1,208 @@
+\documentclass[a4paper]{article}
+\usepackage{amsmath, bm, xcolor, tikz, algpseudocode, algorithm, natbib, mathtools, mdframed}
+\usetikzlibrary{arrows, positioning, backgrounds, fit}
+
+% formatting
+\usepackage[margin=1in]{geometry}
+\setlength{\parskip}{\baselineskip}
+\setlength{\parindent}{0pt}
+
+\title{(Auxiliary) particle filters for aggregated data}
+\author{TJ McKinley}
+\date{}
+
+% custom commands for brevity
+\newcommand{\btheta}{\bm{\theta}}
+\newcommand{\bx}{\bm{x}}
+\newcommand{\bX}{\bm{X}}
+\newcommand{\by}{\bm{y}}
+\newcommand{\bz}{\bm{z}}
+\newcommand{\bA}{\bm{A}}
+\newcommand{\bp}{\bm{p}}
+\newcommand{\bq}{\bm{q}}
+\newcommand{\br}{\bm{r}}
+\newcommand{\bY}{\bm{Y}}
+\newcommand{\bZ}{\bm{Z}}
+\newcommand{\bU}{\bm{U}}
+\newcommand{\bD}{\bm{D}}
+\newcommand{\bR}{\bm{R}}
+\newcommand{\bI}{\bm{I}}
+\newcommand{\bP}{\bm{P}}
+\newcommand{\bE}{\bm{E}}
+\newcommand{\bH}{\bm{H}}
+\newcommand{\bS}{\bm{S}}
+\newcommand{\bmu}{\bm{\mu}}
+\newcommand{\indep}{\perp \!\!\! \perp}
+\newcommand{\gap}[1][1]{\vspace{#1\baselineskip}}
+\newcommand{\srm}[1]{\mbox{\scriptsize #1}}
+
+\bibliographystyle{asa}
+
+\begin{document}
+
+\maketitle
+
+\section{Aggregated counts}
+
+Assume that we have observations $D^{Z^\prime}_{l}$ for $l = 1, \dots, N_l$ LADs, and also $D^{Z^\prime}_{ra}$ for $r = 1, \dots, N_R$ regions and $a = 1, \dots, N_A$ age-classes. Assume that model discrepancy is placed on the age/LAD-level e.g. $D^{Y^\prime}_{la}$.
+
+Introduce latent variables, $\mu^{Z^\prime}_{la}$, and let $\mu^{Z^\prime}_l = \sum_{a = 1}^A \mu^{Z^\prime}_{la}$ and $\mu^{Z^\prime}_{ra} = \sum_{l \in r} \mu^{Z^\prime}_{la}$, since LADs are nested within regions. Then let:
+\begin{equation*}
+    D^{Z^\prime}_l \mid \bmu^{Z^\prime} \sim N^D\left(\mu^{Z^\prime}_l, \sigma^2_l\right)I\left[0, \infty\right),
+\end{equation*}
+and
+\begin{equation*}
+    D^{Z^\prime}_{ra} \mid \bmu^{Z^\prime} \sim N^D\left(\mu^{Z^\prime}_{ra}, \sigma^2_{ra}\right)I\left[0, \infty\right),
+\end{equation*}
+where $\bmu^{Z^\prime} = \left\{\mu^{Z^\prime}_{la}; l = 1, \dots, N_L~\mbox{and}~a = 1, \dots, A\right\}$. Here $D^{Z^\prime}_l \indep D^{Z^\prime}_{ra} | \bmu^{Z^\prime}$. 
+
+As a result, the target likelihood is:
+\begin{equation}
+    \left[\prod_{l} P\left(D^{Z^\prime}_l \mid \mu^{Z^\prime}_l\right)\right]\left[\prod_{r}\prod_{a} P\left(D^{Z^\prime}_{ra} \mid \mu^{Z^\prime}_{ra}\right)\right]\left[\prod_{l}\prod_a \pi\left(\mu^{Z^\prime}_{la} \mid D^{Y^\prime}_{la}\right)P\left(D^{Y^\prime}_{la} \mid D^{X^\prime}_{la}\right)\right]P\left(\bD^{X^\prime}_{1:N_L,1:N_a}\right).
+\end{equation}
+
+We then model the latent $\mu^{Z^\prime}_{la}$ as Gaussian with mean $\nu_{la}$ and variance $\theta^2_{la}$. In this case we can set e.g. $\nu_{la} = D^{Y^\prime}_{la} + a_1 - a_2$ and $\theta^2_{la} = a_1 + a_2 + 2D^{Y^\prime}_{la}$ which apes the current approach. The purpose of the latent $\mu^{Z^\prime}_{la}$ terms is two-fold:
+\begin{enumerate}
+    \item To allow for different observation errors to be placed around observations at different scales but still allow them to be correlated through the latent $\mu^{Z^\prime}_{la}$ terms (for example, aggregating deaths-by-LAD to regions, and aggregating deaths-by-age-and-region to region do not match exactly, even though in theory they should be derived from the same underlying data. This approach allows for the uncertainty in the observation error to be correlated through the latent variable.
+    \item To facilitate efficient sampling of the latent $D^{Y^\prime}_{la}$ terms in the APF below.
+\end{enumerate}
+Since $\mu^{Z^\prime}_{la}$ are Gaussian and independent given the $D^{Y^\prime}_{la}$, then we can derive e.g.
+\begin{equation*}
+    \mu^{Z^\prime}_l \mid D^{Y^\prime}_l \sim N\left(\nu_l = \sum_{a = 1}^A \nu_{la}, \theta^2_l = \sum_{a = 1}^A \theta^2_{la}\right).
+\end{equation*}
+or
+\begin{equation*}
+    \mu^{Z^\prime}_{ra} \mid D^{Y^\prime}_{ra} \sim N\left(\nu_{ra} = \sum_{l \in r} \nu_{la}, \theta^2_{ra} = \sum_{l \in r} \theta^2_{la}\right).
+\end{equation*}
+Firstly, we will assume that we have data specified at the LAD level, e.g. $D^{Z^\prime}_l$ and derive a way to simulate $D^{Y^\prime}_{la} \mid D^{Z^\prime}_l$. To do this we introduce a second latent variable, $y^{Z^\prime}_l \sim N\left(\mu^{Z^\prime}_l, \sigma^2_l\right)$, and set $D^{Z^\prime}_l = \lfloor y^{Z^\prime}_l + 0.5 \rfloor$ for $D^{Z^\prime}_l = 0, 1, \dots$. Hence
+\begin{align}
+    P\left(D^{Z^\prime}_l \mid D^{Y^\prime}_l\right) &\propto \int_{D^{Z^\prime}_l - 0.5}^{D^{Z^\prime}_l + 0.5} \int_{-\infty}^\infty \pi\left(y^{Z^\prime}_l \mid \mu^{Z^\prime}_l\right)\pi\left(\mu^{Z^\prime}_l \mid D^{Y^\prime}_l\right) dy^{Z^\prime}_l d \mu^{Z^\prime}_l\nonumber\\
+    &\propto \int_{D^{Z^\prime}_l - 0.5}^{D^{Z^\prime}_l + 0.5} \frac{1}{\sqrt{\left(\sigma^2_l + \theta^2_l\right)2\pi}} \exp\left(-\frac{\left[y^{Z^\prime}_l - \nu_l\right]^2}{2\left(\theta^2_l + \sigma^2_l\right)}\right)dy^{Z^\prime}_l \quad \mbox{from (\ref{eq:margint})}.\label{eq:int}
+\end{align}
+The term in the integral is a Gaussian p.d.f. with mean $\nu_l$ and variance $\sigma^2_l + \theta^2_l$, and thus (\ref{eq:int}) can be calculated easily using CDFs of Gaussians. The normalising constant is:
+\begin{equation*}
+    \sum_{D^{Z^\prime}_l = 0}^\infty P\left(D^{Z^\prime}_l \mid D^{Y^\prime}_l\right) = \int_{-0.5}^\infty \frac{1}{\sqrt{\left(\sigma^2_l + \theta^2_l\right)2\pi}} \exp\left(-\frac{\left[y^{Z^\prime}_l - \nu_l\right]^2}{2\left(\theta^2_l + \sigma^2_l\right)}\right)dy^{Z^\prime}_l,
+\end{equation*}
+which can be readily evaluated using CDFs of Gaussians. Note that (\ref{eq:int}) defines a truncated discrete Gaussian as required, but with the variance term decomposed into a term relating to the magnitude of the hidden states when aggregated ($\theta^2_l$), and a recording error term ($\sigma^2_l$) that operates on a given spatial scale.
+
+Hence for an APF we sample $D^{X^\prime}_l$ from the simulator, and then we really want to sample from
+\begin{equation}
+    P\left(D^{Y^\prime}_l \mid D^{Z^\prime}_l, D^{X^\prime}_l\right) = \frac{P\left(D^{Z^\prime}_l \mid D^{Y^\prime}_l\right)P\left(D^{Y^\prime}_l \mid D^{X^\prime}_l\right)}{P\left(D^{Z^\prime}_l \mid D^{X^\prime}_l\right)},
+\end{equation}
+where $D^{Y^\prime}_l = 0, \dots, \max\left(D^{Y^\prime}_l\right)$. However, the calculation of $P\left(D^{Y^\prime}_l \mid D^{X^\prime}_l\right)$ is a complex convolution of a large number of truncated discrete Gaussians, that is not easily calculable (it can be calculated via nested loops but will be \textit{very} slow as the possible values of $D^{Y^\prime}_{la}$ start to rise)\footnote{I'm wondering if there might be a FFBS approach to this, but haven't worked this up yet}.
+
+Another approach would be to target
+\begin{equation}
+    P\left(\mu^{Z^\prime}_l \mid D^{Z^\prime}_l\right) \propto P\left(D^{Z^\prime}_l \mid  \mu^{Z^\prime}_l\right)\pi\left(\mu^{Z^\prime}_l\right), \label{eq:mugDZ}
+\end{equation}
+and then sample
+\begin{equation}
+    \pi\left(\mu^{Z^\prime}_{l,1:N_a} \mid \mu^{Z^\prime}_l\right) = \pi\left(\mu^{Z^\prime}_{l,1} \mid \mu^{Z^\prime}_l\right)\pi\left(\mu^{Z^\prime}_{l,2} \mid \mu^{Z^\prime}_{l, 1}, \mu^{Z^\prime}_l\right)\dots\pi\left(\mu^{Z^\prime}_{l,N_a} \mid \mu^{Z^\prime}_{l, 1:(N_a - 1)}, \mu^{Z^\prime}_l\right).\label{eq:compmarg}
+\end{equation}
+Each of the distributions on the RHS of (\ref{eq:compmarg}) should be readily calculable, since e.g.
+\begin{equation}
+    \mu^{Z^\prime}_{l1} \mid \mu^{Z^\prime}_l \sim N\left(\frac{\theta^2_{l1}\left(\mu^{Z^\prime}_l - \nu_{l1}\right) + \theta^2_{l - 1}\nu_{l1}}{\theta^2_l}, \frac{\theta^2_{l1}\theta^2_{l - 1}}{\theta^2_l}\right)~\mbox{where}~\theta^2_{l - 1} = \sum_{a = 2}^{N_a} \theta^2_{la},
+\end{equation}
+and similarly for the other terms (see (\ref{eq:mu1gmu}) for derivation).
+
+However, the $\pi\left(\mu^{Z^\prime}_l\right)$ density in (\ref{eq:mugDZ}) is:
+\begin{equation*}
+    \pi\left(\mu^{Z^\prime}_l\right) = \sum_{D^{Y^\prime}_l} \pi\left(\mu^{Z^\prime}_l \mid D^{Y^\prime}_l\right)P\left(D^{Y^\prime}_l\right),
+\end{equation*}
+which once again is difficult to evaluate. Instead, let's consider an importance sampler for $\mu^{Z^\prime}_l$ that is based on $D^{X^\prime}_l$ and not $D^{Y^\prime}_l$. For example, let
+\begin{equation}
+    \mu^{Q^\prime}_l \mid D^{X^\prime}_{l} \sim N\left(\nu^Q_l = \sum_{a = 1}^{N_a} E\left(D^{Y^\prime}_{la} \mid D^{X^\prime}_{la}\right), \left(\theta^Q_l\right)^2 = \sum_{a = 1}^{N_a} \mbox{Var}\left(D^{Y^\prime}_{la} \mid D^{X^\prime}_{la}\right)\right).
+\end{equation}
+Now we can consider
+\begin{align}
+    \pi\left(y^{Z^\prime}_l, \mu^{Q^\prime}_l \mid D^{Z^\prime}_l, D^{X^\prime}_l\right) &\propto P\left(D^{Z^\prime}_l \mid y^{Z^\prime}_l \right) \pi\left(y^{Z^\prime}_l \mid \mu^{Q^\prime}_l\right)\pi\left(\mu^{Q^\prime}_l \mid D^{X^\prime}_l\right).\label{eq:ymugd}
+\end{align}
+To sample from (\ref{eq:ymugd}) we can consider that
+\begin{align}
+    \pi\left(y^{Z^\prime}_l, \mu^{Q^\prime}_l \mid D^{Z^\prime}_l, D^{X^\prime}_l\right) &= \pi\left(y^{Z^\prime}_l \mid D^{Z^\prime}_l, D^{X^\prime}_l\right)\pi\left(\mu^{Q^\prime}_l \mid y^{Z^\prime}_l, D^{Z^\prime}_l, D^{X^\prime}_l\right)\nonumber,
+\end{align}
+where 
+\begin{align}
+    \pi\left(y^{Z^\prime}_l \mid D^{Z^\prime}_l, D^{X^\prime}_l\right) &= \int_{-\infty}^\infty \pi\left(y^{Z^\prime}_l, \mu^{Q^\prime}_l \mid D^{Z^\prime}_l, D^{X^\prime}_l\right) d\mu^{Z^\prime}_l\nonumber\\
+    &\propto \int_{-\infty}^\infty P\left(D^{Z^\prime}_l \mid y^{Z^\prime}_l\right)\pi\left(y^{Z^\prime}_l \mid \mu^{Z^\prime}_l\right)\pi\left(\mu^{Z^\prime}_l \mid D^{X^\prime}_l\right)d\mu^{Z^\prime}_l \nonumber\\
+    &\propto P\left(D^{Z^\prime}_l \mid y^{Z^\prime}_l\right)\frac{1}{\sqrt{\left(\sigma^2_l + \left[\theta^Q_l\right]^2\right)2\pi}} \exp\left(-\frac{\left[y^{Z^\prime}_l - \nu^Q_l\right]^2}{2\left(\left[\theta^Q_l\right]^2 + \sigma^2_l\right)}\right),
+\end{align}
+where the normalising constant can be evaluated from (\ref{eq:margint}) as
+\begin{equation*}
+    \int_{D^{Z^\prime}_l - 0.5}^{D^{Z^\prime}_l + 0.5} \frac{1}{\sqrt{\left(\sigma^2_l + \left[\theta^Q_l\right]^2\right)2\pi}} \exp\left(-\frac{\left[y^{Z^\prime}_l - \nu^Q_l\right]^2}{2\left(\left[\theta^Q_l\right]^2 + \sigma^2_l\right)}\right)dy^{Z^\prime}_l.
+\end{equation*}
+Hence 
+\begin{equation}
+    y^{Z^\prime}_l \mid D^{Z^\prime}_l, D^{X^\prime}_l \sim N\left(\nu^Q_l, \sigma^2_l + \left[\theta^Q_l\right]^2\right)I\left(D^{Z^\prime}_l - 0.5, D^{Z^\prime}_l + 0.5\right).
+\end{equation}
+Finally, we can consider
+\begin{align}
+    \mu^{Q^\prime}_l \mid y^{Z^\prime}_l, D^{Z^\prime}_l, D^{X^\prime}_l &\sim N\left(\frac{y^{Z^\prime}_l\left[\theta^Q_l\right]^2 + \nu_l\sigma^2_l}{\left[\theta^Q_l\right]^2 + \sigma^2_l}, \frac{\sigma^2_l \left[\theta^Q_l\right]^2}{\left[\theta^Q_l\right]^2 + \sigma^2_l}\right)
+\end{align}
+from (\ref{eq:mugy}).
+Once we have a sample for $\mu^{Z^\prime}_l$, then we can use e.g. (\ref{eq:mugDZ}) to sample from the individual $\mu^{Z^\prime}_{la} \mid \mu^{Z^\prime}_l$. Finally, we can consider:
+\begin{equation}
+    P\left(D^{Y^\prime}_{la} \mid \mu^{Z^\prime}_{la}, D^{X^\prime}_{la}\right) \propto P\left(\mu^{Z^\prime}_{la} \mid D^{Y^\prime}_{la}, D^{X^\prime}_{la}\right)P\left(D^{Y^\prime}_{la} \mid D^{X^\prime}_{la}\right). \label{eq:dygmu}
+\end{equation}
+The normalising constant is simply a sum of (\ref{eq:dygmu}) over a finite set of possible values of $D^{Y^\prime}_{la}$.
+
+We can then correct for the use of $D^{X^\prime}_l$ instead of $D^{Y^\prime}_l$ (when sampling $\mu^{Z^\prime}_l$) in the importance weights. How good this is depends on how close the expectations are to the actual values, but it's likely to be better than the naive bootstrap filter. We also don't build in information on deaths in region / age category into these simulations. Any thoughts on how to do this whilst maintaining the ``ease'' of sampling would be appreciated.
+
+\section{Appendix}
+
+\subsection{Stuff}
+
+Let $D^{Z^\prime}_l = \lfloor y_l + 0.5 \rfloor$, $y^l \sim N\left(\mu_l, \sigma^2_l\right)$, $\mu_l \sim N\left(\nu_l, \theta^2_l\right)$ and $D^{Z^\prime}_l = 0, 1, 2, \dots$, then
+\begin{align}
+    P\left(D^{Z^\prime}_l\right) &\propto \int_{-\infty}^\infty \int_{D^{Z^\prime}_l - 0.5}^{D^{Z^\prime}_l + 0.5} \frac{1}{\sigma_l\sqrt{2\pi}} \exp\left(-\frac{1}{2\sigma^2_l}\left[y_l - \mu_l\right]^2\right)\frac{1}{\theta_l\sqrt{2\pi}} \exp\left(-\frac{1}{2\theta^2_l}\left[\mu_l - \nu_l\right]^2\right) dy_l d\mu_l\nonumber\\
+    &\propto \int_{-\infty}^\infty \int_{D^{Z^\prime}_l - 0.5}^{D^{Z^\prime}_l + 0.5} \frac{1}{\sigma_l\theta_l 2\pi} \exp\left(-\frac{1}{2\sigma^2_l}\left[y^2_l - 2y_l\mu_l + \mu^2_l\right] - \frac{1}{2\theta^2_l}\left[\mu^2_l - 2\mu_l\nu_l + \nu^2_l\right]\right) dy_l d\mu_l\nonumber\\
+    &\propto \int_{-\infty}^\infty \int_{D^{Z^\prime}_l - 0.5}^{D^{Z^\prime}_l + 0.5} \frac{1}{\sigma_l\theta_l 2\pi} \exp\left(-\frac{1}{2}\left[\frac{y^2_l}{\sigma^2_l} + \frac{\nu^2_l}{\theta^2_l} + \mu^2_l \left(\frac{1}{\sigma^2_l} + \frac{1}{\theta^2_l}\right) - 2\mu_l\left(\frac{y_l}{\sigma^2_l} + \frac{\nu_l}{\theta^2_l}\right)\right]\right) dy_l d\mu_l\nonumber\\
+    &\propto \int_{-\infty}^\infty \int_{D^{Z^\prime}_l - 0.5}^{D^{Z^\prime}_l + 0.5} \frac{1}{\sigma_l\theta_l 2\pi} \exp\left(-\frac{1}{2\sigma^2_l\theta^2_l}\left[y^2_l\theta^2_l + \nu^2_l\sigma^2_l\right]\right)\nonumber\\
+    & \qquad \qquad \qquad \times \exp\left(-\frac{1}{2}\left[\frac{\theta^2_l + \sigma^2_l}{\theta^2_l\sigma^2_l}\right]\left[\mu^2_l - 2\mu_l\left(\frac{\theta^2_l\sigma^2_l}{\theta^2_l + \sigma^2_l}\right)\left(\frac{y_l\theta^2_l + \nu_l\sigma^2_l}{\sigma^2_l\theta^2_l}\right)\right]\right) dy_l d\mu_l\nonumber\\
+    &\propto \int_{-\infty}^\infty \int_{D^{Z^\prime}_l - 0.5}^{D^{Z^\prime}_l + 0.5} \frac{1}{\sigma_l\theta_l 2\pi} \exp\left(-\frac{1}{2\sigma^2_l\theta^2_l}\left[y^2_l\theta^2_l + \nu^2_l\sigma^2_l\right]\right)\exp\left(\frac{1}{2}\left[\frac{\theta^2_l + \sigma^2_l}{\theta^2_l\sigma^2_l}\right]\left(\frac{y_l\theta^2_l + \nu_l\sigma^2_l}{\theta^2_l + \sigma^2_l}\right)^2\right)\nonumber\\
+    & \qquad \qquad \qquad \times \exp\left(-\frac{1}{2}\left[\frac{\theta^2_l + \sigma^2_l}{\theta^2_l\sigma^2_l}\right]\left[\mu_l - \left(\frac{y_l\theta^2_l + \nu_l\sigma^2_l}{\theta^2_l + \sigma^2_l}\right)\right]^2\right) dy_l d\mu_l\nonumber\\
+    &\propto \int_{-\infty}^\infty \int_{D^{Z^\prime}_l - 0.5}^{D^{Z^\prime}_l + 0.5} \frac{1}{\sigma_l\theta_l 2\pi} \exp\left(-\frac{1}{2\sigma^2_l\theta^2_l}\left[y^2_l\theta^2_l + \nu^2_l\sigma^2_l - \frac{\left(y_l\theta^2_l + \nu_l\sigma^2_l\right)^2}{\theta^2_l + \sigma^2_l}\right]\right)\nonumber\\
+    & \qquad \qquad \qquad \times \exp\left(-\frac{1}{2}\left[\frac{\theta^2_l + \sigma^2_l}{\theta^2_l\sigma^2_l}\right]\left[\mu_l - \left(\frac{y_l\theta^2_l + \nu_l\sigma^2_l}{\theta^2_l + \sigma^2_l}\right)\right]^2\right) dy_l d\mu_l\nonumber\\
+    &\propto \int_{-\infty}^\infty \int_{D^{Z^\prime}_l - 0.5}^{D^{Z^\prime}_l + 0.5} \frac{1}{\sigma_l\theta_l 2\pi} \exp\left(-\frac{1}{2\sigma^2_l\theta^2_l}\left[\frac{y^2_l\theta^4_l + \nu^2_l\sigma^2_l\theta^2_l + y^2_l\theta^2_l\sigma^2_l + \nu^2_l\sigma^4_l - \left(y^2_l\theta^4_l + 2y_l\theta^2_l\nu_i\sigma^2_l + \nu^2_l\sigma^4_l\right)}{\theta^2_l + \sigma^2_l}\right]\right)\nonumber\\
+    & \qquad \qquad \qquad \times \exp\left(-\frac{1}{2}\left[\frac{\theta^2_l + \sigma^2_l}{\theta^2_l\sigma^2_l}\right]\left[\mu_l - \left(\frac{y_l\theta^2_l + \nu_l\sigma^2_l}{\theta^2_l + \sigma^2_l}\right)\right]^2\right) dy_l d\mu_l\nonumber\\
+    &\propto \int_{-\infty}^\infty \int_{D^{Z^\prime}_l - 0.5}^{D^{Z^\prime}_l + 0.5} \frac{1}{\sigma_l\theta_l 2\pi} \exp\left(-\frac{1}{2}\left[\frac{\nu^2_l - 2y_l\nu_i + y^2_l}{\theta^2_l + \sigma^2_l}\right]\right)\exp\left(-\frac{1}{2}\left[\frac{\theta^2_l + \sigma^2_l}{\theta^2_l\sigma^2_l}\right]\left[\mu_l - \left(\frac{y_l\theta^2_l + \nu_l\sigma^2_l}{\theta^2_l + \sigma^2_l}\right)\right]^2\right) dy_l d\mu_l\nonumber\\
+    &\propto \int_{-\infty}^\infty \int_{D^{Z^\prime}_l - 0.5}^{D^{Z^\prime}_l + 0.5} \frac{1}{\sigma_l\theta_l 2\pi} \exp\left(-\frac{\left[y_l - \nu_l\right]^2}{2\left(\theta^2_l + \sigma^2_l\right)}\right)\exp\left(-\frac{1}{2}\left[\frac{\theta^2_l + \sigma^2_l}{\theta^2_l\sigma^2_l}\right]\left[\mu_l - \left(\frac{y_l\theta^2_l + \nu_l\sigma^2_l}{\theta^2_l + \sigma^2_l}\right)\right]^2\right) dy_l d\mu_l\nonumber\\
+    &\propto \int_{D^{Z^\prime}_l - 0.5}^{D^{Z^\prime}_l + 0.5} \frac{1}{\sqrt{\left(\sigma^2_l + \theta^2_l\right)2\pi}} \exp\left(-\frac{\left[y_l - \nu_l\right]^2}{2\left(\theta^2_l + \sigma^2_l\right)}\right)\nonumber\\
+    & \qquad \qquad \qquad \times \int_{-\infty}^\infty \frac{\sqrt{\sigma^2_l + \theta^2_l}}{\sigma_l\theta_l \sqrt{2\pi}}\exp\left(-\frac{1}{2}\left[\frac{\theta^2_l + \sigma^2_l}{\theta^2_l\sigma^2_l}\right]\left[\mu_l - \left(\frac{y_l\theta^2_l + \nu_l\sigma^2_l}{\theta^2_l + \sigma^2_l}\right)\right]^2\right) d\mu_l dy_l\nonumber\\
+    &\propto \int_{D^{Z^\prime}_l - 0.5}^{D^{Z^\prime}_l + 0.5} \frac{1}{\sqrt{\left(\sigma^2_l + \theta^2_l\right)2\pi}} \exp\left(-\frac{\left[y_l - \nu_l\right]^2}{2\left(\theta^2_l + \sigma^2_l\right)}\right)dy_l.\label{eq:margint}
+\end{align}
+
+\subsection{Stuff1}
+
+Now consider $\mu_{la} \sim N\left(\nu_{la}, \theta^2_{la}\right)$ where the $\mu_{la}$ are independent $\forall l, a$. Hence if $\mu_l = \sum_{a = 1}^{N_a} \mu_{la}$ then $\mu_l \sim N\left(\sum_{a=1}^{N_a} \nu_{la}, \sum_{a = 1}^{N_a} \theta^2_{la}\right)$. To calculate $\pi\left(\mu_{l1} \mid \mu_l\right)$, consider
+\begin{align*}
+    \pi\left(\mu_{l1} \mid \mu_l\right) &\propto \pi\left(\mu_l \mid \mu_{l1}\right)\pi\left(\mu_{l1}\right).
+\end{align*}
+Here $\mu_l \mid \mu_{l1}$ is equivalent to the p.d.f. of a random variable $\mu_{l - 1} = \sum_{a = 2}^{N_a} \mu_{la}$ taking the value $\mu_l - \mu_{l1}$, with mean $\nu_{l - 1} = \sum_{a = 2}^{N_a} \nu_{la}$ and variance $\theta^2_{l - 1} = \sum_{a = 2}^{N_a} \theta^2_{la}$, hence:
+\begin{align}
+    \pi\left(\mu_{l1} \mid \mu_l\right) &\propto \exp\left(-\frac{1}{2\theta^2_{l - 1}}\left[\mu_l - \mu_{l1} - \nu_{l - 1}\right]^2\right)\exp\left(-\frac{1}{2\theta^2_{l1}}\left[\mu_{l1} - \nu_{l1}\right]^2\right) \nonumber\\
+    &\propto \exp\left(-\frac{1}{2}\left[\frac{1}{\theta^2_{l - 1}}\left(\mu^2_l + \mu^2_{l1} + \nu^2_{l - 1} - 2 \mu_l\mu_{l1} - 2 \mu_l\nu_{l1} + 2 \mu_{l1}\nu_{l1}\right) + \frac{1}{\theta^2_{l1}}\left(\mu^2_{l1} - 2\mu_{l1}\nu_{l1} + \nu^2_{l1}\right)\right]\right)\nonumber\\
+    &\propto \exp\left(-\frac{1}{2}\left[\mu^2_{l1}\left(\frac{1}{\theta^2_{l - 1}} + \frac{1}{\theta^2_{l1}}\right) - 2 \mu_{l1}\left(\frac{\mu_l - \nu_{l1}}{\theta^2_{l - 1}} + \frac{\nu_{l1}}{\theta^2_{l1}}\right)\right]\right)\nonumber\\
+    &\propto \exp\left(-\frac{1}{2}\left(\frac{\theta^2_{l1} + \theta^2_{l - 1}}{\theta^2_{l1}\theta^2_{l - 1}}\right)\left[\mu^2_{l1} - 2 \mu_{l1}\left(\frac{\theta^2_{l1}\left(\mu_l - \nu_{l1}\right) + \theta^2_{l - 1}\nu_{l1}}{\theta^2_{l - 1} + \theta^2_{l1}}\right)\right]\right)\nonumber\\
+    &\propto \exp\left(-\frac{1}{2}\left(\frac{\theta^2_{l1} + \theta^2_{l - 1}}{\theta^2_{l1}\theta^2_{l - 1}}\right)\left[\mu_{l1} - \left(\frac{\theta^2_{l1}\left(\mu_l - \nu_{l1}\right) + \theta^2_{l - 1}\nu_{l1}}{\theta^2_{l - 1} + \theta^2_{l1}}\right)\right]^2\right)\nonumber\\
+    &\propto \exp\left(-\frac{1}{2}\left(\frac{\theta^2_l}{\theta^2_{l1}\theta^2_{l - 1}}\right)\left[\mu_{l1} - \left(\frac{\theta^2_{l1}\left(\mu_l - \nu_{l1}\right) + \theta^2_{l - 1}\nu_{l1}}{\theta^2_l}\right)\right]^2\right),
+\end{align}
+which is proportional to a Gaussian p.d.f. with mean $\left(\frac{\theta^2_{l1}\left(\mu_l - \nu_{l1}\right) + \theta^2_{l - 1}\nu_{l1}}{\theta^2_l}\right)$ and variance $\frac{\theta^2_{l1}\theta^2_{l - 1}}{\theta^2_l}$. Hence
+\begin{equation}
+    \mu_{l1} \mid \mu_l \sim N\left(\frac{\theta^2_{l1}\left(\mu_l - \nu_{l1}\right) + \theta^2_{l - 1}\nu_{l1}}{\theta^2_l}, \frac{\theta^2_{l1}\theta^2_{l - 1}}{\theta^2_l}\right) \label{eq:mu1gmu}
+\end{equation}
+
+\subsection{Stuff2}
+
+Letting $\mu_l \sim N\left(v_l, \theta^2_l\right)$ and $y_l \sim N\left(\mu_l, \sigma^2_l\right)$ and considering the distribution of $\mu_l \mid y_l$, we have that
+\begin{align}
+    \pi\left(\mu_l \mid y_l\right) &\propto \exp\left[-\frac{1}{2\sigma^2_l}\left(y_l - \mu_l\right)^2\right]\exp\left[-\frac{1}{2\theta^2_l}\left(\mu_l - \nu_l\right)^2\right] \nonumber\\
+    &\propto \exp\left[-\frac{1}{2}\left(\frac{1}{\sigma^2_l}\left[y^2_l - 2y_l\mu_l + \mu^2_l\right] + \frac{1}{\theta^2_l}\left[\mu^2_l - 2\mu_l\nu_l + \nu^2_l\right]\right)\right] \nonumber\\
+    &\propto \exp\left[-\frac{1}{2}\left(\mu_l^2\left[\frac{1}{\sigma^2_l} + \frac{1}{\theta^2_l}\right] - 2\mu_l\left[\frac{y_l}{\sigma^2_l} + \frac{\nu_l}{\theta^2_l}\right]\right)\right]\nonumber\\
+    &\propto \exp\left[-\frac{1}{2}\left(\frac{\theta^2_l + \sigma^2_l}{\sigma^2_l \theta^2_l}\right)\left(\mu_l^2 - 2\mu_l\left[\frac{y_l\theta^2_l + \nu_l\sigma^2_l}{\theta^2_l + \sigma^2_l}\right]\right)\right]\nonumber\\
+    &\propto \exp\left[-\frac{1}{2}\left(\frac{\theta^2_l + \sigma^2_l}{\sigma^2_l \theta^2_l}\right)\left(\mu_l - \left[\frac{y_l\theta^2_l + \nu_l\sigma^2_l}{\theta^2_l + \sigma^2_l}\right]\right)^2\right],\label{eq:mugy}
+\end{align}
+which is proportional to a Gaussian p.d.f. with mean $\frac{y_l\theta^2_l + \nu_l\sigma^2_l}{\theta^2_l + \sigma^2_l}$ and variance $\frac{\sigma^2_l \theta^2_l}{\theta^2_l + \sigma^2_l}$.
+
+
+\end{document}
