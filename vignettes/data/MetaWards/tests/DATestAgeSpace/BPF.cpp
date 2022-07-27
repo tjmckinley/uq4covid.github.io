@@ -268,7 +268,7 @@ double ldtnorm_cpp(int x, double mu, double sigma, double LB, double UB) {
         temp1 = R::pnorm(LB - 0.5, mu, sigma, 1, 1);
         temp2 = R::pnorm(UB + 0.5, mu, sigma, 1, 1);
         temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
-        if(!arma::is_finite(ldens)) {
+        if(!arma::is_finite(temp1)) {
             temp1 = R::pnorm(LB - 0.5, mu, sigma, 0, 1);
             temp2 = R::pnorm(UB + 0.5, mu, sigma, 0, 1);
             temp2 = temp1 + log(1.0 - exp(temp2 - temp1));
