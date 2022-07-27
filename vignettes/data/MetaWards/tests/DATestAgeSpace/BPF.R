@@ -45,6 +45,7 @@ log_sum_exp <- function(x, mn = FALSE) {
 BPF <- function(pars, C, cumDeath_lad, cumDeath_age_region, hosp_nhsregion, cumHospAd_age_nhsregion,
         lookup, age_lookup, u1_moves, u1, u2_moves, u2, ndays, npart = 10, niter = 0, 
         a1 = 0.01, a2 = 0.2, b = 0.1, a_dis = 0.05, b_dis = 0.05, 
+        sigma2_lad = 1, sigma2_age_region = 1, sigma2_nhsregion = 1, sigma2_age_nhsregion = 1,
         saveAll = NA, writeExt = FALSE, outputName = "saveOut", PF = TRUE, ncores = NA, parEnsemble = FALSE) {
                
     ## set default for saveAll if PF = FALSE
@@ -142,7 +143,7 @@ BPF <- function(pars, C, cumDeath_lad, cumDeath_age_region, hosp_nhsregion, cumH
     }
     
     ## run particle filter for each set of inputs
-    runs <- mclapply(1:nrow(pars), function(k, pars, C, u1_moves, ncohorts1, u1, u2, playprobs, ncohorts2, npart, niter, ndays, cumDeath_lad, cumDeath_age_region, hosp_nhsregion, cumHospAd_age_nhsregion, lookup, age_lookup, a1, a2, b, a_dis, b_dis, saveAll, writeExt, outputName, PF, ncores) {
+    runs <- mclapply(1:nrow(pars), function(k, pars, C, u1_moves, ncohorts1, u1, u2, playprobs, ncohorts2, npart, niter, ndays, cumDeath_lad, cumDeath_age_region, hosp_nhsregion, cumHospAd_age_nhsregion, lookup, age_lookup, a1, a2, b, a_dis, b_dis, sigma2_lad, sigma2_age_region, sigma2_nhsregion, sigma2_age_nhsregion, saveAll, writeExt, outputName, PF, ncores) {
     
         ## set up lookups and numbers of regions
         lookup <- as.matrix(lookup)
@@ -193,7 +194,8 @@ BPF <- function(pars, C, cumDeath_lad, cumDeath_age_region, hosp_nhsregion, cumH
             particles <- BPF_cpp(pars, C, deathInc_lad, deathInc_age_region, hosp_nhsregion, 
                 hospInc_age_nhsregion, lookup, age_lookup, nclasses, nages, nlads, ndeathlads, 
                 nregions, nnhsages, nnhsregions, u1_moves, ncohorts1, u1, u2, playprobs, 
-                ncohorts2, ndays, npart, niter, a1, a2, b, a_dis, b_dis, saveAll, writeExt, 
+                ncohorts2, ndays, npart, niter, a1, a2, b, a_dis, b_dis, sigma2_lad, 
+                sigma2_age_region, sigma2_nhsregion, sigma2_age_nhsregion, saveAll, writeExt, 
                 outputName, PF, ncores)
             return(particles)
         }
@@ -202,7 +204,8 @@ BPF <- function(pars, C, cumDeath_lad, cumDeath_age_region, hosp_nhsregion, cumH
         particles <- BPF_cpp(pars, C, deathInc_lad, deathInc_age_region, hosp_nhsregion, 
                 hospInc_age_nhsregion, lookup, age_lookup, nclasses, nages, nlads, ndeathlads, 
                 nregions, nnhsages, nnhsregions, u1_moves, ncohorts1, u1, u2, playprobs, 
-                ncohorts2, ndays, npart, niter, a1, a2, b, a_dis, b_dis, saveAll, writeExt, 
+                ncohorts2, ndays, npart, niter, a1, a2, b, a_dis, b_dis, sigma2_lad, 
+                sigma2_age_region, sigma2_nhsregion, sigma2_age_nhsregion, saveAll, writeExt, 
                 outputName, PF, ncores)
         
         if(saveAll != 0 & writeExt == 0) {
@@ -210,7 +213,7 @@ BPF <- function(pars, C, cumDeath_lad, cumDeath_age_region, hosp_nhsregion, cumH
         } else {
             return(list(ll = particles$ll))
         }
-    }, pars = pars, C = C, u1_moves = u1_moves, ncohorts1 = ncohorts1, u1 = u1, u2 = u2, playprobs = playprobs, ncohorts2 = ncohorts2, npart = npart, niter = niter, ndays = ndays, cumDeath_lad = cumDeath_lad, cumDeath_age_region = cumDeath_age_region, hosp_nhsregion = hosp_nhsregion, cumHospAd_age_nhsregion = cumHospAd_age_nhsregion, lookup = lookup, age_lookup = age_lookup, a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis, saveAll = saveAllint, writeExt = writeExtint, outputName = outputName, PF = PFint, ncores = ncores, mc.cores = ncoresEns)
+    }, pars = pars, C = C, u1_moves = u1_moves, ncohorts1 = ncohorts1, u1 = u1, u2 = u2, playprobs = playprobs, ncohorts2 = ncohorts2, npart = npart, niter = niter, ndays = ndays, cumDeath_lad = cumDeath_lad, cumDeath_age_region = cumDeath_age_region, hosp_nhsregion = hosp_nhsregion, cumHospAd_age_nhsregion = cumHospAd_age_nhsregion, lookup = lookup, age_lookup = age_lookup, a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis, sigma2_lad = sigma2_lad, sigma2_age_region = sigma2_age_region, sigma2_nhsregion = sigma2_nhsregion, sigma2_age_nhsregion = sigma2_age_nhsregion, saveAll = saveAllint, writeExt = writeExtint, outputName = outputName, PF = PFint, ncores = ncores, mc.cores = ncoresEns)
     if(!is.na(saveAll)) {
         if(!writeExt) {
             if(PF) {
