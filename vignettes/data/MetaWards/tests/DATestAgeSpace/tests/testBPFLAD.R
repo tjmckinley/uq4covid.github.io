@@ -95,8 +95,9 @@ runs_md <- BPF(pars[100, ], C = contact, cumDeath_lad = cumDeath_lad,
     cumHospAd_age_nhsregion = cumHospAd_age_nhsregion, lookup = lookup, 
     age_lookup = age_lookup, u1_moves = u1_moves,
     u1 = u1, u2_moves = as.matrix(PM19), u2 = u2, ndays = ndays, npart = 10, 
-    a_dis = 0.05, b_dis = 0.05, a1 = 0.01, a2 = 0.2, b = 0.001, saveAll = TRUE, 
-    writeExt = TRUE)
+    a1 = 0.01, a2 = 0.2, b = 0.1, a_dis = 0.05, b_dis = 0.05, 
+    sigma2_lad = 1, sigma2_age_region = 1, sigma2_nhsregion = 1, sigma2_age_nhsregion = 1,
+    saveAll = TRUE, writeExt = TRUE)
     
 ###############################################
 #######        LAD-level truth          #######

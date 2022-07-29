@@ -42,7 +42,7 @@ set.seed(666)
 nreps <- 10
 
 ## extract parameters
-pars1 <- slice(pars, 1:9) %>%
+pars1 <- slice(pars, 1) %>%
     mutate(id = 1:n())
 
 ## expand to replicates
@@ -60,27 +60,29 @@ npart <- 10
 
 ## run BPF
 runs_bpf <- BPF(pars, C = contact, data = data, u1_moves = u1_moves,
-    u1 = u1, ndays = 50, npart = 10, a_dis = 0.05, b_dis = 0.05,
-    a1 = 0.01, a2 = 0.2, b = 0.001, saveAll = NA)
+    u1 = u1, ndays = 50, npart = 10, a1 = 0.01, a2 = 0.2, b = 0.1, 
+    a_dis = 0.05, b_dis = 0.05, sigma2_lad = 1, sigma2_age_region = 1, 
+    sigma2_nhsregion = 1, sigma2_age_nhsregion = 1, saveAll = NA)
     
 save.image("runs.RData")
     
 ## run APF1
 runs_apf1 <- APF1(pars, C = contact, data = data, u1_moves = u1_moves,
-    u1 = u1, ndays = 50, npart = 10, a_dis = 0.05, b_dis = 0.05,
-    a1 = 0.01, a2 = 0.2, b = 0.001, saveAll = NA)
+    u1 = u1, ndays = 50, npart = 10, a1 = 0.01, a2 = 0.2, b = 0.1, 
+    a_dis = 0.05, b_dis = 0.05, sigma2_lad = 1, sigma2_age_region = 1, 
+    sigma2_nhsregion = 1, sigma2_age_nhsregion = 1, saveAll = NA)
     
 save.image("runs1.RData")
 
-## run TPF
-runs_tpf <- IAPF(pars, C = contact, data = data, u1_moves = u1_moves,
-    u1 = u1, ndays = 50, npart = 10, a_dis = 0.05, b_dis = 0.05, kmax = 3,
-    a1 = 0.01, a2 = 0.2, b = 0.001, saveAll = NA)
-    
-save.image("runs2.RData")
+### run TPF
+#runs_tpf <- IAPF(pars, C = contact, data = data, u1_moves = u1_moves,
+#    u1 = u1, ndays = 50, npart = 10, a_dis = 0.05, b_dis = 0.05, kmax = 3,
+#    a1 = 0.01, a2 = 0.2, b = 0.001, saveAll = NA)
+#    
+#save.image("runs2.RData")
   
 ## collapse to data frame and plot
-runs <- tibble(BPF = runs_bpf, APF1 = runs_apf1, TPF = runs_tpf) %>%
+runs <- tibble(BPF = runs_bpf, APF1 = runs_apf1) %>%
     cbind(select(pars, id)) %>%
     pivot_longer(!id, names_to = "Type")
 

@@ -257,11 +257,11 @@ double ldtnorm_cpp(int x, double mu, double sigma, double LB, double UB) {
         temp2 = R::pnorm(x + 0.5, mu, sigma, 0, 1);
         ldens = temp1 + log(1.0 - exp(temp2 - temp1));
     }
-    if(!arma::is_finite(ldens)) stop("Something wrong in TN\n");
+    if(!arma::is_finite(ldens)) stop("Something wrong in dTN\n");
     if(std::isinf(UB)) {
         // normalising constant
         temp1 = R::pnorm(LB - 0.5, mu, sigma, 0, 1);
-        if(!arma::is_finite(temp1)) stop("Something wrong in TN LB\n");
+        if(!arma::is_finite(temp1)) stop("Something wrong in dTN LB\n");
         ldens -= temp1;
     } else {
         // normalising constant
@@ -274,7 +274,7 @@ double ldtnorm_cpp(int x, double mu, double sigma, double LB, double UB) {
             temp2 = temp1 + log(1.0 - exp(temp2 - temp1));
             temp1 = temp2;
         }
-        if(!arma::is_finite(temp1)) stop("Something wrong in TN LB UB\n");
+        if(!arma::is_finite(temp1)) stop("Something wrong in dTN LB UB\n");
         ldens -= temp1;
     }
     return ldens;
@@ -301,6 +301,68 @@ int rdtnorm_cpp(double mu, double sigma, double LB, double UB, sitmo::prng &eng)
     u = u * sigma + mu;
     x = (int) round(u);
     return x;
+}
+
+// log truncated Gaussian p.d.f.
+double ltnorm_cpp(double x, double mu, double sigma, double LB, double UB) {
+    if(std::isinf(LB)) {
+        stop("Lower bound of truncated Gaussian must be finite currently\n");
+    }
+    double ldens = R::dnorm(x, mu, sigma, 1);
+    if(!arma::is_finite(ldens)) stop("Something wrong in TN\n");
+    if(std::isinf(UB)) {
+        // normalising constant
+        double temp1 = R::pnorm(LB, mu, sigma, 0, 1);
+        if(!arma::is_finite(temp1)) stop("Something wrong in TN LB\n");
+        ldens -= temp1;
+    } else {
+        // normalising constant
+        double temp1 = R::pnorm(LB , mu, sigma, 1, 1);
+        double temp2 = R::pnorm(UB, mu, sigma, 1, 1);
+        temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+        if(!arma::is_finite(temp1)) {
+            temp1 = R::pnorm(LB, mu, sigma, 0, 1);
+            temp2 = R::pnorm(UB, mu, sigma, 0, 1);
+            temp2 = temp1 + log(1.0 - exp(temp2 - temp1));
+            temp1 = temp2;
+        }
+        if(!arma::is_finite(temp1)) stop("Something wrong in TN LB UB\n");
+        ldens -= temp1;
+    }
+    return ldens;
+}
+
+// expected value of truncated Gaussian p.d.f.
+double exptnorm_cpp(double mu, double sigma, double LB, double UB) {
+    if(std::isinf(LB)) {
+        stop("Lower bound of truncated Gaussian must be finite currently\n");
+    }
+    if(LB == UB) {
+        stop("'LB' shouldn't equal 'UB' in truncated Gaussian mean function\n");
+    }
+    if(std::isinf(UB)) {
+        stop("Mean not yet implemented for left-truncated Gaussian\n");
+    } else {
+        // normalising constant
+        double temp1 = R::pnorm(LB, mu, sigma, 1, 1);
+        double temp2 = R::pnorm(UB, mu, sigma, 1, 1);
+        temp1 = temp2 + log(1.0 - exp(temp1 - temp2));
+        if(!arma::is_finite(temp1)) {
+            temp1 = R::pnorm(LB, mu, sigma, 0, 1);
+            temp2 = R::pnorm(UB, mu, sigma, 0, 1);
+            temp2 = temp1 + log(1.0 - exp(temp2 - temp1));
+            temp1 = temp2;
+            if(!arma::is_finite(temp1)) stop("Something wrong in mean TN LB UB\n");
+        }
+        double Z = exp(temp1);
+        temp1 = R::dnorm(LB, mu, sigma, 0);
+        temp2 = R::dnorm(UB, mu, sigma, 0);
+        temp1 = mu + (temp1 - temp2) * sigma / Z;
+        if(!arma::is_finite(temp1) || temp1 < LB || temp1 > UB) {
+            Rprintf("mu = %f sigma = %f LB = %f UB = %f\n", mu, sigma, LB, UB);
+        }
+        return temp1;
+    }
 }
 
 // log-sum-exp function to prevent numerical overflow
@@ -1101,12 +1163,15 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
 //}
 
 // [[Rcpp::export]]
-List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasses, 
-    arma::uword nages, arma::uword nlads, arma::imat u1_moves, arma::ivec ncohorts1, 
-    arma::icube u1_comb, arma::icube u2_comb, arma::vec playprobs, arma::ivec ncohorts2, 
-    arma::uword ndays, arma::uword npart, int niter, double a1, double a2, double b, 
-    double a_dis, double b_dis, int saveAll, int writeExt, CharacterVector outputName,
-    int PF, int ncores) {
+List APF1_cpp (arma::vec pars, arma::mat C, arma::imat deathInc_lad, arma::imat deathInc_age_region,
+    arma::imat hosp_nhsregion, arma::imat hospInc_age_nhsregion, arma::imat lookup, arma::imat age_lookup,
+    arma::uword nclasses, arma::uword nages, arma::uword nlads, 
+    arma::uword ndeathlads, arma::uword nregions, arma::uword nnhsages, arma::uword nnhsregions,  
+    arma::imat u1_moves, arma::ivec ncohorts1, arma::icube u1_comb, 
+    arma::icube u2_comb, arma::vec playprobs, arma::ivec ncohorts2, arma::uword ndays, 
+    arma::uword npart, int niter, double a1, double a2, double b, double a_dis, double b_dis,
+    double sigma2_lad, double sigma2_age_region, double sigma2_nhsregion, double sigma2_age_nhsregion,
+    int saveAll, int writeExt, CharacterVector outputName, int PF, int ncores) {
     
     // set counters
     arma::uword i, j, l, k, t = 0;
@@ -1117,18 +1182,30 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
     std::vector<arma::icube> u1_new(npart);
     std::vector<arma::icube> u2(npart);
     std::vector<arma::icube> u2_new(npart);
-    arma::icube u_night_full(nclasses + 4, nages, nlads); u_night_full.zeros();
-    arma::icube u_night_reduced(7, nages, nlads); u_night_reduced.zeros();
-    std::vector<arma::icube> u_night_obs(npart);
-    std::vector<arma::icube> u_night_obs1(npart);
-    for(i = 0; i < npart; i++) {
-        u_night_obs[i] = arma::icube (3, nages, nlads); u_night_obs[i].zeros();
-    }
     for(i = 0; i < npart; i++) {
         u1[i] = u1_comb;
         u1_new[i] = u1_comb;
         u2[i] = u2_comb;
         u2_new[i] = u2_comb;
+    }
+    
+    // set up output objects
+    arma::icube u_night_full(nclasses, nages, nlads); u_night_full.zeros();
+    
+    arma::ivec u_night_lad(ndeathlads); u_night_lad.zeros();
+    arma::imat u_night_age_region(nages, nregions); u_night_age_region.zeros();
+    arma::imat u_night_age_nhsregion(nnhsages, nnhsregions); u_night_age_nhsregion.zeros();
+    arma::ivec u_night_nhsregion(nnhsregions); u_night_nhsregion.zeros();
+    
+    std::vector<arma::ivec> u_night_lad_cum(npart);
+    std::vector<arma::imat> u_night_age_region_cum(npart);
+    std::vector<arma::imat> u_night_age_nhsregion_cum(npart);
+    std::vector<arma::ivec> u_night_vec_cum1(npart);
+    std::vector<arma::imat> u_night_mat_cum1(npart);
+    for(i = 0; i < npart; i++) {
+        u_night_lad_cum[i] = arma::ivec(ndeathlads); u_night_lad_cum[i].zeros();
+        u_night_age_region_cum[i] = arma::imat(nages, nregions); u_night_age_region_cum[i].zeros();
+        u_night_age_nhsregion_cum[i] = arma::imat(nnhsages, nnhsregions); u_night_age_nhsregion_cum[i].zeros();
     }
         
     // set up weight vector
@@ -1136,8 +1213,11 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
     arma::ivec inds(npart);
     double wnorm = 0.0;
     
-    // set up auxiliary objects    
-    arma::ivec obsInc (data.n_cols); obsInc.zeros();
+    // set up auxiliary objects
+    arma::ivec obsInc_lad (deathInc_lad.n_cols); obsInc_lad.zeros();
+    arma::ivec obsInc_age_region (deathInc_age_region.n_cols); obsInc_age_region.zeros();
+    arma::ivec obsInc_age_nhsregion (hospInc_age_nhsregion.n_cols); obsInc_age_nhsregion.zeros();
+    arma::ivec obs_nhsregion (hosp_nhsregion.n_cols); obs_nhsregion.zeros();
     
     // sample seeds to set up thread-safe PRNGs
 #ifdef _OPENMP
@@ -1150,6 +1230,18 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
     uint32_t coreseedSerial = static_cast<uint32_t>(R::rnorm(0.0, 100.0));
     sitmo::prng engSerial(coreseedSerial);
     
+    // calculate number of LADs in each region
+    arma::ivec nlads_region(nregions); nlads_region.zeros();
+    arma::ivec nlads_nhsregion(nnhsregions); nlads_nhsregion.zeros();
+    for(i = 0; i < nlads; i++) {
+        if(lookup(i, 2) >= 0) {
+            nlads_region(lookup(i, 2) - 1)++;
+        }
+        if(lookup(i, 3) >= 0) {
+            nlads_nhsregion(lookup(i, 3) - 1)++;
+        }
+    }
+    
     // check which output required
     List out (npart * (ndays + 1));
     std::ofstream file;
@@ -1159,90 +1251,136 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
         char str1[80];
         std::strcpy(str1, "save");
         double muy, sigma2y, u;
-        if(saveAll == 1) {
-            for(i = 0; i < npart; i++) {
-                // extract just counts for DI and DH
-                u_night_reduced.zeros();
-                for(l = 0; l < u1_moves.n_rows; l++) {
-                    for(j = 0; j < nages; j++) {
-                        u_night_reduced(0, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](6, j, l);
-                        u_night_reduced(1, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](9, j, l);
-                        u_night_reduced(2, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](11, j, l);
-                        // incidence
-                        u_night_reduced(3, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](6, j, l);
-                        u_night_reduced(4, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](9, j, l);
-                        u_night_reduced(5, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](11, j, l);
-                        // hosp count
-                        u_night_reduced(6, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](9, j, l);
+        for(i = 0; i < npart; i++) {
+            // extract just counts for DI and DH
+            u_night_lad.zeros();
+            u_night_age_region.zeros();
+            u_night_age_nhsregion.zeros();
+            u_night_nhsregion.zeros();
+            for(l = 0; l < u1_moves.n_rows; l++) {
+                k = (arma::uword) u1_moves(l, 0) - 1;
+                for(j = 0; j < nages; j++) {
+                    
+                    // death incidence in LADs
+                    if(lookup(k, 1) >= 0) {
+                        u_night_lad(lookup(k, 1) - 1) += u1[i](6, j, l);
+                        u_night_lad(lookup(k, 1) - 1) += u1[i](11, j, l);
                     }
-                }
-                for(l = 0; l < nlads; l++) {
-                    for(j = 0; j < nages; j++) {
-                        u_night_reduced(0, j, l) += u2[i](6, j, l);
-                        u_night_reduced(1, j, l) += u2[i](9, j, l);
-                        u_night_reduced(2, j, l) += u2[i](11, j, l);
-                        // incidence
-                        u_night_reduced(3, j, l) += u2[i](6, j, l);
-                        u_night_reduced(4, j, l) += u2[i](9, j, l);
-                        u_night_reduced(5, j, l) += u2[i](11, j, l);
-                        // hosp count
-                        u_night_reduced(6, j, l) += u2[i](9, j, l);
+                    
+                    // death incidence by age and region
+                    if(lookup(k, 2) >= 0) {
+                        u_night_age_region(j, lookup(k, 2) - 1) += u1[i](6, j, l);
+                        u_night_age_region(j, lookup(k, 2) - 1) += u1[i](11, j, l);
                     }
-                }
-                // apply observation error
-                muy = a1 - a2;
-                for(l = 0; l < nlads; l++) {
-                    for(j = 0; j < nages; j++) {
-                        for(k = 3; k < 7; k++) {
-                            sigma2y = a1 + a2 + 2.0 * b * u_night_reduced(k, j, l);
-                            u_night_reduced(k, j, l) += rdtnorm_cpp(
-                                muy, 
-                                sqrt(sigma2y),
-                                -u_night_reduced(k, j, l),
-                                std::numeric_limits<double>::infinity(),
-                                engSerial
-                            );
-                        }
-                        // cumulate incidence
-                        u_night_obs[i](0, j, l) = u_night_reduced(3, j, l);
-                        u_night_obs[i](1, j, l) = u_night_reduced(4, j, l);
-                        u_night_obs[i](2, j, l) = u_night_reduced(5, j, l);
+                    
+                    if(lookup(k, 3) >= 0) {
+                        // hospital incidence by age and NHS region
+                        u_night_age_nhsregion(age_lookup(j, 1) - 1, lookup(k, 3) - 1) += u1[i](9, j, l);
+                        // and hospital count by NHS region
+                        u_night_nhsregion(lookup(k, 3) - 1) += u1[i](9, j, l);
                     }
-                }
-                if(writeExt == 0) {
-                    out[i] = u_night_reduced;
-                } else {
-                    std::sprintf(file_name, "%s/p_%u.csv", std::string(outputName[0]).c_str(), i);
-                    file.open(file_name);
-                    file << "time, class, ";
-                    for(j = 0; j < nages; j++) file << "age" << j + 1 << ", ";
-                    file << "lad\n";
-                    for(l = 0; l < nlads; l++) {
-                        for(arma::uword r = 0; r < 7; r++) {
-                            file << t << ", " << r << ", ";
-                            for(j = 0; j < nages; j++) {
-                                file << u_night_reduced(r, j, l) << ", ";
-                            }
-                            file << l + 1 << "\n";
-                        }
-                    }
-                    file.close();
                 }
             }
-        } else {
-            for(i = 0; i < npart; i++) {
+            for(l = 0; l < nlads; l++) {
+                for(j = 0; j < nages; j++) {
+                    
+                    // death incidence in LADs
+                    if(lookup(l, 1) >= 0) {
+                        u_night_lad(lookup(l, 1) - 1) += u2[i](6, j, l);
+                        u_night_lad(lookup(l, 1) - 1) += u2[i](11, j, l);
+                    }
+                    
+                    // death incidence by age and region
+                    if(lookup(l, 2) >= 0) {
+                        u_night_age_region(j, lookup(l, 2) - 1) += u2[i](6, j, l);
+                        u_night_age_region(j, lookup(l, 2) - 1) += u2[i](11, j, l);
+                    }
+                    
+                    if(lookup(l, 3) >= 0) {
+                        // hospital incidence by age and NHS region
+                        u_night_age_nhsregion(age_lookup(j, 1) - 1, lookup(l, 3) - 1) += u2[i](9, j, l);
+                        // and hospital count by NHS region
+                        u_night_nhsregion(lookup(l, 3) - 1) += u2[i](9, j, l);
+                    }
+                }
+            }
+            
+            // apply observation error
+            for(l = 0; l < ndeathlads; l++) {
+                // death incidence in LADs
+                sigma2y = nages * (a1 + a2) + 2.0 * b * u_night_lad(l);
+                sigma2y += sigma2_lad;
+                muy = u_night_lad(l) + nages * (a1 - a2);
+                u_night_lad(l) = rdtnorm_cpp(
+                    muy, 
+                    sqrt(sigma2y),
+                    0,
+                    std::numeric_limits<double>::infinity(),
+                    engSerial
+                );
+            }
+            for(l = 0; l < nregions; l++) {
+                for(j = 0; j < nages; j++) {
+                    // death incidence by age and region
+                    sigma2y = nlads_region(l) * (a1 + a2) + 2.0 * b * u_night_age_region(j, l);
+                    sigma2y += sigma2_age_region;
+                    muy = u_night_age_region(j, l) + nlads_region(l) * (a1 - a2);
+                    u_night_age_region(j, l) = rdtnorm_cpp(
+                        muy, 
+                        sqrt(sigma2y),
+                        0,
+                        std::numeric_limits<double>::infinity(),
+                        engSerial
+                    );
+                }
+            }
+            for(l = 0; l < nnhsregions; l++) {
+                // and hospital count by NHS region
+                sigma2y = nages * nlads_nhsregion(l) * (a1 + a2) + 2.0 * b * u_night_nhsregion(l);
+                sigma2y += sigma2_nhsregion;
+                muy = u_night_nhsregion(l) + nages * nlads_nhsregion(l) * (a1 - a2);
+                u_night_nhsregion(l) = rdtnorm_cpp(
+                    muy, 
+                    sqrt(sigma2y),
+                    0,
+                    std::numeric_limits<double>::infinity(),
+                    engSerial
+                );  
+                for(j = 0; j < nnhsages; j++) {
+                    // hospital incidence by age and NHS region
+                    sigma2y = nlads_nhsregion(l) * (a1 + a2) + 2.0 * b * u_night_age_nhsregion(j, l);
+                    sigma2y += sigma2_age_nhsregion;
+                    muy = u_night_age_nhsregion(j, l) + nlads_nhsregion(l) * (a1 - a2);
+                    u_night_age_nhsregion(j, l) = rdtnorm_cpp(
+                        muy, 
+                        sqrt(sigma2y),
+                        0,
+                        std::numeric_limits<double>::infinity(),
+                        engSerial
+                    );
+                }
+            }
+            // cumulate incidence
+            for(l = 0; l < ndeathlads; l++) {
+                u_night_lad_cum[i](l) = u_night_lad(l);
+            }
+            for(l = 0; l < nregions; l++) {
+                for(j = 0; j < nages; j++) {
+                    u_night_age_region_cum[i](j, l) = u_night_age_region(j, l);
+                }
+            }
+            for(l = 0; l < nnhsregions; l++) {
+                for(j = 0; j < nnhsages; j++) {
+                    u_night_age_nhsregion_cum[i](j, l) = u_night_age_nhsregion(j, l);
+                }
+            }
+            if(saveAll == 2) {
                 u_night_full.zeros();
                 for(l = 0; l < u1_moves.n_rows; l++) {
                     for(j = 0; j < nages; j++) {
                         for(k = 0; k < nclasses; k++) {
                             u_night_full(k, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](k, j, l);
                         }
-                        // incidence
-                        u_night_full(nclasses, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](6, j, l);
-                        u_night_full(nclasses + 1, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](9, j, l);
-                        u_night_full(nclasses + 2, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](11, j, l);
-                        // hosp count
-                        u_night_full(nclasses + 3, j, (arma::uword) u1_moves(l, 0) - 1) += u1[i](9, j, l);
                     }
                 }
                 for(l = 0; l < nlads; l++) {
@@ -1250,44 +1388,24 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                         for(k = 0; k < nclasses; k++) {
                             u_night_full(k, j, l) += u2[i](k, j, l);
                         }
-                        // incidence
-                        u_night_full(nclasses, j, l) += u2[i](6, j, l);
-                        u_night_full(nclasses + 1, j, l) += u2[i](9, j, l);
-                        u_night_full(nclasses + 2, j, l) += u2[i](11, j, l);
-                        // hosp count
-                        u_night_full(nclasses + 3, j, l) += u2[i](9, j, l);
                     }
                 }
-                // apply observation error
-                muy = a1 - a2;
-                for(l = 0; l < nlads; l++) {
-                    for(j = 0; j < nages; j++) {
-                        for(k = 0; k < 4; k++) {
-                            sigma2y = a1 + a2 + 2.0 * b * u_night_full(nclasses + k, j, l);
-                            u_night_full(nclasses + k, j, l) += rdtnorm_cpp(
-                                muy, 
-                                sqrt(sigma2y),
-                                -u_night_full(nclasses + k, j, l),
-                                std::numeric_limits<double>::infinity(),
-                                engSerial
-                            );
-                        }
-                        // cumulate incidence
-                        u_night_obs[i](0, j, l) = u_night_full(nclasses, j, l);
-                        u_night_obs[i](1, j, l) = u_night_full(nclasses + 1, j, l);
-                        u_night_obs[i](2, j, l) = u_night_full(nclasses + 2, j, l);
-                    }
-                }
-                if(writeExt == 0) {
-                    out[i] = u_night_full;
+            }
+            if(writeExt == 0) { 
+                if(saveAll == 1) {
+                    out[i] = List::create(Named("lads") = u_night_lad_cum[i], _["age_region"] = u_night_age_region_cum[i], _["nhsregion"] = u_night_nhsregion, _["age_nhsregion"] = u_night_age_nhsregion_cum[i]);
                 } else {
+                    out[i] = List::create(Named("full") = u_night_full, _["lads"] = u_night_lad_cum[i], _["age_region"] = u_night_age_region_cum[i], _["nhsregion"] = u_night_nhsregion, _["age_nhsregion"] = u_night_age_nhsregion_cum[i]);
+                }
+            } else {
+                if(saveAll == 2) {
                     std::sprintf(file_name, "%s/p_%u.csv", std::string(outputName[0]).c_str(), i);
                     file.open(file_name);
                     file << "time, class, ";
                     for(j = 0; j < nages; j++) file << "age" << j + 1 << ", ";
                     file << "lad\n";
                     for(l = 0; l < nlads; l++) {
-                        for(arma::uword r = 0; r < (nclasses + 4); r++) {
+                        for(arma::uword r = 0; r < nclasses; r++) {
                             file << t << ", " << r << ", ";
                             for(j = 0; j < nages; j++) {
                                 file << u_night_full(r, j, l) << ", ";
@@ -1297,13 +1415,60 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                     }
                     file.close();
                 }
+                
+                std::sprintf(file_name, "%s/p_lads_%u.csv", std::string(outputName[0]).c_str(), i);
+                file.open(file_name);
+                file << "time, deaths, lad\n";
+                for(l = 0; l < ndeathlads; l++) {
+                    file << t << ", " << u_night_lad_cum[i](l) << ", ";
+                    file << l + 1 << "\n";
+                }
+                file.close();
+                
+                std::sprintf(file_name, "%s/p_age_region_%u.csv", std::string(outputName[0]).c_str(), i);
+                file.open(file_name);
+                file << "time, ";
+                for(j = 0; j < nages; j++) file << "age" << j + 1 << ", ";
+                file << "region\n";
+                for(l = 0; l < nregions; l++) {
+                    file << t << ", ";
+                    for(j = 0; j < nages; j++) {
+                        file << u_night_age_region_cum[i](j, l) << ", ";
+                    }
+                    file << l + 1 << "\n";
+                }
+                file.close();
+                
+                std::sprintf(file_name, "%s/p_nhsregion_%u.csv", std::string(outputName[0]).c_str(), i);
+                file.open(file_name);
+                file << "time, hosp, nhsregion\n";
+                for(l = 0; l < nnhsregions; l++) {
+                    file << t << ", ";
+                    file << u_night_nhsregion(l) << ", ";
+                    file << l + 1 << "\n";
+                }
+                file.close();
+                
+                std::sprintf(file_name, "%s/p_age_nhsregion_%u.csv", std::string(outputName[0]).c_str(), i);
+                file.open(file_name);
+                file << "time, ";
+                for(j = 0; j < nnhsages; j++) file << "age" << j + 1 << ", ";
+                file << "nhsregion\n";
+                for(l = 0; l < nnhsregions; l++) {
+                    file << t << ", ";
+                    for(j = 0; j < nnhsages; j++) {
+                        file << u_night_age_nhsregion_cum[i](j, l) << ", ";
+                    }
+                    file << l + 1 << "\n";
+                }
+                file.close();
             }
         }
     }
     
     // vectors for storing acceptance rates of MCMC
     arma::ivec nacc(npart); nacc.zeros();
-    arma::mat MHweights(npart, 3 * nlads * nages); MHweights.zeros();
+    arma::mat MHweights_lad(npart, ndeathlads); MHweights_lad.zeros();
     
     // parameters for conditional sampling of simulator
     arma::vec condpars (pars.n_elem); condpars.zeros();
@@ -1331,11 +1496,16 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
         R_CheckUserInterrupt();
         
         // extract data
-        if(PF == 1) obsInc = data.row(t).t();
+        if(PF == 1) {
+            obsInc_lad = deathInc_lad.row(t).t();
+            obsInc_age_region = deathInc_age_region.row(t).t();
+            obsInc_age_nhsregion = hospInc_age_nhsregion.row(t).t();
+            obs_nhsregion = hosp_nhsregion.row(t).t();
+        }
         
         // loop over particles
 #ifdef _OPENMP
-#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, nages, nclasses, nlads, data, C, u1_moves, u1, u1_new, ncohorts1, u2, u2_new, playprobs, ncohorts2, t, pars, weights, a_dis, b_dis, a1, a2, b, obsInc, PF, ndays, MHweights)
+#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, nages, nclasses, nlads, C, u1_moves, u1, u1_new, ncohorts1, u2, u2_new, playprobs, ncohorts2, t, pars, weights, a_dis, b_dis, a1, a2, b, obsInc_lad, obsInc_age_region, obsInc_age_nhsregion, obs_nhsregion, PF, ndays, ndeathlads, nregions, nnhsages, nnhsregions, lookup, age_lookup, sigma2_lad, sigma2_age_region, sigma2_nhsregion, sigma2_age_nhsregion, nlads_region, nlads_nhsregion, MHweights_lad)
 #endif
         for(i = 0; i < npart; i++) {
     
@@ -1353,10 +1523,17 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
             // set up auxiliary objects
             arma::imat DHinc (nages, nlads); DHinc.zeros();
             arma::imat DIinc (nages, nlads); DIinc.zeros();
-            arma::imat DHinc1 (nages, nlads); DHinc1.zeros();
-            arma::imat DIinc1 (nages, nlads); DIinc1.zeros();
+            arma::mat ExpDHinc (nages, ndeathlads); ExpDHinc.zeros();
+            arma::mat ExpDIinc (nages, ndeathlads); ExpDIinc.zeros();
+            arma::vec yD (ndeathlads); yD.zeros();
+            arma::vec muD (ndeathlads); muD.zeros();
+            arma::mat muDc (nages, ndeathlads); muDc.zeros();
+            arma::mat muDHc (nages, ndeathlads); muDHc.zeros();
+            arma::mat muDIc (nages, ndeathlads); muDIc.zeros();
+            arma::mat muDra (nages, nregions); muDra.zeros();
             arma::imat RHinc (nages, nlads); RHinc.zeros();
             arma::imat Hinc (nages, nlads); Hinc.zeros();
+            arma::imat H (nages, nlads); H.zeros();
             arma::imat RIinc (nages, nlads); RIinc.zeros();
             arma::imat I2inc (nages, nlads); I2inc.zeros();
             arma::imat I1inc (nages, nlads); I1inc.zeros();
@@ -1412,7 +1589,7 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
             weights(i) = 0.0;
             
             // set auxiliary variables
-            double muy, sigma2y;
+            double muy, sigma2y, theta2y, nuy, muy1, sigma2y1;
             
             // run model and return u1
             discreteStochModel(i, nclasses, nages, nlads, pars, t - 1, t, u1_moves, u1_new, C, eng);
@@ -1422,115 +1599,303 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
             
             // adjust states according to model discrepancy
                             
-            // DH (MD on incidence)
-            std::strcpy(str1, "DHinc");
-            // aggregate incidence to LAD-level
+            // D (MD on incidence)
+            std::strcpy(str1, "Dinc");
+            // aggregate incidence to LAD-level and calculate expectations
             for(j = 0; j < nages; j++) {                    
                 for(l = 0; l < u1_moves.n_rows; l++) {
                     DHinc(j, u1_moves(l, 0) - 1) += (u1_new[i](11, j, l) - u1[i](11, j, l));
+                    DIinc(j, u1_moves(l, 0) - 1) += (u1_new[i](6, j, l) - u1[i](6, j, l));
                 }
             }
             for(j = 0; j < nages; j++) {
-            
-                // extract transition probabilities
                 for(l = 0; l < nlads; l++) {
-                
-                    // sample MD conditional on simulator
-                    arma::vec tempdensy (u1_night(9, j, l) + 1); 
-                    for(int s = 0; s <= u1_night(9, j, l); s++) {
-                        
-                        // observation error
-                        muy = a1 - a2;
-                        sigma2y = a1 + a2 + 2.0 * b * s;
-                        tempdensy(s) = ldtnorm_cpp(
-                            obsInc(nlads * nages + j * nlads + l) - s, 
-                            muy, 
-                            sqrt(sigma2y), 
-                            -s, 
-                            std::numeric_limits<double>::infinity()
-                        );
-                        
-                        // MD density
+                    if(lookup(l, 1) >= 0) {
                         muy = (double) DHinc(j, l);
                         sigma2y = 2.0 * a_dis + 2.0 * b_dis * DHinc(j, l);
-                        tempdensy(s) += ldtnorm_cpp(
-                            s, 
-                            muy, 
-                            sqrt(sigma2y), 
-                            0.0, 
-                            u1_night(9, j, l)
-                        );
+                        ExpDHinc(j, lookup(l, 1) - 1) = exptnorm_cpp(muy, sqrt(sigma2y), -0.5, u1_night(9, j, l) + 0.5);
+                        muy = (double) DIinc(j, l);
+                        sigma2y = 2.0 * a_dis + 2.0 * b_dis * DIinc(j, l);
+                        ExpDIinc(j, lookup(l, 1) - 1) = exptnorm_cpp(muy, sqrt(sigma2y), -0.5, u1_night(5, j, l) + 0.5);
                     }
-                    double tempnorm = log_sum_exp(tempdensy, 0);
-                    tempdensy = tempdensy - tempnorm;
-                    tempdensy = exp(tempdensy);
-                    tempdensy = tempdensy / sum(tempdensy);
-                    int s = rmultinom_cpp(tempdensy, eng);
-                    tempMD(11, j, l) = s - DHinc(j, l);
-                    DHinc(j, l) = s;
-                    if(DHinc(j, l) < 0 || DHinc(j, l) > u1_night(9, j, l)) stop("DHinc error\n");
+                }
+            }
+            // conditional sampling of MD terms
+            for(k = 0; k < nlads; k++) {
+                
+                if(lookup(k, 1) >= 0) {
+                    
+                    // set deathlad
+                    l = lookup(k, 1) - 1;
+            
+                    // sample y given DZ, DX
+                    muy = 0.0;
+                    for(j = 0; j < nages; j++) {
+                        muy += ExpDHinc(j, l) + ExpDIinc(j, l);
+                    }
+                    theta2y = 2.0 * nages * (a1 + a2) + 2.0 * b * muy;
+                    sigma2y = sigma2_lad + theta2y;
+                    nuy = 2.0 * nages * (a1 - a2) + muy;
+                    if(!arma::is_finite(muy) || !arma::is_finite(nuy) || !arma::is_finite(sigma2y)) {
+                        Rprintf("muy = %f nuy = %f sigma2y = %f\n", muy, nuy, sigma2y);
+                    }
+                    yD(l) = rtnorm_one((obsInc_lad(l) - 0.5 - nuy) / sqrt(sigma2y), (obsInc_lad(l) + 0.5 - nuy) / sqrt(sigma2y), eng);
+                    yD(l) = yD(l) * sqrt(sigma2y) + nuy;
+                    if(yD(l) < (obsInc_lad(l) - 0.5) || yD(l) > (obsInc_lad(l) + 0.5)) {
+                        stop("Error in y sampling\n");
+                    }
+                    
+                    // calculate weights
+                    if(PF == 1) {
+                        MHweights_lad(i, l) = ltnorm_cpp(yD(l), nuy, sqrt(sigma2y), obsInc_lad(l) - 0.5, obsInc_lad(l) + 0.5);
+                    }
+                    
+                    // sample mu given y
+                    muy = yD(l) * theta2y + nuy * sigma2_lad;
+                    muy /= (theta2y + sigma2_lad);
+                    sigma2y = (sigma2_lad * theta2y) / (sigma2_lad + theta2y);
+                    muD(l) = rtnorm_one(-10000000, 10000000, eng);
+                    muD(l) = muD(l) * sqrt(sigma2y) + muy;
+                    
+                    // calculate weights
+                    if(PF == 1) {
+                        MHweights_lad(i, l) += R::dnorm(muD(l), muy, sqrt(sigma2y), 1);
+                    }
+                        
+                    // now sample mean components from convolution
+                    
+                    // get sum of expectations
+                    muy = nuy - 2.0 * nages * (a1 - a2);
+                    
+                    // DH means
+                    int s = nages * 2;
+                    double muD1 = muD(l);
+                    for(j = 0; j < nages; j++) {
+                        muy -= ExpDHinc(j, l);
+                        sigma2y = (s - 1) * (a1 + a2) + 2.0 * b * muy;
+                        nuy = (a1 + a2 + 2.0 * b * ExpDHinc(j, l)) * (muD1 - ExpDHinc(j, l) - a1 + a2);
+                        nuy += sigma2y * (ExpDHinc(j, l) + a1 - a2);
+                        nuy /= theta2y;
+                        sigma2y *= (a1 + a2 + 2.0 * b * ExpDHinc(j, l));
+                        sigma2y /= theta2y;
+                        muDHc(j, l) = rtnorm_one(-10000000, 10000000, eng);
+                        muDHc(j, l) = muDHc(j, l) * sqrt(sigma2y) + nuy;
+                        // calculate weights
+                        if(PF == 1) {
+                            MHweights_lad(i, l) += R::dnorm(muDHc(j, l), nuy, sqrt(sigma2y), 1);
+                        }
+                        muD1 -= muDHc(j, l);
+                        theta2y = (s - 1) * (a1 + a2) + 2.0 * b * muy;
+                        s--;
+                    }
+                    for(j = 0; j < nages; j++) {
+                        if(j < (nages - 1)) {
+                            muy -= ExpDIinc(j, l);
+                            sigma2y = (s - 1) * (a1 + a2) + 2.0 * b * muy;
+                            nuy = (a1 + a2 + 2.0 * b * ExpDIinc(j, l)) * (muD1 - ExpDIinc(j, l) - a1 + a2);
+                            nuy += sigma2y * (ExpDIinc(j, l) + a1 - a2);
+                            nuy /= theta2y;
+                            sigma2y *= (a1 + a2 + 2.0 * b * ExpDIinc(j, l));
+                            sigma2y /= theta2y;
+                            muDIc(j, l) = rtnorm_one(-10000000, 10000000, eng);
+                            muDIc(j, l) = muDIc(j, l) * sqrt(sigma2y) + nuy;
+                            // calculate weights
+                            if(PF == 1) {
+                                MHweights_lad(i, l) += R::dnorm(muDIc(j, l), nuy, sqrt(sigma2y), 1);
+                            }
+                            muD1 -= muDIc(j, l);
+                            theta2y = (s - 1) * (a1 + a2) + 2.0 * b * muy;
+                            s--;
+                        } else {
+                            muDIc(j, l) = muD1;
+                        } 
+                    }
+                }
+            }
+            
+            // now sample MD terms conditional on mu
+            for(j = 0; j < nages; j++) {
+                for(l = 0; l < nlads; l++) {
+                    if(lookup(l, 1) >= 0) {
+                        // sample MD conditional on mu
+                        arma::vec tempdensy (u1_night(9, j, l) + 1); 
+                        for(int s = 0; s <= u1_night(9, j, l); s++) {
+                            
+                            // MD density
+                            muy = (double) DHinc(j, l);
+                            sigma2y = 2.0 * a_dis + 2.0 * b_dis * DHinc(j, l);
+                            tempdensy(s) += ldtnorm_cpp(
+                                s, 
+                                muy, 
+                                sqrt(sigma2y), 
+                                0.0, 
+                                u1_night(9, j, l)
+                            );
+                            
+                            // sampled mean given MD
+                            muy = s + a1 - a2;
+                            sigma2y = a1 + a2 + 2.0 * b * s;
+                            tempdensy(s) += R::dnorm(muDHc(j, lookup(l, 1) - 1), muy, sqrt(sigma2y), 1);
+                        }
+                        double tempnorm = log_sum_exp(tempdensy, 0);
+                        tempdensy = tempdensy - tempnorm;
+                        tempdensy = exp(tempdensy);
+                        tempdensy = tempdensy / sum(tempdensy);
+                        int r = rmultinom_cpp(tempdensy, eng);
+                        tempMD(11, j, l) = r - DHinc(j, l);
+                        DHinc(j, l) = r;
+                        if(DHinc(j, l) < 0 || DHinc(j, l) > u1_night(9, j, l)) stop("DHinc error\n");
+                        
+                        // adjust weights
+                        if(PF == 1) {
+                            MHweights_lad(i, lookup(l, 1) - 1) += log(tempdensy(r));
+                        }
+                        
+                        // sample MD conditional on mu
+                        arma::vec tempdensy1 (u1_night(5, j, l) + 1); 
+                        for(int s = 0; s <= u1_night(5, j, l); s++) {
+                            
+                            // MD density
+                            muy = (double) DIinc(j, l);
+                            sigma2y = 2.0 * a_dis + 2.0 * b_dis * DIinc(j, l);
+                            tempdensy1(s) += ldtnorm_cpp(
+                                s, 
+                                muy, 
+                                sqrt(sigma2y), 
+                                0.0, 
+                                u1_night(5, j, l)
+                            );
+                            
+                            // sampled mean given MD
+                            muy = s + a1 - a2;
+                            sigma2y = a1 + a2 + 2.0 * b * s;
+                            tempdensy1(s) += R::dnorm(muDIc(j, lookup(l, 1) - 1), muy, sqrt(sigma2y), 1);
+                        }
+                        tempnorm = log_sum_exp(tempdensy1, 0);
+                        tempdensy1 = tempdensy1 - tempnorm;
+                        tempdensy1 = exp(tempdensy1);
+                        tempdensy1 = tempdensy1 / sum(tempdensy1);
+                        r = rmultinom_cpp(tempdensy1, eng);
+                        tempMD(6, j, l) = r - DIinc(j, l);
+                        DIinc(j, l) = r;
+                        if(DIinc(j, l) < 0 || DIinc(j, l) > u1_night(5, j, l)) stop("DIinc error\n");
+                                                
+                        // adjust weights
+                        if(PF == 1) {
+                            MHweights_lad(i, lookup(l, 1) - 1) += log(tempdensy1(r));
+                        }
+                        
+                        // numerator of weights
+                        if(PF == 1) {  
+                            // now calculate numerator of weights
+                            muy = (double) DHinc(j, l) - tempMD(11, j, l);
+                            sigma2y = 2.0 * a_dis + 2.0 * b_dis * (DHinc(j, l) - tempMD(11, j, l));
+                            weights(i) += ldtnorm_cpp(
+                                DHinc(j, l), 
+                                muy, 
+                                sqrt(sigma2y),
+                                0,
+                                u1_night(9, j, l)
+                            );
+                            muy = a1 - a2 + DHinc(j, l);
+                            sigma2y = a1 + a2 + 2.0 * b * DHinc(j, l);
+                            weights(i) += R::dnorm(
+                                muDHc(j, lookup(l, 1) - 1), 
+                                muy, 
+                                sqrt(sigma2y), 
+                                1
+                            );
+                            muy = (double) DIinc(j, l) - tempMD(6, j, l);
+                            sigma2y = 2.0 * a_dis + 2.0 * b_dis * (DIinc(j, l) - tempMD(6, j, l));
+                            weights(i) += ldtnorm_cpp(
+                                DIinc(j, l), 
+                                muy, 
+                                sqrt(sigma2y),
+                                0,
+                                u1_night(5, j, l)
+                            );
+                            muy = a1 - a2 + DIinc(j, l);
+                            sigma2y = a1 + a2 + 2.0 * b * DIinc(j, l);
+                            weights(i) += R::dnorm(
+                                muDIc(j, lookup(l, 1) - 1), 
+                                muy, 
+                                sqrt(sigma2y), 
+                                1
+                            );
+                        }
+                    } else {
+                        // sample MD conditional on simulator
+                        sigma2y = 2.0 * a_dis + 2.0 * b_dis * DHinc(j, l);
+                        muy = (double) DHinc(j, l);
+                        int s = rdtnorm_cpp(
+                            muy, 
+                            sqrt(sigma2y),
+                            0.0,
+                            u1_night(9, j, l),
+                            eng
+                        );
+                        tempMD(11, j, l) = s - DHinc(j, l);
+                        DHinc(j, l) = s;
+                        if(DHinc(j, l) < 0 || DHinc(j, l) > u1_night(9, j, l)) stop("DHinc error\n");
+                
+                        // sample MD conditional on simulator
+                        sigma2y = 2.0 * a_dis + 2.0 * b_dis * DIinc(j, l);
+                        muy = (double) DIinc(j, l);
+                        s = rdtnorm_cpp(
+                            muy, 
+                            sqrt(sigma2y),
+                            0.0,
+                            u1_night(5, j, l),
+                            eng
+                        );
+                        tempMD(6, j, l) = s - DIinc(j, l);
+                        DIinc(j, l) = s;
+                        if(DIinc(j, l) < 0 || DIinc(j, l) > u1_night(5, j, l)) stop("DIinc error\n");
+                    }
+                }
+            }
+            
+            // now sample remaining latent variables
+            for(j = 0; j < nages; j++) {
+                for(l = 0; l < nlads; l++) {
+                    if(lookup(l, 2) >= 0) {
+                        muDra(j, lookup(l, 2) - 1) += muDHc(j, lookup(l, 1) - 1);
+                        muDra(j, lookup(l, 2) - 1) += muDIc(j, lookup(l, 1) - 1);
+                    }
+                }
+            }
+            for(j = 0; j < nages; j++) {
+                for(l = 0; l < nregions; l++) {
+                
+                    // sample y given DZ, mu
+                    double yDra = rtnorm_one((obsInc_age_region(j * nregions + l) - 0.5 - muDra(j, l)) / sqrt(sigma2_age_region), (obsInc_age_region(j * nregions + l) + 0.5 - muDra(j, l)) / sqrt(sigma2_age_region), eng);
+                    yDra = yDra * sqrt(sigma2_age_region) + muDra(j, l);
+                    if(yDra < (obsInc_age_region(j * nregions + l) - 0.5) || yDra > (obsInc_age_region(j * nregions + l) + 0.5)) {
+                        stop("Error in yDra sampling\n");
+                    }
                     
                     // adjust weights
                     if(PF == 1) {
-                        weights(i) += tempnorm;
-                        MHweights(i, nlads * nages + j * nlads + l) = tempnorm;
+                        weights(i) -= ltnorm_cpp(yDra, muDra(j, l), sqrt(sigma2_age_region), obsInc_age_region(j * nregions + l) - 0.5, obsInc_age_region(j * nregions + l) + 0.5);
+                        weights(i) += R::dnorm(yDra, muDra(j, l), sqrt(sigma2_age_region), 1);
                     }
                 }
             }
-            
-            // DI (MD on incidence)
-            std::strcpy(str1, "DIinc");
-            // aggregate incidence to LAD-level
-            for(j = 0; j < nages; j++) {                    
-                for(l = 0; l < u1_moves.n_rows; l++) {
-                    DIinc(j, u1_moves(l, 0) - 1) += u1_new[i](6, j, l) - u1[i](6, j, l);
-                }
-            }
-            for(j = 0; j < nages; j++) {
-                
-                // set transition probability
-                for(l = 0; l < nlads; l++) {
                     
-                    // sample MD conditional on simulator
-                    arma::vec tempdensy (u1_night(5, j, l) + 1); 
-                    for(int s = 0; s <= u1_night(5, j, l); s++) {
-                        
-                        // observation error
-                        muy = a1 - a2;
-                        sigma2y = a1 + a2 + 2.0 * b * s;
-                        tempdensy(s) = ldtnorm_cpp(
-                            obsInc(j * nlads + l) - s, 
-                            muy, 
-                            sqrt(sigma2y), 
-                            -s, 
-                            std::numeric_limits<double>::infinity()
-                        );
-                        
-                        // MD density
-                        muy = (double) DIinc(j, l);
-                        sigma2y = 2.0 * a_dis + 2.0 * b_dis * DIinc(j, l);
-                        tempdensy(s) += ldtnorm_cpp(
-                            s, 
-                            muy, 
-                            sqrt(sigma2y), 
-                            0.0, 
-                            u1_night(5, j, l)
-                        );
-                    }
-                    double tempnorm = log_sum_exp(tempdensy, 0);
-                    tempdensy = tempdensy - tempnorm;
-                    tempdensy = exp(tempdensy);
-                    tempdensy = tempdensy / sum(tempdensy);
-                    int s = rmultinom_cpp(tempdensy, eng);
-                    tempMD(6, j, l) = s - DIinc(j, l);
-                    DIinc(j, l) = s;
-                    if(DIinc(j, l) < 0 || DIinc(j, l) > u1_night(5, j, l)) stop("DIinc error\n");
+            if(PF == 1) {
+                // now adjust weights for remaining observation processes
+                for(l = 0; l < ndeathlads; l++) {
+                                
+                    // denominator of weights
+                    weights(i) -= MHweights_lad(i, l);
                     
-                    // observation error for given incidence
-                    if(PF == 1) {
-                        weights(i) += tempnorm;
-                        MHweights(i, j * nlads + l) = tempnorm;
-                    }
+                    // now adjust weights for remaining observation processes
+                    weights(i) += R::dnorm(
+                        yD(l),
+                        muD(l), 
+                        sqrt(sigma2_lad),
+                        1
+                    );
                 }
             }
             
@@ -1564,64 +1929,23 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
             // aggregate count to LAD-level
             for(j = 0; j < nages; j++) {
                 for(l = 0; l < u1_moves.n_rows; l++) {
-                    Hinc(j, u1_moves(l, 0) - 1) += u1_new[i](9, j, l);
+                    H(j, u1_moves(l, 0) - 1) += u1_new[i](9, j, l);
                 }
             }
             for(j = 0; j < nages; j++) {
                 for(l = 0; l < nlads; l++) {
-                    
-                    // sample MD conditional on simulator
-                    arma::vec tempdensy (u1_night(5, j, l) - DIinc(j, l) + 1); 
-                    for(int s = 0; s <= (u1_night(5, j, l) - DIinc(j, l)); s++) {
-                        
-                        // observation error for incidence
-                        muy = a1 - a2;
-                        sigma2y = a1 + a2 + 2.0 * b * s;
-                        tempdensy(s) = ldtnorm_cpp(
-                            obsInc(2 * nlads * nages + j * nlads + l) - s, 
-                            muy, 
-                            sqrt(sigma2y), 
-                            -s, 
-                            std::numeric_limits<double>::infinity()
-                        );
-                        
-                        // MD density (NB: Hinc is count here and not incidence)
-                        int r = s - Hinc(j, l) + u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l);
-                        sigma2y = 2.0 * a_dis + 2.0 * b_dis * Hinc(j, l);
-                        tempdensy(s) += ldtnorm_cpp(
-                            r,
-                            0.0, 
-                            sqrt(sigma2y), 
-                            -Hinc(j, l) + u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l), 
-                            u1_night(5, j, l) - DIinc(j, l) - Hinc(j, l) + u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l)
-                        );
-                        
-                        // observation error for count
-                        r += Hinc(j, l);
-                        muy = a1 - a2;
-                        sigma2y = a1 + a2 + 2.0 * b * r;
-                        tempdensy(s) += ldtnorm_cpp(
-                            obsInc(3 * nlads * nages + j * nlads + l) - r, 
-                            muy, 
-                            sqrt(sigma2y), 
-                            -r, 
-                            std::numeric_limits<double>::infinity()
-                        );
-                    }
-                    double tempnorm = log_sum_exp(tempdensy, 0);
-                    tempdensy = tempdensy - tempnorm;
-                    tempdensy = exp(tempdensy);
-                    tempdensy = tempdensy / sum(tempdensy);
-                    int s = rmultinom_cpp(tempdensy, eng);
-                    tempMD(9, j, l) = s - Hinc(j, l) + u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l);
-                    Hinc(j, l) = s;
-                    if(Hinc(j, l) < 0 || Hinc(j, l) > u1_night(5, j, l) - DIinc(j, l)) stop("Hinc error1 %d\n", Hinc(j, l));
-                    
-                    // observation error for given incidence
-                    if(PF == 1) {
-                        weights(i) += tempnorm;
-                        MHweights(i, 2 * nlads * nages + j * nlads + l) = tempnorm;
-                    }
+                    sigma2y = 2.0 * a_dis + 2.0 * b_dis * H(j, l);
+                    tempMD(9, j, l) = rdtnorm_cpp(
+                        0.0, 
+                        sqrt(sigma2y),
+                        -H(j, l) + u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l),
+                        u1_night(5, j, l) - DIinc(j, l) - H(j, l) + u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l),
+                        eng
+                    );
+                    H(j, l) += tempMD(9, j, l);
+                    if(H(j, l) < 0) stop("H error\n");
+                    // calculate incidence
+                    Hinc(j, l) = H(j, l) - u1_night(9, j, l) + RHinc(j, l) + DHinc(j, l);
                 }
             }
                 
@@ -1822,7 +2146,67 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                         }
                     }
                 }
-            }           
+            }
+            
+            if(PF == 1) {
+                // set up observation errors
+                arma::ivec u_night_lad1(ndeathlads); u_night_lad1.zeros();
+                arma::imat u_night_age_region1(nages, nregions); u_night_age_region1.zeros();
+                arma::imat u_night_age_nhsregion1(nnhsages, nnhsregions); u_night_age_nhsregion1.zeros();
+                arma::ivec u_night_nhsregion1(nnhsregions); u_night_nhsregion1.zeros();
+                
+                for(l = 0; l < nlads; l++) {
+                    for(j = 0; j < nages; j++) {
+                        
+                        // death incidence in LADs
+                        if(lookup(l, 1) >= 0) {
+                            u_night_lad1(lookup(l, 1) - 1) += DIinc(j, l);
+                            u_night_lad1(lookup(l, 1) - 1) += DHinc(j, l);
+                        }
+                        
+                        // death incidence by age and region
+                        if(lookup(l, 2) >= 0) {
+                            u_night_age_region1(j, lookup(l, 2) - 1) += DIinc(j, l);
+                            u_night_age_region1(j, lookup(l, 2) - 1) += DHinc(j, l);
+                        }
+                        
+                        if(lookup(l, 3) >= 0) {
+                            // hospital incidence by age and NHS region
+                            u_night_age_nhsregion1(age_lookup(j, 1) - 1, lookup(l, 3) - 1) += Hinc(j, l);  
+                            // and hospital count by NHS region
+                            u_night_nhsregion1(lookup(l, 3) - 1) += H(j, l);
+                        }
+                    }
+                }
+                
+                // calculate observation error for remaining terms
+                for(l = 0; l < nnhsregions; l++) {
+                    // and hospital count by NHS region
+                    sigma2y = nages * nlads_nhsregion(l) * (a1 + a2) + 2.0 * b * u_night_nhsregion1(l);
+                    sigma2y += sigma2_nhsregion;
+                    muy = u_night_nhsregion1(l) + nages * nlads_nhsregion(l) * (a1 - a2);
+                    weights(i) += ldtnorm_cpp(
+                        obs_nhsregion(l),
+                        muy, 
+                        sqrt(sigma2y),
+                        0,
+                        std::numeric_limits<double>::infinity()
+                    );
+                    for(j = 0; j < nnhsages; j++) {
+                        // hospital incidence by age and NHS region
+                        sigma2y = nlads_nhsregion(l) * (a1 + a2) + 2.0 * b * u_night_age_nhsregion1(j, l);
+                        sigma2y += sigma2_age_nhsregion;
+                        muy = u_night_age_nhsregion1(j, l) + nlads_nhsregion(l) * (a1 - a2);
+                        weights(i) += ldtnorm_cpp(
+                            obsInc_age_nhsregion(j * nnhsregions + l),
+                            muy, 
+                            sqrt(sigma2y),
+                            0,
+                            std::numeric_limits<double>::infinity()
+                        );
+                    }
+                }
+            }
             
             // advance seed
             seeds((arma::uword) omp_get_thread_num()) = eng();
@@ -1848,46 +2232,39 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
             weights = weights / sum(weights);
             
             // resample
-            for(i = 0; i < npart; i++) {
-                inds(i) = (arma::uword) rmultinom_cpp(weights, engSerial);
-            }
-            for(i = 0; i < npart; i++) {
-                u11[i] = u1[inds(i)];
-                u_night_obs1[i] = u_night_obs[inds(i)];
-            }
-            for(i = 0; i < npart; i++) {
-                u1[i] = u11[i];
-                u_night_obs[i] = u_night_obs1[i];
-            }
-            for(i = 0; i < npart; i++) {
-                u11[i] = u1_new[inds(i)];
-            }
-            for(i = 0; i < npart; i++) {
-                u1_new[i] = u11[i];
-            }
-            for(i = 0; i < npart; i++) {
-                u11[i] = u2[inds(i)];
-            }
-            for(i = 0; i < npart; i++) {
-                u2[i] = u11[i];
-            }
-            for(i = 0; i < npart; i++) {
-                u11[i] = u2_new[inds(i)];
-            }
-            for(i = 0; i < npart; i++) {
-                u2_new[i] = u11[i];
-            }
+            for(i = 0; i < npart; i++) inds(i) = (arma::uword) rmultinom_cpp(weights, engSerial);
+            
+            for(i = 0; i < npart; i++) u11[i] = u1[inds(i)];
+            for(i = 0; i < npart; i++) u1[i] = u11[i];
+            
+            for(i = 0; i < npart; i++) u11[i] = u1_new[inds(i)];
+            for(i = 0; i < npart; i++) u1_new[i] = u11[i];
+            
+            for(i = 0; i < npart; i++) u11[i] = u2[inds(i)];
+            for(i = 0; i < npart; i++) u2[i] = u11[i];
+            
+            for(i = 0; i < npart; i++) u11[i] = u2_new[inds(i)];
+            for(i = 0; i < npart; i++) u2_new[i] = u11[i];
+            
+            for(i = 0; i < npart; i++) u_night_vec_cum1[i] = u_night_lad_cum[inds(i)];
+            for(i = 0; i < npart; i++) u_night_lad_cum[i] = u_night_vec_cum1[i];
+            
+            for(i = 0; i < npart; i++) u_night_mat_cum1[i] = u_night_age_region_cum[inds(i)];
+            for(i = 0; i < npart; i++) u_night_age_region_cum[i] = u_night_mat_cum1[i];
+            
+            for(i = 0; i < npart; i++) u_night_mat_cum1[i] = u_night_age_nhsregion_cum[inds(i)];
+            for(i = 0; i < npart; i++) u_night_age_nhsregion_cum[i] = u_night_mat_cum1[i];
             
             // Metropolis-Hastings steps to deal with particle impoverishment
             if(niter > 0) {
 #ifdef _OPENMP
-#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, nages, nclasses, nlads, data, C, ncohorts1, u1_moves, u1, u1_new, ncohorts2, u2, u2_new, playprobs, t, pars, a_dis, b_dis, a1, a2, b, obsInc, PF, ndays, condpars, niter, nacc, MHweights)
+#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, nages, nclasses, nlads, C, ncohorts1, u1_moves, u1, u1_new, ncohorts2, u2, u2_new, playprobs, t, pars, a_dis, b_dis, a1, a2, b, obsInc_lad, obsInc_age_region, obsInc_age_nhsregion, obs_nhsregion, PF, ndays, ndeathlads, nregions, nnhsages, nnhsregions, lookup, age_lookup, sigma2_lad, sigma2_age_region, sigma2_nhsregion, sigma2_age_nhsregion, nlads_region, nlads_nhsregion, condpars, niter, nacc, MHweights_lad)
 #endif
                 for(i = 0; i < npart; i++) {
             
                     // set up print string for debugging
                     char str1[80];
-	                std::strcpy(str1, "Gibbs setup");
+	                std::strcpy(str1, "MH setup");
          
                     // set up thread-safe RNG
                     uint32_t coreseed = static_cast<uint32_t>(seeds(0));
@@ -1905,6 +2282,7 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                     arma::imat RHinc1 (nages, nlads); RHinc1.zeros();
                     arma::imat Hinc (nages, nlads); Hinc.zeros();
                     arma::imat Hinc1 (nages, nlads); Hinc1.zeros();
+                    arma::imat H (nages, nlads); H.zeros();
                     arma::imat RIinc (nages, nlads); RIinc.zeros();
                     arma::imat I2inc (nages, nlads); I2inc.zeros();
                     arma::imat I1inc (nages, nlads); I1inc.zeros();
@@ -1939,16 +2317,88 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                     
                     // current likelihood
                     acccurr = 0.0;
-                    for(j = 0; j < MHweights.n_cols; j++) {
-                        acccurr += MHweights(i, j);
+                    
+                    // set up observation errors
+                    arma::ivec u_night_lad1(ndeathlads); u_night_lad1.zeros();
+                    arma::imat u_night_age_region1(nages, nregions); u_night_age_region1.zeros();
+                    arma::imat u_night_age_nhsregion1(nnhsages, nnhsregions); u_night_age_nhsregion1.zeros();
+                    arma::ivec u_night_nhsregion1(nnhsregions); u_night_nhsregion1.zeros();
+                    
+                    for(l = 0; l < u1_moves.n_rows; l++) {
+                        k = (arma::uword) u1_moves(l, 0) - 1;
+                        for(j = 0; j < nages; j++) {
+                            
+                            // death incidence in LADs
+                            if(lookup(k, 1) >= 0) {
+                                u_night_lad1(lookup(k, 1) - 1) += (u1_new[i](6, j, l) - u1[i](6, j, l));
+                                u_night_lad1(lookup(k, 1) - 1) += (u1_new[i](11, j, l) - u1[i](11, j, l));
+                            }
+                            
+                            // death incidence by age and region
+                            if(lookup(k, 2) >= 0) {
+                                u_night_age_region1(j, lookup(k, 2) - 1) += (u1_new[i](6, j, l) - u1[i](6, j, l));
+                                u_night_age_region1(j, lookup(k, 2) - 1) += (u1_new[i](11, j, l) - u1[i](11, j, l));
+                            }
+                            
+                            if(lookup(k, 3) >= 0) {
+                                // hospital incidence by age and NHS region
+                                u_night_age_nhsregion1(age_lookup(j, 1) - 1, lookup(k, 3) - 1) += (u1_new[i](9, j, l) - u1[i](9, j, l)) + (u1_new[i](10, j, l) - u1[i](10, j, l)) + (u1_new[i](11, j, l) - u1[i](11, j, l));
+                                // and hospital count by NHS region
+                                u_night_nhsregion1(lookup(k, 3) - 1) += u1[i](9, j, l);
+                            }
+                        }
+                    }
+                    
+                    // calculate observation error
+                    for(j = 0; l < MHweights_lad.n_cols; j++) {
+                        // death incidence in LADs
+                        acccurr += MHweights_lad(i, j);
+                    }
+                    for(l = 0; l < nregions; l++) {
+                        for(j = 0; j < nages; j++) {
+                            // death incidence by age and region
+                            sigma2y = nlads_region(l) * (a1 + a2) + 2.0 * b * u_night_age_region1(j, l);
+                            sigma2y += sigma2_age_region;
+                            muy = u_night_age_region1(j, l) + nlads_region(l) * (a1 - a2);
+                            acccurr += ldtnorm_cpp(
+                                obsInc_age_region(j * nregions + l),
+                                muy, 
+                                sqrt(sigma2y),
+                                0,
+                                std::numeric_limits<double>::infinity()
+                            );
+                        }
+                    }
+                    for(l = 0; l < nnhsregions; l++) {
+                        // and hospital count by NHS region
+                        sigma2y = nages * nlads_nhsregion(l) * (a1 + a2) + 2.0 * b * u_night_nhsregion1(l);
+                        sigma2y += sigma2_nhsregion;
+                        muy = u_night_nhsregion1(l) + nages * nlads_nhsregion(l) * (a1 - a2);
+                        acccurr += ldtnorm_cpp(
+                            obs_nhsregion(l),
+                            muy, 
+                            sqrt(sigma2y),
+                            0,
+                            std::numeric_limits<double>::infinity()
+                        );
+                        for(j = 0; j < nnhsages; j++) {
+                            // hospital incidence by age and NHS region
+                            sigma2y = nlads_nhsregion(l) * (a1 + a2) + 2.0 * b * u_night_age_nhsregion1(j, l);
+                            sigma2y += sigma2_age_nhsregion;
+                            muy = u_night_age_nhsregion1(j, l) + nlads_nhsregion(l) * (a1 - a2);
+                            acccurr += ldtnorm_cpp(
+                                obsInc_age_nhsregion(j * nnhsregions + l),
+                                muy, 
+                                sqrt(sigma2y),
+                                0,
+                                std::numeric_limits<double>::infinity()
+                            );
+                        }
                     }
                                     
                     // run over Metropolis-Hastings steps
                     nacc(i) = 0;
                     for(int it = 0; it < niter; it++) {
-                    
-                        // set acceptance probability
-                        accprop = 0.0;
                         
                         // loop over ages
                         std::strcpy(str1, "MH");
@@ -1966,42 +2416,18 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                                 // sample DH from simulator
                                 int r = rbinom_cpp(u1_night(9, j, l), pHpHD, eng);
                                 DHinc1(j, l) = r;
-                    
+                            
                                 // sample MD conditional on simulator
-                                arma::vec tempdensy (u1_night(9, j, l) + 1);
-                                int s = 0;
-                                for(s = 0; s <= u1_night(9, j, l); s++) {
-                                    
-                                    // observation error
-                                    muy = a1 - a2;
-                                    sigma2y = a1 + a2 + 2.0 * b * s;
-                                    tempdensy(s) = ldtnorm_cpp(
-                                        obsInc(nlads * nages + j * nlads + l) - s, 
-                                        muy, 
-                                        sqrt(sigma2y), 
-                                        -s, 
-                                        std::numeric_limits<double>::infinity()
-                                    );
-                                    
-                                    // MD density
-                                    muy = (double) DHinc1(j, l);
-                                    sigma2y = 2.0 * a_dis + 2.0 * b_dis * DHinc1(j, l);
-                                    tempdensy(s) += ldtnorm_cpp(
-                                        s, 
-                                        muy, 
-                                        sqrt(sigma2y), 
-                                        0.0, 
-                                        u1_night(9, j, l)
-                                    );
-                                }
-                                double tempnorm = log_sum_exp(tempdensy, 0);
-                                tempdensy = exp(tempdensy - tempnorm);
-                                tempdensy = tempdensy / sum(tempdensy);
-                                s = rmultinom_cpp(tempdensy, eng);
+                                sigma2y = 2.0 * a_dis + 2.0 * b_dis * DHinc1(j, l);
+                                muy = (double) DHinc1(j, l);
+                                int s = rdtnorm_cpp(
+                                    muy, 
+                                    sqrt(sigma2y),
+                                    0.0,
+                                    u1_night(9, j, l),
+                                    eng
+                                );
                                 DHinc(j, l) = s;
-                                
-                                // update accprop
-                                accprop += tempnorm;
                                 
                                 // sample RH from simulator given DH
                                 r = rbinom_cpp(u1_night(9, j, l) - DHinc1(j, l), pHpHR / (1.0 - pHpHD), eng);
@@ -2018,99 +2444,124 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                                     eng
                                 );
                                 RHinc(j, l) = s;
-                                
+                            
                                 // sample DI from simulator
                                 r = rbinom_cpp(u1_night(5, j, l), pI1pI1D, eng);
                                 DIinc1(j, l) = r;
-                    
+                            
                                 // sample MD conditional on simulator
-                                arma::vec tempdensy1 (u1_night(5, j, l) + 1); 
-                                for(s = 0; s <= u1_night(5, j, l); s++) {
-                                    
-                                    // observation error
-                                    muy = a1 - a2;
-                                    sigma2y = a1 + a2 + 2.0 * b * s;
-                                    tempdensy1(s) = ldtnorm_cpp(
-                                        obsInc(j * nlads + l) - s, 
-                                        muy, 
-                                        sqrt(sigma2y), 
-                                        -s, 
-                                        std::numeric_limits<double>::infinity()
-                                    );
-                                    
-                                    // MD density
-                                    muy = (double) DIinc1(j, l);
-                                    sigma2y = 2.0 * a_dis + 2.0 * b_dis * DIinc1(j, l);
-                                    tempdensy1(s) += ldtnorm_cpp(
-                                        s, 
-                                        muy, 
-                                        sqrt(sigma2y), 
-                                        0.0, 
-                                        u1_night(5, j, l)
-                                    );
-                                }
-                                tempnorm = log_sum_exp(tempdensy1, 0);
-                                tempdensy1 = exp(tempdensy1 - tempnorm);
-                                tempdensy1 = tempdensy1 / sum(tempdensy1);
-                                s = rmultinom_cpp(tempdensy1, eng);
+                                sigma2y = 2.0 * a_dis + 2.0 * b_dis * DIinc1(j, l);
+                                muy = (double) DIinc1(j, l);
+                                s = rdtnorm_cpp(
+                                    muy, 
+                                    sqrt(sigma2y),
+                                    0.0,
+                                    u1_night(5, j, l),
+                                    eng
+                                );
                                 DIinc(j, l) = s;
-                                
-                                // update accprop
-                                accprop += tempnorm;
                                 
                                 // sample H from conditional simulator
                                 r = rbinom_cpp(u1_night(5, j, l) - DIinc1(j, l), pI1pI1H / (1.0 - pI1pI1D), eng);
                                 Hinc1(j, l) = r;
-                                    
-                                // extract simulator count
-                                int H1 = u1_night(9, j, l) + Hinc1(j, l) - DHinc1(j, l) - RHinc1(j, l);
-                    
+                            
                                 // sample MD conditional on simulator
-                                arma::vec tempdensy2 (u1_night(5, j, l) - DIinc(j, l) + 1); 
-                                for(s = 0; s <= (u1_night(5, j, l) - DIinc(j, l)); s++) {
-                                    
-                                    // observation error for incidence
-                                    muy = a1 - a2;
-                                    sigma2y = a1 + a2 + 2.0 * b * s;
-                                    tempdensy2(s) = ldtnorm_cpp(
-                                        obsInc(2 * nlads * nages + j * nlads + l) - s, 
-                                        muy, 
-                                        sqrt(sigma2y), 
-                                        -s, 
-                                        std::numeric_limits<double>::infinity()
-                                    );
-                                    
-                                    // MD density
-                                    r = s - H1 + u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l);
-                                    sigma2y = 2.0 * a_dis + 2.0 * b_dis * H1;
-                                    tempdensy2(s) += ldtnorm_cpp(
-                                        r, 
-                                        0.0, 
-                                        sqrt(sigma2y), 
-                                        -H1 + u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l), 
-                                        u1_night(5, j, l) - DIinc(j, l) - H1 + u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l)
-                                    );
-                                    
-                                    // observation error for count
-                                    r += H1;
-                                    muy = a1 - a2;
-                                    sigma2y = a1 + a2 + 2.0 * b * r;
-                                    tempdensy2(s) += ldtnorm_cpp(
-                                        obsInc(3 * nlads * nages + j * nlads + l) - r, 
-                                        muy, 
-                                        sqrt(sigma2y), 
-                                        -r, 
-                                        std::numeric_limits<double>::infinity()
-                                    );
+                                H(j, l) = u1_night(9, j, l) + Hinc1(j, l) - DHinc1(j, l) - RHinc1(j, l);
+                                sigma2y = 2.0 * a_dis + 2.0 * b_dis * H(j, l);
+                                s = rdtnorm_cpp(
+                                    0.0, 
+                                    sqrt(sigma2y),
+                                    -H(j, l) + u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l),
+                                    u1_night(5, j, l) - DIinc(j, l) - H(j, l) + u1_night(9, j, l) - DHinc(j, l) - RHinc(j, l),
+                                    eng
+                                );
+                                H(j, l) += s;
+                                Hinc(j, l) = H(j, l) - u1_night(9, j, l) + DHinc(j, l) + RHinc(j, l);
+                            }
+                        }
+                    
+                        // set acceptance probability
+                        accprop = 0.0;
+                        
+                        // set up observation errors
+                        u_night_lad1.zeros();
+                        u_night_age_region1.zeros();
+                        u_night_age_nhsregion1.zeros();
+                        u_night_nhsregion1.zeros();
+                        for(l = 0; l < nlads; l++) {
+                            for(j = 0; j < nages; j++) {
+                                // death incidence in LADs
+                                if(lookup(l, 1) >= 0) {
+                                    u_night_lad1(lookup(l, 1) - 1) += DIinc(j, l);
+                                    u_night_lad1(lookup(l, 1) - 1) += DHinc(j, l);
                                 }
-                                tempnorm = log_sum_exp(tempdensy2, 0);
-                                tempdensy2 = exp(tempdensy2 - tempnorm);
-                                tempdensy2 = tempdensy2 / sum(tempdensy2);
-                                s = rmultinom_cpp(tempdensy2, eng);
-                                Hinc(j, l) = s;
-                                
-                                // update accprop
-                                accprop += tempnorm;
+                                // death incidence by age and region
+                                if(lookup(l, 2) >= 0) {
+                                    u_night_age_region1(j, lookup(l, 2) - 1) += DIinc(j, l);
+                                    u_night_age_region1(j, lookup(l, 2) - 1) += DHinc(j, l);
+                                }
+                                if(lookup(l, 3) >= 0) {
+                                    // hospital incidence by age and NHS region
+                                    u_night_age_nhsregion1(age_lookup(j, 1) - 1, lookup(l, 3) - 1) += Hinc(j, l);
+                                    // and hospital count by NHS region
+                                    u_night_nhsregion1(lookup(l, 3) - 1) += H(j, l);
+                                }
+                            }
+                        }
+                    
+                        // calculate observation error
+                        for(l = 0; l < ndeathlads; l++) {
+                            // death incidence in LADs
+                            sigma2y = nages * (a1 + a2) + 2.0 * b * u_night_lad1(l);
+                            sigma2y += sigma2_lad;
+                            muy = u_night_lad1(l) + nages * (a1 - a2);
+                            accprop += ldtnorm_cpp(
+                                obsInc_lad(l),
+                                muy, 
+                                sqrt(sigma2y),
+                                0,
+                                std::numeric_limits<double>::infinity()
+                            );
+                        }
+                        for(l = 0; l < nregions; l++) {
+                            for(j = 0; j < nages; j++) {
+                                // death incidence by age and region
+                                sigma2y = nlads_region(l) * (a1 + a2) + 2.0 * b * u_night_age_region1(j, l);
+                                sigma2y += sigma2_age_region;
+                                muy = u_night_age_region1(j, l) + nlads_region(l) * (a1 - a2);
+                                accprop += ldtnorm_cpp(
+                                    obsInc_age_region(j * nregions + l),
+                                    muy, 
+                                    sqrt(sigma2y),
+                                    0,
+                                    std::numeric_limits<double>::infinity()
+                                );
+                            }
+                        }
+                        for(l = 0; l < nnhsregions; l++) {
+                            // and hospital count by NHS region
+                            sigma2y = nages * nlads_nhsregion(l) * (a1 + a2) + 2.0 * b * u_night_nhsregion1(l);
+                            sigma2y += sigma2_nhsregion;
+                            muy = u_night_nhsregion1(l) + nages * nlads_nhsregion(l) * (a1 - a2);
+                            accprop += ldtnorm_cpp(
+                                obs_nhsregion(l),
+                                muy, 
+                                sqrt(sigma2y),
+                                0,
+                                std::numeric_limits<double>::infinity()
+                            );
+                            for(j = 0; j < nnhsages; j++) {
+                                // hospital incidence by age and NHS region
+                                sigma2y = nlads_nhsregion(l) * (a1 + a2) + 2.0 * b * u_night_age_nhsregion1(j, l);
+                                sigma2y += sigma2_age_nhsregion;
+                                muy = u_night_nhsregion1(l) + nlads_region(l) * (a1 - a2);
+                                accprop += ldtnorm_cpp(
+                                    obsInc_age_nhsregion(j * nnhsregions + l),
+                                    muy, 
+                                    sqrt(sigma2y),
+                                    0,
+                                    std::numeric_limits<double>::infinity()
+                                );
                             }
                         }
                                 
@@ -2381,120 +2832,140 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                 }
             }
         }
-            
-        // save particles if necessary
+        
         if(saveAll != 0) {
             // set up print string for debugging
             char str1[80];
             std::strcpy(str1, "save");
             double muy, sigma2y, u;
-            if(saveAll == 1) {
+            for(i = 0; i < npart; i++) {
             
                 // U1() BELOW ALREADY HAS THE CORRECT PLAYER MOVEMENTS SO CAN USE THE EXISTING
-                // CODE WITHOUT MODIFICATION
-            
-                for(i = 0; i < npart; i++) {
-                    // extract just counts for DI and DH
-                    u_night_reduced.zeros();
-                    for(l = 0; l < u1_moves.n_rows; l++) {
-                        for(j = 0; j < nages; j++) {
-                            u_night_reduced(0, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](6, j, l);
-                            u_night_reduced(1, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](9, j, l);
-                            u_night_reduced(2, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](11, j, l);
-                            // incidence
-                            u_night_reduced(3, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](6, j, l) - u1[i](6, j, l));
-                            u_night_reduced(4, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](9, j, l) - u1[i](9, j, l) + (u1_new[i](10, j, l) - u1[i](10, j, l)) + (u1_new[i](11, j, l) - u1[i](11, j, l)));
-                            u_night_reduced(5, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](11, j, l) - u1[i](11, j, l));
-                            // hosp counts
-                            u_night_reduced(6, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](9, j, l);
+                // CODE WITHOUT NEEDING TO CROSS-REFERENCE U2
+                
+                // extract just counts for DI and DH
+                u_night_lad.zeros();
+                u_night_age_region.zeros();
+                u_night_age_nhsregion.zeros();
+                u_night_nhsregion.zeros();
+                for(l = 0; l < u1_moves.n_rows; l++) {
+                    k = (arma::uword) u1_moves(l, 0) - 1;
+                    for(j = 0; j < nages; j++) {
+                        
+                        // death incidence in LADs
+                        if(lookup(k, 1) >= 0) {
+                            u_night_lad(lookup(k, 1) - 1) += (u1_new[i](6, j, l) - u1[i](6, j, l));
+                            u_night_lad(lookup(k, 1) - 1) += (u1_new[i](11, j, l) - u1[i](11, j, l));
                         }
-                    }
-                    // adjust for observation error
-                    muy = a1 - a2;
-                    for(l = 0; l < nlads; l++) {
-                        for(j = 0; j < nages; j++) {
-                            for(k = 3; k < 7; k++) {
-                                sigma2y = a1 + a2 + 2.0 * b * u_night_reduced(k, j, l);
-                                u_night_reduced(k, j, l) += rdtnorm_cpp(
-                                    muy, 
-                                    sqrt(sigma2y),
-                                    -u_night_reduced(k, j, l),
-                                    std::numeric_limits<double>::infinity(),
-                                    engSerial
-                                );
-                            }
-                            // cumulate incidence
-                            u_night_reduced(3, j, l) += u_night_obs[i](0, j, l);
-                            u_night_reduced(4, j, l) += u_night_obs[i](1, j, l);
-                            u_night_reduced(5, j, l) += u_night_obs[i](2, j, l);
-                            u_night_obs[i](0, j, l) = u_night_reduced(3, j, l);
-                            u_night_obs[i](1, j, l) = u_night_reduced(4, j, l);
-                            u_night_obs[i](2, j, l) = u_night_reduced(5, j, l);
+                        
+                        // death incidence by age and region
+                        if(lookup(k, 2) >= 0) {
+                            u_night_age_region(j, lookup(k, 2) - 1) += (u1_new[i](6, j, l) - u1[i](6, j, l));
+                            u_night_age_region(j, lookup(k, 2) - 1) += (u1_new[i](11, j, l) - u1[i](11, j, l));
                         }
-                    }
-                    if(writeExt == 0) {
-                        out[i + npart * (t + 1)] = u_night_reduced;
-                    } else {
-                        std::sprintf(file_name, "%s/p_%u.csv", std::string(outputName[0]).c_str(), i);
-                        file.open(file_name, std::ios::app);
-                        for(l = 0; l < nlads; l++) {
-                            for(arma::uword r = 0; r < 7; r++) {
-                                file << t + 1 << ", " << r << ", ";
-                                for(j = 0; j < nages; j++) {
-                                    file << u_night_reduced(r, j, l) << ", ";
-                                }
-                                file << l + 1 << "\n";
-                            }
+                        
+                        if(lookup(k, 3) >= 0) {
+                            // hospital incidence by age and NHS region
+                            u_night_age_nhsregion(age_lookup(j, 1) - 1, lookup(k, 3) - 1) += (u1_new[i](9, j, l) - u1[i](9, j, l)) + (u1_new[i](10, j, l) - u1[i](10, j, l)) + (u1_new[i](11, j, l) - u1[i](11, j, l));                    
+                            // and hospital count by NHS region
+                            u_night_nhsregion(lookup(k, 3) - 1) += u1_new[i](9, j, l);
                         }
-                        file.close();
                     }
                 }
-            } else {
-                for(i = 0; i < npart; i++) {
+                
+                nned to simulate this better
+                
+                // apply observation error
+                for(l = 0; l < ndeathlads; l++) {
+                    // death incidence in LADs
+                    sigma2y = 2.0 * nages * (a1 + a2) + 2.0 * b * u_night_lad(l);
+                    sigma2y += sigma2_lad;
+                    muy = u_night_lad(l) + 2.0 * nages * (a1 - a2);
+                    u_night_lad(l) = rdtnorm_cpp(
+                        muy, 
+                        sqrt(sigma2y),
+                        0,
+                        std::numeric_limits<double>::infinity(),
+                        engSerial
+                    );
+                }
+                for(l = 0; l < nregions; l++) {
+                    for(j = 0; j < nages; j++) {
+                        // death incidence by age and region
+                        sigma2y = nlads_region(l) * (a1 + a2) + 2.0 * b * u_night_age_region(j, l);
+                        sigma2y += sigma2_age_region;
+                        muy = u_night_age_region(j, l) + nlads_region(l) * (a1 - a2);
+                        u_night_age_region(j, l) = rdtnorm_cpp(
+                            muy, 
+                            sqrt(sigma2y),
+                            0,
+                            std::numeric_limits<double>::infinity(),
+                            engSerial
+                        );
+                    }
+                }
+                for(l = 0; l < nnhsregions; l++) {
+                    // and hospital count by NHS region
+                    sigma2y = nages * nlads_nhsregion(l) * (a1 + a2) + 2.0 * b * u_night_nhsregion(l);
+                    sigma2y += sigma2_nhsregion;
+                    muy = u_night_nhsregion(l) + nages * nlads_nhsregion(l) * (a1 - a2);
+                    u_night_nhsregion(l) = rdtnorm_cpp(
+                        muy, 
+                        sqrt(sigma2y),
+                        0,
+                        std::numeric_limits<double>::infinity(),
+                        engSerial
+                    );  
+                    for(j = 0; j < nnhsages; j++) {
+                        // hospital incidence by age and NHS region
+                        sigma2y = nlads_nhsregion(l) * (a1 + a2) + 2.0 * b * u_night_age_nhsregion(j, l);
+                        sigma2y += sigma2_age_nhsregion;
+                        muy = u_night_age_nhsregion(j, l) + nlads_nhsregion(l) * (a1 - a2);
+                        u_night_age_nhsregion(j, l) = rdtnorm_cpp(
+                            muy, 
+                            sqrt(sigma2y),
+                            0,
+                            std::numeric_limits<double>::infinity(),
+                            engSerial
+                        );
+                    }
+                }
+                // cumulate incidence
+                for(l = 0; l < ndeathlads; l++) {
+                    u_night_lad_cum[i](l) += u_night_lad(l);
+                }
+                for(l = 0; l < nregions; l++) {
+                    for(j = 0; j < nages; j++) {
+                        u_night_age_region_cum[i](j, l) += u_night_age_region(j, l);
+                    }
+                }
+                for(l = 0; l < nnhsregions; l++) {
+                    for(j = 0; j < nnhsages; j++) {
+                        u_night_age_nhsregion_cum[i](j, l) += u_night_age_nhsregion(j, l);
+                    }
+                }
+                if(saveAll == 2) {
                     u_night_full.zeros();
                     for(l = 0; l < u1_moves.n_rows; l++) {
                         for(j = 0; j < nages; j++) {
                             for(k = 0; k < nclasses; k++) {
                                 u_night_full(k, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](k, j, l);
                             }
-                            // incidence
-                            u_night_full(nclasses, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](6, j, l) - u1[i](6, j, l));
-                            u_night_full(nclasses + 1, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](9, j, l) - u1[i](9, j, l) + (u1_new[i](10, j, l) - u1[i](10, j, l)) + (u1_new[i](11, j, l) - u1[i](11, j, l)));
-                            u_night_full(nclasses + 2, j, (arma::uword) u1_moves(l, 0) - 1) += (u1_new[i](11, j, l) - u1[i](11, j, l));
-                            // hosp counts
-                            u_night_full(nclasses + 3, j, (arma::uword) u1_moves(l, 0) - 1) += u1_new[i](9, j, l);
                         }
                     }
-                    // adjust for observation error
-                    muy = a1 - a2;
-                    for(l = 0; l < nlads; l++) {
-                        for(j = 0; j < nages; j++) {
-                            for(k = 0; k < 4; k++) {
-                                sigma2y = a1 + a2 + 2.0 * b * u_night_full(nclasses + k, j, l);
-                                u_night_full(nclasses + k, j, l) += rdtnorm_cpp(
-                                    muy, 
-                                    sqrt(sigma2y),
-                                    -u_night_full(nclasses + k, j, l),
-                                    std::numeric_limits<double>::infinity(),
-                                    engSerial
-                                );
-                            }
-                            // cumulate incidence
-                            u_night_full(nclasses, j, l) += u_night_obs[i](0, j, l);
-                            u_night_full(nclasses + 1, j, l) += u_night_obs[i](1, j, l);
-                            u_night_full(nclasses + 2, j, l) += u_night_obs[i](2, j, l);
-                            u_night_obs[i](0, j, l) = u_night_full(nclasses, j, l);
-                            u_night_obs[i](1, j, l) = u_night_full(nclasses + 1, j, l);
-                            u_night_obs[i](2, j, l) = u_night_full(nclasses + 2, j, l);
-                        }
-                    }
-                    if(writeExt == 0) {
-                        out[i + npart * (t + 1)] = u_night_full;
+                }
+                if(writeExt == 0) { 
+                    if(saveAll == 1) {
+                        out[i + npart * (t + 1)] = List::create(Named("lads") = u_night_lad_cum[i], _["age_region"] = u_night_age_region_cum[i], _["nhsregion"] = u_night_nhsregion, _["age_nhsregion"] = u_night_age_nhsregion_cum[i]);
                     } else {
+                        out[i + npart * (t + 1)] = List::create(Named("full") = u_night_full, _["lads"] = u_night_lad_cum[i], _["age_region"] = u_night_age_region_cum[i], _["nhsregion"] = u_night_nhsregion, _["age_nhsregion"] = u_night_age_nhsregion_cum[i]);
+                    }
+                } else {
+                    if(saveAll == 2) {
                         std::sprintf(file_name, "%s/p_%u.csv", std::string(outputName[0]).c_str(), i);
                         file.open(file_name, std::ios::app);
                         for(l = 0; l < nlads; l++) {
-                            for(arma::uword r = 0; r < (nclasses + 4); r++) {
+                            for(arma::uword r = 0; r < nclasses; r++) {
                                 file << t + 1 << ", " << r << ", ";
                                 for(j = 0; j < nages; j++) {
                                     file << u_night_full(r, j, l) << ", ";
@@ -2504,6 +2975,45 @@ List APF1_cpp (arma::vec pars, arma::mat C, arma::imat data, arma::uword nclasse
                         }
                         file.close();
                     }
+                    
+                    std::sprintf(file_name, "%s/p_lads_%u.csv", std::string(outputName[0]).c_str(), i);
+                    file.open(file_name, std::ios::app);
+                    for(l = 0; l < ndeathlads; l++) {
+                        file << t + 1 << ", " << u_night_lad_cum[i](l) << ", ";
+                        file << l + 1 << "\n";
+                    }
+                    file.close();
+                    
+                    std::sprintf(file_name, "%s/p_age_region_%u.csv", std::string(outputName[0]).c_str(), i);
+                    file.open(file_name, std::ios::app);
+                    for(l = 0; l < nregions; l++) {
+                        file << t + 1 << ", ";
+                        for(j = 0; j < nages; j++) {
+                            file << u_night_age_region_cum[i](j, l) << ", ";
+                        }
+                        file << l + 1 << "\n";
+                    }
+                    file.close();
+                    
+                    std::sprintf(file_name, "%s/p_nhsregion_%u.csv", std::string(outputName[0]).c_str(), i);
+                    file.open(file_name, std::ios::app);
+                    for(l = 0; l < nnhsregions; l++) {
+                        file << t + 1 << ", ";
+                        file << u_night_nhsregion(l) << ", ";
+                        file << l + 1 << "\n";
+                    }
+                    file.close();
+                    
+                    std::sprintf(file_name, "%s/p_age_nhsregion_%u.csv", std::string(outputName[0]).c_str(), i);
+                    file.open(file_name, std::ios::app);
+                    for(l = 0; l < nnhsregions; l++) {
+                        file << t + 1 << ", ";
+                        for(j = 0; j < nnhsages; j++) {
+                            file << u_night_age_nhsregion_cum[i](j, l) << ", ";
+                        }
+                        file << l + 1 << "\n";
+                    }
+                    file.close();
                 }
             }
         }

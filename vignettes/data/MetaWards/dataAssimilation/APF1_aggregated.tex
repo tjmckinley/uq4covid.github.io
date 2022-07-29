@@ -61,7 +61,7 @@ As a result, the target likelihood is:
     \left[\prod_{l} P\left(D^{Z^\prime}_l \mid \mu^{Z^\prime}_l\right)\right]\left[\prod_{r}\prod_{a} P\left(D^{Z^\prime}_{ra} \mid \mu^{Z^\prime}_{ra}\right)\right]\left[\prod_{l}\prod_a \pi\left(\mu^{Z^\prime}_{la} \mid D^{Y^\prime}_{la}\right)P\left(D^{Y^\prime}_{la} \mid D^{X^\prime}_{la}\right)\right]P\left(\bD^{X^\prime}_{1:N_L,1:N_a}\right).
 \end{equation}
 
-We then model the latent $\mu^{Z^\prime}_{la}$ as Gaussian with mean $\nu_{la}$ and variance $\theta^2_{la}$. In this case we can set e.g. $\nu_{la} = D^{Y^\prime}_{la} + a_1 - a_2$ and $\theta^2_{la} = a_1 + a_2 + 2D^{Y^\prime}_{la}$ which apes the current approach. The purpose of the latent $\mu^{Z^\prime}_{la}$ terms is two-fold:
+We then model the latent $\mu^{Z^\prime}_{la}$ as Gaussian with mean $\nu_{la}$ and variance $\theta^2_{la}$. In this case we can set e.g. $\nu_{la} = D^{Y^\prime}_{la} + a_1 - a_2$ and $\theta^2_{la} = a_1 + a_2 + 2bD^{Y^\prime}_{la}$ which apes the current approach. The purpose of the latent $\mu^{Z^\prime}_{la}$ terms is two-fold:
 \begin{enumerate}
     \item To allow for different observation errors to be placed around observations at different scales but still allow them to be correlated through the latent $\mu^{Z^\prime}_{la}$ terms (for example, aggregating deaths-by-LAD to regions, and aggregating deaths-by-age-and-region to region do not match exactly, even though in theory they should be derived from the same underlying data. This approach allows for the uncertainty in the observation error to be correlated through the latent variable.
     \item To facilitate efficient sampling of the latent $D^{Y^\prime}_{la}$ terms in the APF below.
@@ -93,7 +93,7 @@ where $D^{Y^\prime}_l = 0, \dots, \max\left(D^{Y^\prime}_l\right)$. However, the
 
 Another approach would be to target
 \begin{equation}
-    P\left(\mu^{Z^\prime}_l \mid D^{Z^\prime}_l\right) \propto P\left(D^{Z^\prime}_l \mid  \mu^{Z^\prime}_l\right)\pi\left(\mu^{Z^\prime}_l\right), \label{eq:mugDZ}
+    P\left(\mu^{Z^\prime}_l \mid D^{Z^\prime}_l, D^{X^\prime}_l\right) \propto P\left(D^{Z^\prime}_l \mid \mu^{Z^\prime}_l\right)\pi\left(\mu^{Z^\prime}_l \mid D^{X^\prime}_l\right), \label{eq:mugDZ}
 \end{equation}
 and then sample
 \begin{equation}
@@ -105,15 +105,15 @@ Each of the distributions on the RHS of (\ref{eq:compmarg}) should be readily ca
 \end{equation}
 and similarly for the other terms (see (\ref{eq:mu1gmu}) for derivation).
 
-However, the $\pi\left(\mu^{Z^\prime}_l\right)$ density in (\ref{eq:mugDZ}) is:
+However, the $\pi\left(\mu^{Z^\prime}_l \mid D^{X^\prime}_l\right)$ density in (\ref{eq:mugDZ}) is:
 \begin{equation*}
-    \pi\left(\mu^{Z^\prime}_l\right) = \sum_{D^{Y^\prime}_l} \pi\left(\mu^{Z^\prime}_l \mid D^{Y^\prime}_l\right)P\left(D^{Y^\prime}_l\right),
+    \pi\left(\mu^{Z^\prime}_l \mid D^{X^\prime}_l\right) = \sum_{D^{Y^\prime}_l} \pi\left(\mu^{Z^\prime}_l \mid D^{Y^\prime}_l\right)P\left(D^{Y^\prime}_l \mid D^{X^\prime}_l\right),
 \end{equation*}
-which once again is difficult to evaluate. Instead, let's consider an importance sampler for $\mu^{Z^\prime}_l$ that is based on $D^{X^\prime}_l$ and not $D^{Y^\prime}_l$. For example, let
+which once again is difficult to evaluate due to the convolution density $P\left(D^{Y^\prime}_l \mid D^{X^\prime}_l\right)$. Instead, let's consider an importance sampler for $\mu^{Z^\prime}_l$ that is based on functions of $D^{X^\prime}_l$ directly, and not $D^{Y^\prime}_l$. For example, let
 \begin{equation}
-    \mu^{Q^\prime}_l \mid D^{X^\prime}_{l} \sim N\left(\nu^Q_l = \sum_{a = 1}^{N_a} E\left(D^{Y^\prime}_{la} \mid D^{X^\prime}_{la}\right), \left(\theta^Q_l\right)^2 = \sum_{a = 1}^{N_a} \mbox{Var}\left(D^{Y^\prime}_{la} \mid D^{X^\prime}_{la}\right)\right).
+    \mu^{Q^\prime}_l \mid D^{X^\prime}_{l} \sim N\left(\nu^Q_l = \sum_{a = 1}^{N_a} \nu^Q_{la} , \left(\theta^Q_l\right)^2 = \sum_{a = 1}^{N_a} \left(\theta^Q_{la}\right)^2\right),
 \end{equation}
-Now we can consider
+where $\nu^Q_{la} = E\left(D^{Y^\prime}_{la} \mid D^{X^\prime}_{la}\right) + a_1 - a_2$ and $\left(\theta^Q_{la}\right)^2 = a_1 + a_2 + 2bE\left(D^{Y^\prime}_{la} \mid D^{X^\prime}_{la}\right)$. Now we can consider
 \begin{align}
     \pi\left(y^{Z^\prime}_l, \mu^{Q^\prime}_l \mid D^{Z^\prime}_l, D^{X^\prime}_l\right) &\propto P\left(D^{Z^\prime}_l \mid y^{Z^\prime}_l \right) \pi\left(y^{Z^\prime}_l \mid \mu^{Q^\prime}_l\right)\pi\left(\mu^{Q^\prime}_l \mid D^{X^\prime}_l\right).\label{eq:ymugd}
 \end{align}
@@ -137,12 +137,12 @@ Hence
 \end{equation}
 Finally, we can consider
 \begin{align}
-    \mu^{Q^\prime}_l \mid y^{Z^\prime}_l, D^{Z^\prime}_l, D^{X^\prime}_l &\sim N\left(\frac{y^{Z^\prime}_l\left[\theta^Q_l\right]^2 + \nu_l\sigma^2_l}{\left[\theta^Q_l\right]^2 + \sigma^2_l}, \frac{\sigma^2_l \left[\theta^Q_l\right]^2}{\left[\theta^Q_l\right]^2 + \sigma^2_l}\right)
+    \mu^{Q^\prime}_l \mid y^{Z^\prime}_l, D^{Z^\prime}_l, D^{X^\prime}_l &\sim N\left(\frac{y^{Z^\prime}_l\left[\theta^Q_l\right]^2 + \nu^Q_l\sigma^2_l}{\left[\theta^Q_l\right]^2 + \sigma^2_l}, \frac{\sigma^2_l \left[\theta^Q_l\right]^2}{\left[\theta^Q_l\right]^2 + \sigma^2_l}\right)
 \end{align}
 from (\ref{eq:mugy}).
 Once we have a sample for $\mu^{Z^\prime}_l$, then we can use e.g. (\ref{eq:mugDZ}) to sample from the individual $\mu^{Z^\prime}_{la} \mid \mu^{Z^\prime}_l$. Finally, we can consider:
 \begin{equation}
-    P\left(D^{Y^\prime}_{la} \mid \mu^{Z^\prime}_{la}, D^{X^\prime}_{la}\right) \propto P\left(\mu^{Z^\prime}_{la} \mid D^{Y^\prime}_{la}, D^{X^\prime}_{la}\right)P\left(D^{Y^\prime}_{la} \mid D^{X^\prime}_{la}\right). \label{eq:dygmu}
+    P\left(D^{Y^\prime}_{la} \mid \mu^{Z^\prime}_{la}, D^{X^\prime}_{la}\right) \propto \pi\left(\mu^{Z^\prime}_{la} \mid D^{Y^\prime}_{la}, D^{X^\prime}_{la}\right)P\left(D^{Y^\prime}_{la} \mid D^{X^\prime}_{la}\right). \label{eq:dygmu}
 \end{equation}
 The normalising constant is simply a sum of (\ref{eq:dygmu}) over a finite set of possible values of $D^{Y^\prime}_{la}$.
 

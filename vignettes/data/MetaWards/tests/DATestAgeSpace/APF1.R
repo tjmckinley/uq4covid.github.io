@@ -12,8 +12,17 @@ log_sum_exp <- function(x, mn = FALSE) {
 ##       each parameter except nu/nuA have entries for
 ##       each age-group e.g. nu, nuA, pE1, pE2, pE3 etc.
 ## C:    contact matrix for mixing between age-classes
-## data: data frame of data to fit to, with columns
-##       DI1, DI2, ..., DI8, DH1, ..., DH8
+## cumDeath_lad: matrix of form D_1, D_2, ..., D_L along
+##               columns with cumulative deaths per lad
+## cumDeath_age_region: matrix of form D_a1_1, D_a1_2, ..., D_AR along
+##               columns with cumulative deaths per age and region
+## hosp_nhsregion: matrix of form H_1, H_2, ..., H_R along
+##               columns with hospital counts per nhsregion
+## cumHospAd_age_nhsregion: matrix of form H_a1_1, H_a1_2, ..., H_AR along
+##               columns with cumulative admissions per age and nhsregion
+## lookup: a lookup table mapping lads to different spatial hierarchies
+##               of form: LAD, death ID, region ID, NHS region ID
+## age_lookup: a lookup table of form: death age, nhs age
 ## u1_moves: matrix of commuter data, with columns:
 ##            home LAD, work LAD
 ## u1: 3D array of commuter data, with dimensions:
@@ -33,8 +42,11 @@ log_sum_exp <- function(x, mn = FALSE) {
 ## ncores:  the number of cores for OpenMP parallelisation (if NA then defaults to all available cores)
 ## parEnsemble: decides whether to parallelise across or within ensemble
 
-APF1 <- function(pars, C, data, u1_moves, u1, u2_moves, u2, ndays, npart = 10, niter = 0, a1 = 0.01, a2 = 0.2, b = 0.1, 
-        a_dis = 0.05, b_dis = 0.05, saveAll = NA, writeExt = FALSE, outputName = "saveOut", PF = TRUE, ncores = NA, parEnsemble = FALSE) {
+APF1 <- function(pars, C, cumDeath_lad, cumDeath_age_region, hosp_nhsregion, cumHospAd_age_nhsregion,
+        lookup, age_lookup, u1_moves, u1, u2_moves, u2, ndays, npart = 10, niter = 0, 
+        a1 = 0.01, a2 = 0.2, b = 0.1, a_dis = 0.05, b_dis = 0.05, 
+        sigma2_lad = 1, sigma2_age_region = 1, sigma2_nhsregion = 1, sigma2_age_nhsregion = 1,
+        saveAll = NA, writeExt = FALSE, outputName = "saveOut", PF = TRUE, ncores = NA, parEnsemble = FALSE) {
                
     ## set default for saveAll if PF = FALSE
     if(!PF & is.na(saveAll)) saveAll <- TRUE
@@ -55,7 +67,10 @@ APF1 <- function(pars, C, data, u1_moves, u1, u2_moves, u2, ndays, npart = 10, n
     
     ## set up dummy "data" if just simulation required
     if(!PF) {
-        data <- matrix(NA, 1, 1)
+        cumDeath_lad <- matrix(NA, 1, 1)
+        cumDeath_age_region <- matrix(NA, 1, 1)
+        hosp_nhsregion <- matrix(NA, 1, 1)
+        cumHospAd_age_nhsregion <- matrix(NA, 1, 1)
     }
     
     ## check no missing lads
@@ -128,26 +143,35 @@ APF1 <- function(pars, C, data, u1_moves, u1, u2_moves, u2, ndays, npart = 10, n
     }
     
     ## run particle filter for each set of inputs
-    runs <- mclapply(1:nrow(pars), function(k, pars, C, u1_moves, ncohorts1, u1, u2, playprobs, ncohorts2, npart, niter, ndays, data, a1, a2, b, a_dis, b_dis, saveAll, writeExt, outputName, PF, ncores) {
+    runs <- mclapply(1:nrow(pars), function(k, pars, C, u1_moves, ncohorts1, u1, u2, playprobs, ncohorts2, npart, niter, ndays, cumDeath_lad, cumDeath_age_region, hosp_nhsregion, cumHospAd_age_nhsregion, lookup, age_lookup, a1, a2, b, a_dis, b_dis, sigma2_lad, sigma2_age_region, sigma2_nhsregion, sigma2_age_nhsregion, saveAll, writeExt, outputName, PF, ncores) {
+    
+        ## set up lookups and numbers of regions
+        lookup <- as.matrix(lookup)
+        age_lookup <- as.matrix(age_lookup)
+        ndeathlads <- max(lookup[, 2], na.rm = TRUE)
+        nregions <- max(lookup[, 3], na.rm = TRUE)
+        nnhsages <- max(age_lookup[, 2], na.rm = TRUE)
+        nnhsregions <- max(lookup[, 4], na.rm = TRUE)
+        lookup[is.na(lookup)] <- -1
         
         if(PF == 1) {
-            ## extract observations
-            data <- select(data, t, (starts_with("DI") | starts_with("DH") | starts_with("Hcum")) & contains("obs")) %>%
-                {rbind(rep(0, ncol(.)), .)} %>%
-                mutate(across(!t, ~. - lag(.))) %>%
-                slice(-1) %>%
-                inner_join(
-                    select(data, t, starts_with("Hobs")),
-                    by = "t"
-                ) %>%
-                arrange(t) %>%
+            ## reformat observations
+            deathInc_lad <- mutate(cumDeath_lad, across(!t, ~. - lag(., default = 0))) %>%
+                select(!t) %>%
                 as.matrix()
-        
-            ## remove time since not used in code
-            data <- data[, -1]
+            deathInc_age_region <- mutate(cumDeath_age_region, across(!t, ~. - lag(., default = 0))) %>%
+                select(!t) %>%
+                as.matrix()
+            hosp_nhsregion <- as.matrix(hosp_nhsregion)[, -1]
+            hospInc_age_nhsregion <- mutate(cumHospAd_age_nhsregion, across(!t, ~. - lag(., default = 0))) %>%
+                select(!t) %>%
+                as.matrix()
         } else {
-            ## dummy matrix
-            data <- matrix(0, 1, 1)
+            ## set dummies if required
+            deathInc_lad <- matrix(0, 1, 1)
+            deathInc_age_region <- matrix(0, 1, 1)
+            hosp_nhsregion <- matrix(0, 1, 1)
+            hospInc_age_nhsregion <- matrix(0, 1, 1)
         }
         
         ## set pars
@@ -167,46 +191,82 @@ APF1 <- function(pars, C, data, u1_moves, u1, u2_moves, u2, ndays, npart = 10, n
             if(saveAll == 0) stop("Must set 'saveAll' to something if not running a PF")
             
             ## run particle filter
-            particles <- APF1_cpp(pars, C, data, nclasses, nages, nlads, u1_moves, ncohorts1, u1,
-                u2, playprobs, ncohorts2, ndays, npart, niter, a1, a2, b, a_dis, b_dis, saveAll, 
-                writeExt, outputName, PF, ncores)
+            particles <- APF1_cpp(pars, C, deathInc_lad, deathInc_age_region, hosp_nhsregion, 
+                hospInc_age_nhsregion, lookup, age_lookup, nclasses, nages, nlads, ndeathlads, 
+                nregions, nnhsages, nnhsregions, u1_moves, ncohorts1, u1, u2, playprobs, 
+                ncohorts2, ndays, npart, niter, a1, a2, b, a_dis, b_dis, sigma2_lad, 
+                sigma2_age_region, sigma2_nhsregion, sigma2_age_nhsregion, saveAll, writeExt, 
+                outputName, PF, ncores)
             return(particles)
         }
         
         ## run particle filter
-        particles <- APF1_cpp(pars, C, data, nclasses, nages, nlads, u1_moves, ncohorts1, u1, 
-            u2, playprobs, ncohorts2, ndays, npart, niter, a1, a2, b, a_dis, b_dis, saveAll, 
-            writeExt, outputName, PF, ncores)
+        particles <- APF1_cpp(pars, C, deathInc_lad, deathInc_age_region, hosp_nhsregion, 
+                hospInc_age_nhsregion, lookup, age_lookup, nclasses, nages, nlads, ndeathlads, 
+                nregions, nnhsages, nnhsregions, u1_moves, ncohorts1, u1, u2, playprobs, 
+                ncohorts2, ndays, npart, niter, a1, a2, b, a_dis, b_dis, sigma2_lad, 
+                sigma2_age_region, sigma2_nhsregion, sigma2_age_nhsregion, saveAll, writeExt, 
+                outputName, PF, ncores)
         
         if(saveAll != 0 & writeExt == 0) {
             return(list(ll = particles$ll, particles = particles$particles))
         } else {
             return(list(ll = particles$ll))
         }
-    }, pars = pars, C = C, u1_moves = u1_moves, ncohorts1 = ncohorts1, u1 = u1, u2 = u2, playprobs = playprobs, ncohorts2 = ncohorts2, npart = npart, niter = niter, ndays = ndays, data = data, a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis, saveAll = saveAllint, writeExt = writeExtint, outputName = outputName, PF = PFint, ncores = ncores, mc.cores = ncoresEns)
+    }, pars = pars, C = C, u1_moves = u1_moves, ncohorts1 = ncohorts1, u1 = u1, u2 = u2, playprobs = playprobs, ncohorts2 = ncohorts2, npart = npart, niter = niter, ndays = ndays, cumDeath_lad = cumDeath_lad, cumDeath_age_region = cumDeath_age_region, hosp_nhsregion = hosp_nhsregion, cumHospAd_age_nhsregion = cumHospAd_age_nhsregion, lookup = lookup, age_lookup = age_lookup, a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis, sigma2_lad = sigma2_lad, sigma2_age_region = sigma2_age_region, sigma2_nhsregion = sigma2_nhsregion, sigma2_age_nhsregion = sigma2_age_nhsregion, saveAll = saveAllint, writeExt = writeExtint, outputName = outputName, PF = PFint, ncores = ncores, mc.cores = ncoresEns)
     if(!is.na(saveAll)) {
         if(!writeExt) {
             if(PF) {
                 ll <- map(runs, "ll")
-                runs <- map(runs, "particles") %>%
-                    map(function(runs, ndays, npart) {
-                        x <- list()
-                        for(i in 1:ndays) {
-                            x[[i]] <- runs[(i - 1) * npart + 1:npart]
+                runs <- map(function(runs, ndays, npart) {
+                        lads <- map(runs, "lads")
+                        age_region <- map(runs, "age_region")
+                        nhsregion <- map(runs, "nhsregion")
+                        age_nhsregion <- map(runs, "age_nhsregion")
+                        xlads <- list()
+                        xage_region <- list()
+                        xnhsregion <- list()
+                        xage_nhsregion <- list()
+                        for(i in 1:(ndays + 1)) {
+                            xlads[[i]] <- lads[(i - 1) * npart + 1:npart]
+                            xage_region[[i]] <- age_region[(i - 1) * npart + 1:npart]
+                            xnhsregion[[i]] <- nhsregion[(i - 1) * npart + 1:npart]
+                            xage_nhsregion[[i]] <- age_nhsregion[(i - 1) * npart + 1:npart]
                         }
-                        x
+                        list(lads = xlads, age_region = xage_region, nhsregion = xnhsregion, age_nhsregion = xage_nhsregion)
                     }, ndays = ndays, npart = npart)
                 ll <- do.call("c", ll)
                 return(list(ll = ll, particles = runs))
             } else {
                 runs <- map(runs, "particles") %>%
-                    map(function(runs, ndays, npart) {
-                        x <- list()
-                        for(i in 1:ndays) {
-                            x[[i]] <- runs[(i - 1) * npart + 1:npart]
+                    map(function(runs, ndays, npart, saveAll) {
+                        lads <- map(runs, "lads")
+                        age_region <- map(runs, "age_region")
+                        nhsregion <- map(runs, "nhsregion")
+                        age_nhsregion <- map(runs, "age_nhsregion")
+                        xlads <- list()
+                        xage_region <- list()
+                        xnhsregion <- list()
+                        xage_nhsregion <- list()
+                        if(saveAll) {
+                            full <- map(runs, "full")
+                            xfull <- list()
                         }
-                        x
-                    }, ndays = ndays, npart = npart)
+                        for(i in 1:(ndays + 1)) {
+                            xlads[[i]] <- lads[(i - 1) * npart + 1:npart]
+                            xage_region[[i]] <- age_region[(i - 1) * npart + 1:npart]
+                            xnhsregion[[i]] <- nhsregion[(i - 1) * npart + 1:npart]
+                            xage_nhsregion[[i]] <- age_nhsregion[(i - 1) * npart + 1:npart]
+                            if(saveAll) {
+                                xfull[[i]] <- full[(i - 1) * npart + 1:npart]
+                            }
+                        }
+                        if(saveAll) {
+                            return(list(full = xfull, lads = xlads, age_region = xage_region, nhsregion = xnhsregion, age_nhsregion = xage_nhsregion))
+                        } else {
+                            return(list(lads = xlads, age_region = xage_region, nhsregion = xnhsregion, age_nhsregion = xage_nhsregion))
+                        }
+                    }, ndays = ndays, npart = npart, saveAll = saveAll)
                 return(list(particles = runs))
             }
         } else {

@@ -1246,9 +1246,9 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat deathInc_lad, arma::imat d
             // apply observation error
             for(l = 0; l < ndeathlads; l++) {
                 // death incidence in LADs
-                sigma2y = nages * (a1 + a2) + 2.0 * b * u_night_lad(l);
+                sigma2y = 2.0 * nages * (a1 + a2) + 2.0 * b * u_night_lad(l);
                 sigma2y += sigma2_lad;
-                muy = u_night_lad(l) + nages * (a1 - a2);
+                muy = u_night_lad(l) + 2.0 * nages * (a1 - a2);
                 u_night_lad(l) = rdtnorm_cpp(
                     muy, 
                     sqrt(sigma2y),
@@ -1260,9 +1260,9 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat deathInc_lad, arma::imat d
             for(l = 0; l < nregions; l++) {
                 for(j = 0; j < nages; j++) {
                     // death incidence by age and region
-                    sigma2y = nlads_region(l) * (a1 + a2) + 2.0 * b * u_night_age_region(j, l);
+                    sigma2y = 2.0 * nlads_region(l) * (a1 + a2) + 2.0 * b * u_night_age_region(j, l);
                     sigma2y += sigma2_age_region;
-                    muy = u_night_age_region(j, l) + nlads_region(l) * (a1 - a2);
+                    muy = u_night_age_region(j, l) + 2.0 * nlads_region(l) * (a1 - a2);
                     u_night_age_region(j, l) = rdtnorm_cpp(
                         muy, 
                         sqrt(sigma2y),
@@ -1869,9 +1869,9 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat deathInc_lad, arma::imat d
                 // calculate observation error
                 for(l = 0; l < ndeathlads; l++) {
                     // death incidence in LADs
-                    sigma2y = nages * (a1 + a2) + 2.0 * b * u_night_lad1(l);
+                    sigma2y = 2.0 * nages * (a1 + a2) + 2.0 * b * u_night_lad1(l);
                     sigma2y += sigma2_lad;
-                    muy = u_night_lad1(l) + nages * (a1 - a2);
+                    muy = u_night_lad1(l) + 2.0 * nages * (a1 - a2);
                     weights(i) += ldtnorm_cpp(
                         obsInc_lad(l),
                         muy, 
@@ -1883,9 +1883,9 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat deathInc_lad, arma::imat d
                 for(l = 0; l < nregions; l++) {
                     for(j = 0; j < nages; j++) {
                         // death incidence by age and region
-                        sigma2y = nlads_region(l) * (a1 + a2) + 2.0 * b * u_night_age_region1(j, l);
+                        sigma2y = 2.0 * nlads_region(l) * (a1 + a2) + 2.0 * b * u_night_age_region1(j, l);
                         sigma2y += sigma2_age_region;
-                        muy = u_night_age_region1(j, l) + nlads_region(l) * (a1 - a2);
+                        muy = u_night_age_region1(j, l) + 2.0 * nlads_region(l) * (a1 - a2);
                         weights(i) += ldtnorm_cpp(
                             obsInc_age_region(j * nregions + l),
                             muy, 
@@ -2067,9 +2067,9 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat deathInc_lad, arma::imat d
                     // calculate observation error
                     for(l = 0; l < ndeathlads; l++) {
                         // death incidence in LADs
-                        sigma2y = nages * (a1 + a2) + 2.0 * b * u_night_lad1(l);
+                        sigma2y = 2.0 * nages * (a1 + a2) + 2.0 * b * u_night_lad1(l);
                         sigma2y += sigma2_lad;
-                        muy = u_night_lad1(l) + nages * (a1 - a2);
+                        muy = u_night_lad1(l) + 2.0 * nages * (a1 - a2);
                         acccurr += ldtnorm_cpp(
                             obsInc_lad(l),
                             muy, 
@@ -2081,9 +2081,9 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat deathInc_lad, arma::imat d
                     for(l = 0; l < nregions; l++) {
                         for(j = 0; j < nages; j++) {
                             // death incidence by age and region
-                            sigma2y = nlads_region(l) * (a1 + a2) + 2.0 * b * u_night_age_region1(j, l);
+                            sigma2y = 2.0 * nlads_region(l) * (a1 + a2) + 2.0 * b * u_night_age_region1(j, l);
                             sigma2y += sigma2_age_region;
-                            muy = u_night_age_region1(j, l) + nlads_region(l) * (a1 - a2);
+                            muy = u_night_age_region1(j, l) + 2.0 * nlads_region(l) * (a1 - a2);
                             acccurr += ldtnorm_cpp(
                                 obsInc_age_region(j * nregions + l),
                                 muy, 
@@ -2236,9 +2236,9 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat deathInc_lad, arma::imat d
                         // calculate observation error
                         for(l = 0; l < ndeathlads; l++) {
                             // death incidence in LADs
-                            sigma2y = nages * (a1 + a2) + 2.0 * b * u_night_lad1(l);
+                            sigma2y = 2.0 * nages * (a1 + a2) + 2.0 * b * u_night_lad1(l);
                             sigma2y += sigma2_lad;
-                            muy = u_night_lad1(l) + nages * (a1 - a2);
+                            muy = u_night_lad1(l) + 2.0 * nages * (a1 - a2);
                             accprop += ldtnorm_cpp(
                                 obsInc_lad(l),
                                 muy, 
@@ -2250,9 +2250,9 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat deathInc_lad, arma::imat d
                         for(l = 0; l < nregions; l++) {
                             for(j = 0; j < nages; j++) {
                                 // death incidence by age and region
-                                sigma2y = nlads_region(l) * (a1 + a2) + 2.0 * b * u_night_age_region1(j, l);
+                                sigma2y = 2.0 * nlads_region(l) * (a1 + a2) + 2.0 * b * u_night_age_region1(j, l);
                                 sigma2y += sigma2_age_region;
-                                muy = u_night_age_region1(j, l) + nlads_region(l) * (a1 - a2);
+                                muy = u_night_age_region1(j, l) + 2.0 * nlads_region(l) * (a1 - a2);
                                 accprop += ldtnorm_cpp(
                                     obsInc_age_region(j * nregions + l),
                                     muy, 
@@ -2600,9 +2600,9 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat deathInc_lad, arma::imat d
                 // apply observation error
                 for(l = 0; l < ndeathlads; l++) {
                     // death incidence in LADs
-                    sigma2y = nages * (a1 + a2) + 2.0 * b * u_night_lad(l);
+                    sigma2y = 2.0 * nages * (a1 + a2) + 2.0 * b * u_night_lad(l);
                     sigma2y += sigma2_lad;
-                    muy = u_night_lad(l) + nages * (a1 - a2);
+                    muy = u_night_lad(l) + 2.0 * nages * (a1 - a2);
                     u_night_lad(l) = rdtnorm_cpp(
                         muy, 
                         sqrt(sigma2y),
@@ -2614,9 +2614,9 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat deathInc_lad, arma::imat d
                 for(l = 0; l < nregions; l++) {
                     for(j = 0; j < nages; j++) {
                         // death incidence by age and region
-                        sigma2y = nlads_region(l) * (a1 + a2) + 2.0 * b * u_night_age_region(j, l);
+                        sigma2y = 2.0 * nlads_region(l) * (a1 + a2) + 2.0 * b * u_night_age_region(j, l);
                         sigma2y += sigma2_age_region;
-                        muy = u_night_age_region(j, l) + nlads_region(l) * (a1 - a2);
+                        muy = u_night_age_region(j, l) + 2.0 * nlads_region(l) * (a1 - a2);
                         u_night_age_region(j, l) = rdtnorm_cpp(
                             muy, 
                             sqrt(sigma2y),
