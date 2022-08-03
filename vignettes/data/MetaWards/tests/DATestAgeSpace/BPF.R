@@ -11,7 +11,9 @@ log_sum_exp <- function(x, mn = FALSE) {
 ##       nu, nuA, pE, pEP, pA, pP, pI1, pI1H, pI1D, pI2, pH, pHD
 ##       each parameter except nu/nuA have entries for
 ##       each age-group e.g. nu, nuA, pE1, pE2, pE3 etc.
-## C:    contact matrix for mixing between age-classes
+## C1:    contact matrix for mixing between age-classes
+## C2:    contact matrix for mixing between age-classes post lockdown
+## lockdown_day: the day of first lockdown
 ## cumDeath_lad: matrix of form D_1, D_2, ..., D_L along
 ##               columns with cumulative deaths per lad
 ## cumDeath_age_region: matrix of form D_a1_1, D_a1_2, ..., D_AR along
@@ -42,7 +44,7 @@ log_sum_exp <- function(x, mn = FALSE) {
 ## ncores:  the number of cores for OpenMP parallelisation (if NA then defaults to all available cores)
 ## parEnsemble: decides whether to parallelise across or within ensemble
 
-BPF <- function(pars, C, cumDeath_lad, cumDeath_age_region, hosp_nhsregion, cumHospAd_age_nhsregion,
+BPF <- function(pars, C1, C2, lockdown_day, cumDeath_lad, cumDeath_age_region, hosp_nhsregion, cumHospAd_age_nhsregion,
         lookup, age_lookup, u1_moves, u1, u2_moves, u2, ndays, npart = 10, niter = 0, 
         a1 = 0.01, a2 = 0.2, b = 0.1, a_dis = 0.05, b_dis = 0.05, 
         sigma2_lad = 1, sigma2_age_region = 1, sigma2_nhsregion = 1, sigma2_age_nhsregion = 1,
@@ -143,7 +145,7 @@ BPF <- function(pars, C, cumDeath_lad, cumDeath_age_region, hosp_nhsregion, cumH
     }
     
     ## run particle filter for each set of inputs
-    runs <- mclapply(1:nrow(pars), function(k, pars, C, u1_moves, ncohorts1, u1, u2, playprobs, ncohorts2, npart, niter, ndays, cumDeath_lad, cumDeath_age_region, hosp_nhsregion, cumHospAd_age_nhsregion, lookup, age_lookup, a1, a2, b, a_dis, b_dis, sigma2_lad, sigma2_age_region, sigma2_nhsregion, sigma2_age_nhsregion, saveAll, writeExt, outputName, PF, ncores) {
+    runs <- mclapply(1:nrow(pars), function(k, pars, C1, C2, lockdown_day, u1_moves, ncohorts1, u1, u2, playprobs, ncohorts2, npart, niter, ndays, cumDeath_lad, cumDeath_age_region, hosp_nhsregion, cumHospAd_age_nhsregion, lookup, age_lookup, a1, a2, b, a_dis, b_dis, sigma2_lad, sigma2_age_region, sigma2_nhsregion, sigma2_age_nhsregion, saveAll, writeExt, outputName, PF, ncores) {
     
         ## set up lookups and numbers of regions
         lookup <- as.matrix(lookup)
@@ -191,7 +193,7 @@ BPF <- function(pars, C, cumDeath_lad, cumDeath_age_region, hosp_nhsregion, cumH
             if(saveAll == 0) stop("Must set 'saveAll' to something if not running a PF")
             
             ## run particle filter
-            particles <- BPF_cpp(pars, C, deathInc_lad, deathInc_age_region, hosp_nhsregion, 
+            particles <- BPF_cpp(pars, C1, C2, lockdown_day, deathInc_lad, deathInc_age_region, hosp_nhsregion, 
                 hospInc_age_nhsregion, lookup, age_lookup, nclasses, nages, nlads, ndeathlads, 
                 nregions, nnhsages, nnhsregions, u1_moves, ncohorts1, u1, u2, playprobs, 
                 ncohorts2, ndays, npart, niter, a1, a2, b, a_dis, b_dis, sigma2_lad, 
@@ -201,7 +203,7 @@ BPF <- function(pars, C, cumDeath_lad, cumDeath_age_region, hosp_nhsregion, cumH
         }
         
         ## run particle filter
-        particles <- BPF_cpp(pars, C, deathInc_lad, deathInc_age_region, hosp_nhsregion, 
+        particles <- BPF_cpp(pars, C1, C2, lockdown_day, deathInc_lad, deathInc_age_region, hosp_nhsregion, 
                 hospInc_age_nhsregion, lookup, age_lookup, nclasses, nages, nlads, ndeathlads, 
                 nregions, nnhsages, nnhsregions, u1_moves, ncohorts1, u1, u2, playprobs, 
                 ncohorts2, ndays, npart, niter, a1, a2, b, a_dis, b_dis, sigma2_lad, 
@@ -213,7 +215,7 @@ BPF <- function(pars, C, cumDeath_lad, cumDeath_age_region, hosp_nhsregion, cumH
         } else {
             return(list(ll = particles$ll))
         }
-    }, pars = pars, C = C, u1_moves = u1_moves, ncohorts1 = ncohorts1, u1 = u1, u2 = u2, playprobs = playprobs, ncohorts2 = ncohorts2, npart = npart, niter = niter, ndays = ndays, cumDeath_lad = cumDeath_lad, cumDeath_age_region = cumDeath_age_region, hosp_nhsregion = hosp_nhsregion, cumHospAd_age_nhsregion = cumHospAd_age_nhsregion, lookup = lookup, age_lookup = age_lookup, a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis, sigma2_lad = sigma2_lad, sigma2_age_region = sigma2_age_region, sigma2_nhsregion = sigma2_nhsregion, sigma2_age_nhsregion = sigma2_age_nhsregion, saveAll = saveAllint, writeExt = writeExtint, outputName = outputName, PF = PFint, ncores = ncores, mc.cores = ncoresEns)
+    }, pars = pars, C1 = C1, C2 = C2, lockdown_day = lockdown_day, u1_moves = u1_moves, ncohorts1 = ncohorts1, u1 = u1, u2 = u2, playprobs = playprobs, ncohorts2 = ncohorts2, npart = npart, niter = niter, ndays = ndays, cumDeath_lad = cumDeath_lad, cumDeath_age_region = cumDeath_age_region, hosp_nhsregion = hosp_nhsregion, cumHospAd_age_nhsregion = cumHospAd_age_nhsregion, lookup = lookup, age_lookup = age_lookup, a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis, sigma2_lad = sigma2_lad, sigma2_age_region = sigma2_age_region, sigma2_nhsregion = sigma2_nhsregion, sigma2_age_nhsregion = sigma2_age_nhsregion, saveAll = saveAllint, writeExt = writeExtint, outputName = outputName, PF = PFint, ncores = ncores, mc.cores = ncoresEns)
     if(!is.na(saveAll)) {
         if(!writeExt) {
             if(PF) {

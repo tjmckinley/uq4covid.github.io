@@ -8,9 +8,9 @@ source("inputs/dataTools.R")
 
 ## set up parameter ranges for uniform ranges
 parRanges <- data.frame(
-    parameter = c("R0", "TE", "TP", "TI1", "TI2", "nuA"),
-    lower = c(2, 0.1, 1.2, 2.8, 0.0001, 0),
-    upper = c(4.5, 2, 3, 4.5, 0.5, 1),
+    parameter = c("R0", "TE", "TP", "TI1", "TI2", "nuA", "beta_scale"),
+    lower = c(2, 0.1, 1.2, 2.8, 0.0001, 0, 0),
+    upper = c(4.5, 2, 3, 4.5, 0.5, 1, 1),
     stringsAsFactors = FALSE
 ) 
 

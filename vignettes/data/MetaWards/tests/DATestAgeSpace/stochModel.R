@@ -23,11 +23,13 @@ source("BPF.R")
 ## read in parameters, remove guff and reorder
 pars <- readRDS("wave1/disease.rds") %>%
     rename(nu = `beta[1]`, nuA = `beta[6]`) %>%
-    select(!c(starts_with("beta"), repeats)) %>%
-    select(nu, nuA, !output, output)
+    select(!c(starts_with("beta["), repeats)) %>%
+    select(nu, nuA, !c(beta_scale, output), beta_scale, output)
 
-## read in contact matrix
-contact <- read_csv("inputs/POLYMOD_matrix.csv", col_names = FALSE) %>%
+## read in contact matrices
+contact1 <- read_csv("inputs/POLYMOD_matrix.csv", col_names = FALSE) %>%
+    as.matrix()
+contact2 <- read_csv("inputs/coMix_matrix.csv", col_names = FALSE) %>%
     as.matrix()
 
 ## extract parameters for simulation   
@@ -105,7 +107,8 @@ saveRDS(lookup, "outputs/lookup.rds")
 saveRDS(age_lookup, "outputs/age_lookup.rds")
 
 ## simulate discrete-time model
-disSims_full <- BPF(pars, C = contact, lookup = lookup, age_lookup = age_lookup, u1_moves = u1_moves,
+disSims_full <- BPF(pars, C1 = contact1, C2 = contact2, lockdown_day = 20, 
+    lookup = lookup, age_lookup = age_lookup, u1_moves = u1_moves,
     u1 = u1, u2_moves = as.matrix(PM19), u2 = u2, ndays = 100, npart = 8, PF = FALSE)
     
 ###############################################

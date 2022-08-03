@@ -474,6 +474,7 @@ void discreteStochModel(int ipart, int nclasses, int nages, int nlads,
         probH(j) = pars(j + 8 * nages + 2);
         probHD(j) = pars(j + 9 * nages + 2);
     }
+    double beta_scale = pars(10 * nages + 2);
     
     // classes are: S, E, A, RA, P, I1, DI, I2, RI, H, RH, DH
     //              0, 1, 2, 3,  4, 5,  6,  7,  8,  9, 10, 11
@@ -514,7 +515,7 @@ void discreteStochModel(int ipart, int nclasses, int nages, int nlads,
             }
             
             // SE
-            beta = 0.7 * C * (uinf / N_day.col(i));
+            beta = beta_scale * 0.7 * C * (uinf / N_day.col(i));
             for(j = 0; j < nages; j++) {
                 pinf(j, i) = 1.0 - exp(-beta(j, 0));
                 pinf(j, i) = (pinf(j, i) < 0.0 ? 0.0:pinf(j, i));
@@ -543,7 +544,7 @@ void discreteStochModel(int ipart, int nclasses, int nages, int nlads,
             }
             
             // SE
-            beta = 0.3 * C * (uinf / N_night.col(i));
+            beta = beta_scale * 0.3 * C * (uinf / N_night.col(i));
             for(j = 0; j < nages; j++) {
                 pinf(j, i) = 1.0 - exp(-beta(j, 0));
                 pinf(j, i) = (pinf(j, i) < 0.0 ? 0.0:pinf(j, i));
@@ -1101,7 +1102,8 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
 //}
 
 // [[Rcpp::export]]
-List BPF_cpp (arma::vec pars, arma::mat C, arma::imat deathInc_lad, arma::imat deathInc_age_region,
+List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
+    arma::imat deathInc_lad, arma::imat deathInc_age_region,
     arma::imat hosp_nhsregion, arma::imat hospInc_age_nhsregion, arma::imat lookup, arma::imat age_lookup,
     arma::uword nclasses, arma::uword nages, arma::uword nlads, 
     arma::uword ndeathlads, arma::uword nregions, arma::uword nnhsages, arma::uword nnhsregions,  
@@ -1455,11 +1457,11 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat deathInc_lad, arma::imat d
             obsInc_age_region = deathInc_age_region.row(t).t();
             obsInc_age_nhsregion = hospInc_age_nhsregion.row(t).t();
             obs_nhsregion = hosp_nhsregion.row(t).t();
-        }
+        }         
         
         // loop over particles
 #ifdef _OPENMP
-#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, nages, nclasses, nlads, C, u1_moves, u1, u1_new, ncohorts1, u2, u2_new, playprobs, ncohorts2, t, pars, weights, a_dis, b_dis, a1, a2, b, obsInc_lad, obsInc_age_region, obsInc_age_nhsregion, obs_nhsregion, PF, ndays, ndeathlads, nregions, nnhsages, nnhsregions, lookup, age_lookup, sigma2_lad, sigma2_age_region, sigma2_nhsregion, sigma2_age_nhsregion, mu_night_age_lad)
+#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, nages, nclasses, nlads, C1, C2, u1_moves, u1, u1_new, ncohorts1, u2, u2_new, playprobs, ncohorts2, t, pars, weights, a_dis, b_dis, a1, a2, b, obsInc_lad, obsInc_age_region, obsInc_age_nhsregion, obs_nhsregion, PF, ndays, ndeathlads, nregions, nnhsages, nnhsregions, lookup, age_lookup, sigma2_lad, sigma2_age_region, sigma2_nhsregion, sigma2_age_nhsregion, mu_night_age_lad, lockdown_day)
 #endif
         for(i = 0; i < npart; i++) {
     
@@ -1536,9 +1538,19 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat deathInc_lad, arma::imat d
             
             // set auxiliary variables
             double muy, sigma2y;
+        
+            // set up relevant contact matrix
+            // and scaling parameters
+            arma::mat C = C1;
+            arma::vec pars1 = pars;
+            if(t >= lockdown_day) {
+                C = C2;
+            } else {
+                pars1(pars1.n_elem - 1) = 1.0;
+            }
             
             // run model and return u1
-            discreteStochModel(i, nclasses, nages, nlads, pars, t - 1, t, u1_moves, u1_new, C, eng);
+            discreteStochModel(i, nclasses, nages, nlads, pars1, t - 1, t, u1_moves, u1_new, C, eng);
         
             // cols: c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "RI", "H", "RH", "DH")
             //          0,   1,   2,   3,    4,   5,    6,    7,    8,    9,   10,   11
@@ -2029,7 +2041,7 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat deathInc_lad, arma::imat d
             // Metropolis-Hastings steps to deal with particle impoverishment
             if(niter > 0) {
 #ifdef _OPENMP
-#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, nages, nclasses, nlads, C, ncohorts1, u1_moves, u1, u1_new, ncohorts2, u2, u2_new, playprobs, t, pars, a_dis, b_dis, a1, a2, b, obsInc_lad, obsInc_age_region, obsInc_age_nhsregion, obs_nhsregion, PF, ndays, ndeathlads, nregions, nnhsages, nnhsregions, lookup, age_lookup, sigma2_lad, sigma2_age_region, sigma2_nhsregion, sigma2_age_nhsregion, condpars, niter, nacc, mu_night_age_lad, mu_night_age_lad1)
+#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, nages, nclasses, nlads, C1, C2, ncohorts1, u1_moves, u1, u1_new, ncohorts2, u2, u2_new, playprobs, t, pars, a_dis, b_dis, a1, a2, b, obsInc_lad, obsInc_age_region, obsInc_age_nhsregion, obs_nhsregion, PF, ndays, ndeathlads, nregions, nnhsages, nnhsregions, lookup, age_lookup, sigma2_lad, sigma2_age_region, sigma2_nhsregion, sigma2_age_nhsregion, condpars, niter, nacc, mu_night_age_lad, mu_night_age_lad1, lockdown_day)
 #endif
                 for(i = 0; i < npart; i++) {
             
@@ -2080,6 +2092,16 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat deathInc_lad, arma::imat d
                     
                     // set auxiliary variables
                     double muy, sigma2y, pI1pI1D, pHpHD, pI1pI1H, pHpHR, acc, acccurr, accprop, u;
+                    
+                    // set up relevant contact matrix
+                    // and scaling parameters
+                    arma::mat C = C1;
+                    arma::vec condpars1 = condpars;
+                    if(t >= lockdown_day) {
+                        C = C2;
+                    } else {
+                        condpars1(condpars1.n_elem - 1) = 1.0;
+                    }
                 
                     // cols: c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "RI", "H", "RH", "DH")
                     //          0,   1,   2,   3,    4,   5,    6,    7,    8,    9,   10,   11
@@ -2437,7 +2459,7 @@ List BPF_cpp (arma::vec pars, arma::mat C, arma::imat deathInc_lad, arma::imat d
                         redistribution(i, nages, nlads, tempMD, ncohorts1, u1, u1_new, eng, 1);
                         
                         // sample remaining x values from conditional simulator
-                        discreteStochModel(i, nclasses, nages, nlads, condpars, t - 1, t, u1_moves, u1_new, C, eng);
+                        discreteStochModel(i, nclasses, nages, nlads, condpars1, t - 1, t, u1_moves, u1_new, C, eng);
                         
                         // set model discrepancy counts for later re-distribution
                         tempMD.zeros();

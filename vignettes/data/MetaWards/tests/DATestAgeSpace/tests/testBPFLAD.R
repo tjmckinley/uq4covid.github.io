@@ -22,12 +22,14 @@ cumHospAd_age_nhsregion <- readRDS("../outputs/cumHospAd_age_nhsregion.rds")
 ## read in parameters, remove guff and reorder
 pars <- readRDS("../wave1/disease.rds") %>%
     rename(nu = `beta[1]`, nuA = `beta[6]`) %>%
-    select(!c(starts_with("beta"), repeats)) %>%
-    select(nu, nuA, !output) %>%
+    select(!c(starts_with("beta["), repeats)) %>%
+    select(nu, nuA, !c(beta_scale, output), beta_scale) %>%
     as.data.frame()
 
-## read in contact matrix
-contact <- read_csv("../inputs/POLYMOD_matrix.csv", col_names = FALSE) %>%
+## read in contact matrices
+contact1 <- read_csv("../inputs/POLYMOD_matrix.csv", col_names = FALSE) %>%
+    as.matrix()
+contact2 <- read_csv("../inputs/coMix_matrix.csv", col_names = FALSE) %>%
     as.matrix()
 
 ## read in initial conditions
@@ -90,10 +92,10 @@ class_lookup <- data.frame(var = c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "
     mutate(class = 0:(n() - 1))
     
 ## run model with model discrepancy
-runs_md <- BPF(pars[100, ], C = contact, cumDeath_lad = cumDeath_lad, 
-    cumDeath_age_region = cumDeath_age_region, hosp_nhsregion = hosp_nhsregion, 
-    cumHospAd_age_nhsregion = cumHospAd_age_nhsregion, lookup = lookup, 
-    age_lookup = age_lookup, u1_moves = u1_moves,
+runs_md <- BPF(pars[100, ], C1 = contact1, C2 = contact2, lockdown_day = 20,
+    cumDeath_lad = cumDeath_lad, cumDeath_age_region = cumDeath_age_region, 
+    hosp_nhsregion = hosp_nhsregion, cumHospAd_age_nhsregion = cumHospAd_age_nhsregion, 
+    lookup = lookup, age_lookup = age_lookup, u1_moves = u1_moves,
     u1 = u1, u2_moves = as.matrix(PM19), u2 = u2, ndays = ndays, npart = 10, 
     a1 = 0.01, a2 = 0.2, b = 0.1, a_dis = 0.05, b_dis = 0.05, 
     sigma2_lad = 1, sigma2_age_region = 1, sigma2_nhsregion = 1, sigma2_age_nhsregion = 1,
