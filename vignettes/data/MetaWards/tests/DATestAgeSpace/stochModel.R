@@ -24,7 +24,7 @@ source("BPF.R")
 pars <- readRDS("wave1/disease.rds") %>%
     rename(nu = `beta[1]`, nuA = `beta[6]`) %>%
     select(!c(starts_with("beta["), repeats)) %>%
-    select(nu, nuA, !c(beta_scale, output), beta_scale, output)
+    select(nu, nuA, !c(beta_scale, p_move, output), beta_scale, p_move, output)
 
 ## read in contact matrices
 contact1 <- read_csv("inputs/POLYMOD_matrix.csv", col_names = FALSE) %>%

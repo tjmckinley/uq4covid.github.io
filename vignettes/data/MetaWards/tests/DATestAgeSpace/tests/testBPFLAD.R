@@ -23,7 +23,7 @@ cumHospAd_age_nhsregion <- readRDS("../outputs/cumHospAd_age_nhsregion.rds")
 pars <- readRDS("../wave1/disease.rds") %>%
     rename(nu = `beta[1]`, nuA = `beta[6]`) %>%
     select(!c(starts_with("beta["), repeats)) %>%
-    select(nu, nuA, !c(beta_scale, output), beta_scale) %>%
+    select(nu, nuA, !c(beta_scale, p_move, output), beta_scale, p_move) %>%
     as.data.frame()
 
 ## read in contact matrices

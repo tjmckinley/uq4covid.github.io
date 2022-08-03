@@ -420,34 +420,6 @@ void discreteStochModel(int ipart, int nclasses, int nages, int nlads,
     int k, n;
     arma::uword i, j, l;
     
-    // reconstruct day/night counts
-    arma::icube u1_day(nclasses, nages, nlads); u1_day.zeros();
-    arma::icube u1_night(nclasses, nages, nlads); u1_night.zeros();
-    for(i = 0; i < u1_moves.n_rows; i++) {
-        for(j = 0; j < nages; j++) {
-            for(l = 0; l < nclasses; l++) {
-                u1_day(l, j, (arma::uword) u1_moves(i, 1) - 1) += u1[ipart](l, j, i);
-                u1_night(l, j, (arma::uword) u1_moves(i, 0) - 1) += u1[ipart](l, j, i);
-            }
-        }
-    }
-    
-    // reconstruct population counts
-    arma::imat N_day(nages, nlads); N_day.zeros();
-    arma::imat N_night(nages, nlads); N_night.zeros();
-    for(i = 0; i < nlads; i++) {
-        for(j = 0; j < nages; j++) {
-            for(l = 0; l < nclasses; l++) {
-                N_day(j, i) += u1_day(l, j, i);
-                N_night(j, i) += u1_night(l, j, i);
-            }
-        }
-    }
-    
-    // auxiliary vectors
-    arma::mat pinf(nages, nlads); pinf.zeros();
-    arma::imat origE(nages, u1_moves.n_rows); origE.zeros();
-    
     // extract parameters
     double nu = pars(0);
     double nuA = pars(1);
@@ -475,6 +447,38 @@ void discreteStochModel(int ipart, int nclasses, int nages, int nlads,
         probHD(j) = pars(j + 9 * nages + 2);
     }
     double beta_scale = pars(10 * nages + 2);
+    double p_move = pars(10 * nages + 3);
+    
+    // reconstruct day/night counts
+    arma::icube u1_day(nclasses, nages, nlads); u1_day.zeros();
+    arma::icube u1_night(nclasses, nages, nlads); u1_night.zeros();
+    for(i = 0; i < u1_moves.n_rows; i++) {
+        for(j = 0; j < nages; j++) {
+            for(l = 0; l < nclasses; l++) {
+                // sample proportion of individuals who move
+                k = rbinom_cpp(u1[ipart](l, j, i), p_move, eng);
+                u1_day(l, j, (arma::uword) u1_moves(i, 0) - 1) += (u1[ipart](l, j, i) - k);
+                u1_day(l, j, (arma::uword) u1_moves(i, 1) - 1) += k;
+                u1_night(l, j, (arma::uword) u1_moves(i, 0) - 1) += u1[ipart](l, j, i);
+            }
+        }
+    }
+    
+    // reconstruct population counts
+    arma::imat N_day(nages, nlads); N_day.zeros();
+    arma::imat N_night(nages, nlads); N_night.zeros();
+    for(i = 0; i < nlads; i++) {
+        for(j = 0; j < nages; j++) {
+            for(l = 0; l < nclasses; l++) {
+                N_day(j, i) += u1_day(l, j, i);
+                N_night(j, i) += u1_night(l, j, i);
+            }
+        }
+    }
+    
+    // auxiliary vectors
+    arma::mat pinf(nages, nlads); pinf.zeros();
+    arma::imat origE(nages, u1_moves.n_rows); origE.zeros();
     
     // classes are: S, E, A, RA, P, I1, DI, I2, RI, H, RH, DH
     //              0, 1, 2, 3,  4, 5,  6,  7,  8,  9, 10, 11
@@ -1546,7 +1550,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
             if(t >= lockdown_day) {
                 C = C2;
             } else {
-                pars1(pars1.n_elem - 1) = 1.0;
+                pars1(pars1.n_elem - 2) = 1.0;
             }
             
             // run model and return u1
@@ -2100,7 +2104,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                     if(t >= lockdown_day) {
                         C = C2;
                     } else {
-                        condpars1(condpars1.n_elem - 1) = 1.0;
+                        condpars1(condpars1.n_elem - 2) = 1.0;
                     }
                 
                     // cols: c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "RI", "H", "RH", "DH")
