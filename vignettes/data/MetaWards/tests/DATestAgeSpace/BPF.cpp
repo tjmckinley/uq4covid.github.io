@@ -1112,7 +1112,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
     arma::uword nclasses, arma::uword nages, arma::uword nlads, 
     arma::uword ndeathlads, arma::uword nregions, arma::uword nnhsages, arma::uword nnhsregions,  
     arma::imat u1_moves, arma::ivec ncohorts1, arma::icube u1_comb, 
-    arma::icube u2_comb, arma::vec playprobs, arma::ivec ncohorts2, arma::uword ndays, 
+    arma::icube u2_comb, arma::vec playprobs, arma::ivec ncohorts2, arma::uword tstart, arma::uword tstop, 
     arma::uword npart, int niter, double a1, double a2, double b, double a_dis, double b_dis,
     double sigma2_lad, double sigma2_age_region, double sigma2_nhsregion, double sigma2_age_nhsregion,
     int saveAll, int writeExt, CharacterVector outputName, int PF, int ncores) {
@@ -1185,7 +1185,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
     sitmo::prng engSerial(coreseedSerial);
     
     // check which output required
-    List out (npart * (ndays + 1));
+    List out (npart * (tstop - tstart + 1));
     std::ofstream file;
     char file_name[128];
     if(saveAll != 0) {
@@ -1450,7 +1450,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
     
     // loop over time
     double ll = 0.0;
-    for(t = 0; t < ndays; t++) {
+    for(t = tstart; t < tstop; t++) {
             
         // check for interrupt
         R_CheckUserInterrupt();
@@ -1465,7 +1465,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
         
         // loop over particles
 #ifdef _OPENMP
-#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, nages, nclasses, nlads, C1, C2, u1_moves, u1, u1_new, ncohorts1, u2, u2_new, playprobs, ncohorts2, t, pars, weights, a_dis, b_dis, a1, a2, b, obsInc_lad, obsInc_age_region, obsInc_age_nhsregion, obs_nhsregion, PF, ndays, ndeathlads, nregions, nnhsages, nnhsregions, lookup, age_lookup, sigma2_lad, sigma2_age_region, sigma2_nhsregion, sigma2_age_nhsregion, mu_night_age_lad, lockdown_day)
+#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, nages, nclasses, nlads, C1, C2, u1_moves, u1, u1_new, ncohorts1, u2, u2_new, playprobs, ncohorts2, t, pars, weights, a_dis, b_dis, a1, a2, b, obsInc_lad, obsInc_age_region, obsInc_age_nhsregion, obs_nhsregion, PF, tstart, tstop, ndeathlads, nregions, nnhsages, nnhsregions, lookup, age_lookup, sigma2_lad, sigma2_age_region, sigma2_nhsregion, sigma2_age_nhsregion, mu_night_age_lad, lockdown_day)
 #endif
         for(i = 0; i < npart; i++) {
     
@@ -2045,7 +2045,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
             // Metropolis-Hastings steps to deal with particle impoverishment
             if(niter > 0) {
 #ifdef _OPENMP
-#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, nages, nclasses, nlads, C1, C2, ncohorts1, u1_moves, u1, u1_new, ncohorts2, u2, u2_new, playprobs, t, pars, a_dis, b_dis, a1, a2, b, obsInc_lad, obsInc_age_region, obsInc_age_nhsregion, obs_nhsregion, PF, ndays, ndeathlads, nregions, nnhsages, nnhsregions, lookup, age_lookup, sigma2_lad, sigma2_age_region, sigma2_nhsregion, sigma2_age_nhsregion, condpars, niter, nacc, mu_night_age_lad, mu_night_age_lad1, lockdown_day)
+#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, nages, nclasses, nlads, C1, C2, ncohorts1, u1_moves, u1, u1_new, ncohorts2, u2, u2_new, playprobs, t, pars, a_dis, b_dis, a1, a2, b, obsInc_lad, obsInc_age_region, obsInc_age_nhsregion, obs_nhsregion, PF, tstart, tstop, ndeathlads, nregions, nnhsages, nnhsregions, lookup, age_lookup, sigma2_lad, sigma2_age_region, sigma2_nhsregion, sigma2_age_nhsregion, condpars, niter, nacc, mu_night_age_lad, mu_night_age_lad1, lockdown_day)
 #endif
                 for(i = 0; i < npart; i++) {
             
@@ -2929,17 +2929,17 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
             ESS = ESS / ((double) npart);
             
             if(niter == 0) {
-                Rprintf("t = %d / %d RESS = %.2f time = %.2f secs \n", t + 1, ndays, ESS, (res[timer_cnt] / 1e9) - prev_time);
+                Rprintf("t = %d / %d RESS = %.2f time = %.2f secs \n", t + 1, tstop - tstart, ESS, (res[timer_cnt] / 1e9) - prev_time);
             } else  {
                 for(i = 0; i < npart; i++) {
                     nacc(i) = (nacc(i) > 0 ? 1:0);
                 }
                 double accrate = (double) sum(nacc);
                 accrate /= ((double) npart);
-                Rprintf("t = %d / %d RESS = %.2f nacc = %.2f time = %.2f secs \n", t + 1, ndays, ESS, accrate, (res[timer_cnt] / 1e9) - prev_time);
+                Rprintf("t = %d / %d RESS = %.2f nacc = %.2f time = %.2f secs \n", t + 1, tstop - tstart, ESS, accrate, (res[timer_cnt] / 1e9) - prev_time);
             }
         } else {
-            Rprintf("t = %d / %d time = %.2f secs \n", t + 1, ndays, (res[timer_cnt] / 1e9) - prev_time);
+            Rprintf("t = %d / %d time = %.2f secs \n", t + 1, tstop - tstart, (res[timer_cnt] / 1e9) - prev_time);
         }
         
         //reset timer and acceptance rate counter

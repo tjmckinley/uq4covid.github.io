@@ -82,7 +82,8 @@ age_lookup <- readRDS("../outputs/age_lookup.rds")
 set.seed(42)
 
 ## set number of days to run for
-ndays <- 100
+tstart <- 0
+tstop <- 100
 
 ## set save folder
 folder <- "saveOut"
@@ -96,7 +97,7 @@ runs_md <- BPF(pars[100, ], C1 = contact1, C2 = contact2, lockdown_day = 20,
     cumDeath_lad = cumDeath_lad, cumDeath_age_region = cumDeath_age_region, 
     hosp_nhsregion = hosp_nhsregion, cumHospAd_age_nhsregion = cumHospAd_age_nhsregion, 
     lookup = lookup, age_lookup = age_lookup, u1_moves = u1_moves,
-    u1 = u1, u2_moves = as.matrix(PM19), u2 = u2, ndays = ndays, npart = 10, 
+    u1 = u1, u2_moves = as.matrix(PM19), u2 = u2, tstart = tstart, tstop = tstop, npart = 10, 
     a1 = 0.01, a2 = 0.2, b = 0.1, a_dis = 0.05, b_dis = 0.05, 
     sigma2_lad = 1, sigma2_age_region = 1, sigma2_nhsregion = 1, sigma2_age_nhsregion = 1,
     saveAll = TRUE, writeExt = TRUE)
@@ -107,7 +108,7 @@ runs_md <- BPF(pars[100, ], C1 = contact1, C2 = contact2, lockdown_day = 20,
 
 ## load in data
 data <- readRDS("../outputs/disSims.rds") %>%
-    filter(t <= ndays) %>%
+    filter(t <= tstop) %>%
     pivot_longer(!t, names_to = "var", values_to = "n") %>%
     mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
     mutate(LAD = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
@@ -163,7 +164,7 @@ p1[[1]] <- ggplot(sims_md, aes(x = t)) +
 ###############################################
         
 ## collapse data for plotting
-data <- filter(cumDeath_lad, t <= ndays) %>%
+data <- filter(cumDeath_lad, t <= tstop) %>%
     pivot_longer(!t, names_to = "lad", values_to = "n") %>%
     mutate(lad = as.numeric(gsub("deaths_", "", lad))) %>%
     group_by(t) %>%
@@ -212,7 +213,7 @@ p1[[2]] <- ggplot(sims_md, aes(x = t)) +
 region_lookup <- readRDS("../data/region_lookup.rds")
 
 ## collapse data for plotting
-data <- filter(cumDeath_age_region, t <= ndays) %>%
+data <- filter(cumDeath_age_region, t <= tstop) %>%
     pivot_longer(!t, names_to = "var", values_to = "n") %>%
     mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
     mutate(region = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
@@ -267,7 +268,7 @@ p1[[3]] <- ggplot(sims_md, aes(x = t)) +
 nhsregion_lookup <- readRDS("../data/nhsregion_lookup.rds")
         
 ## collapse data for plotting
-data <- filter(hosp_nhsregion, t <= ndays) %>%
+data <- filter(hosp_nhsregion, t <= tstop) %>%
     pivot_longer(!t, names_to = "region", values_to = "n") %>%
     mutate(region = as.numeric(gsub("hosp_", "", region))) %>%
     inner_join(nhsregion_lookup, by = c("region" = "FID")) %>%
@@ -314,7 +315,7 @@ p1[[4]] <- ggplot(sims_md, aes(x = t)) +
 ###############################################
 
 ## collapse data for plotting
-data <- filter(cumHospAd_age_nhsregion, t <= ndays) %>%
+data <- filter(cumHospAd_age_nhsregion, t <= tstop) %>%
     pivot_longer(!t, names_to = "var", values_to = "n") %>%
     mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
     mutate(region = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
@@ -377,7 +378,7 @@ ggsave("simsBPF.pdf", p1, width = 15, height = 15)
 
 ## load in data
 data <- readRDS("../outputs/disSims.rds") %>%
-    filter(t <= ndays) %>%
+    filter(t <= tstop) %>%
     pivot_longer(!t, names_to = "var", values_to = "n") %>%
     mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
     mutate(lad = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
