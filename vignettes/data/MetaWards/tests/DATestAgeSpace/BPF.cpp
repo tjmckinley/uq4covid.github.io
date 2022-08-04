@@ -1118,7 +1118,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
     int saveAll, int writeExt, CharacterVector outputName, int PF, int ncores) {
     
     // set counters
-    arma::uword i, j, l, k, t = 0;
+    arma::uword i, j, l, k, t = tstart;
     
     // split u1 up into different LADs
     std::vector<arma::icube> u1(npart);
@@ -1457,10 +1457,10 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
         
         // extract data
         if(PF == 1) {
-            obsInc_lad = deathInc_lad.row(t).t();
-            obsInc_age_region = deathInc_age_region.row(t).t();
-            obsInc_age_nhsregion = hospInc_age_nhsregion.row(t).t();
-            obs_nhsregion = hosp_nhsregion.row(t).t();
+            obsInc_lad = deathInc_lad.row(t - tstart).t();
+            obsInc_age_region = deathInc_age_region.row(t - tstart).t();
+            obsInc_age_nhsregion = hospInc_age_nhsregion.row(t - tstart).t();
+            obs_nhsregion = hosp_nhsregion.row(t - tstart).t();
         }         
         
         // loop over particles
@@ -2847,9 +2847,9 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                 }
                 if(writeExt == 0) { 
                     if(saveAll == 1) {
-                        out[i + npart * (t + 1)] = List::create(Named("lads") = u_night_lad_cum[i], _["age_region"] = u_night_age_region_cum[i], _["nhsregion"] = u_night_nhsregion, _["age_nhsregion"] = u_night_age_nhsregion_cum[i]);
+                        out[i + npart * (t - tstart + 1)] = List::create(Named("lads") = u_night_lad_cum[i], _["age_region"] = u_night_age_region_cum[i], _["nhsregion"] = u_night_nhsregion, _["age_nhsregion"] = u_night_age_nhsregion_cum[i]);
                     } else {
-                        out[i + npart * (t + 1)] = List::create(Named("full") = u_night_full, _["lads"] = u_night_lad_cum[i], _["age_region"] = u_night_age_region_cum[i], _["nhsregion"] = u_night_nhsregion, _["age_nhsregion"] = u_night_age_nhsregion_cum[i]);
+                        out[i + npart * (t - tstart + 1)] = List::create(Named("full") = u_night_full, _["lads"] = u_night_lad_cum[i], _["age_region"] = u_night_age_region_cum[i], _["nhsregion"] = u_night_nhsregion, _["age_nhsregion"] = u_night_age_nhsregion_cum[i]);
                     }
                 } else {
                     if(saveAll == 2) {
@@ -2929,17 +2929,17 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
             ESS = ESS / ((double) npart);
             
             if(niter == 0) {
-                Rprintf("t = %d / %d RESS = %.2f time = %.2f secs \n", t + 1, tstop - tstart, ESS, (res[timer_cnt] / 1e9) - prev_time);
+                Rprintf("t = %d / %d RESS = %.2f time = %.2f secs \n", t - tstart + 1, tstop - tstart, ESS, (res[timer_cnt] / 1e9) - prev_time);
             } else  {
                 for(i = 0; i < npart; i++) {
                     nacc(i) = (nacc(i) > 0 ? 1:0);
                 }
                 double accrate = (double) sum(nacc);
                 accrate /= ((double) npart);
-                Rprintf("t = %d / %d RESS = %.2f nacc = %.2f time = %.2f secs \n", t + 1, tstop - tstart, ESS, accrate, (res[timer_cnt] / 1e9) - prev_time);
+                Rprintf("t = %d / %d RESS = %.2f nacc = %.2f time = %.2f secs \n", t - tstart + 1, tstop - tstart, ESS, accrate, (res[timer_cnt] / 1e9) - prev_time);
             }
         } else {
-            Rprintf("t = %d / %d time = %.2f secs \n", t + 1, tstop - tstart, (res[timer_cnt] / 1e9) - prev_time);
+            Rprintf("t = %d / %d time = %.2f secs \n", t - tstart + 1, tstop - tstart, (res[timer_cnt] / 1e9) - prev_time);
         }
         
         //reset timer and acceptance rate counter

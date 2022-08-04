@@ -74,6 +74,16 @@ BPF <- function(pars, C1, C2, lockdown_day, cumDeath_lad, cumDeath_age_region, h
         cumDeath_age_region <- matrix(NA, 1, 1)
         hosp_nhsregion <- matrix(NA, 1, 1)
         cumHospAd_age_nhsregion <- matrix(NA, 1, 1)
+    } else {
+        ## extract relevant time points to filter against
+        cumDeath_lad <- filter(cumDeath_lad, t >= tstart & t <= tstop)
+        cumDeath_age_region <- filter(cumDeath_age_region, t >= tstart & t <= tstop)
+        hosp_nhsregion <- filter(hosp_nhsregion, t >= tstart & t <= tstop)
+        cumHospAd_age_nhsregion <- filter(cumHospAd_age_nhsregion, t >= tstart & t <= tstop)
+        stopifnot(all((cumDeath_lad$t - tstart:tstop) == 0))
+        stopifnot(all((cumDeath_age_region$t - tstart:tstop) == 0))
+        stopifnot(all((hosp_nhsregion$t - tstart:tstop) == 0))
+        stopifnot(all((cumHospAd_age_nhsregion$t - tstart:tstop) == 0))
     }
     
     ## check no missing lads
