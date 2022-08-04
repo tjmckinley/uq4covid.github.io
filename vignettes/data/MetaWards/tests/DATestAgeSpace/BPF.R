@@ -25,14 +25,27 @@ log_sum_exp <- function(x, mn = FALSE) {
 ## lookup: a lookup table mapping lads to different spatial hierarchies
 ##               of form: LAD, death ID, region ID, NHS region ID
 ## age_lookup: a lookup table of form: death age, nhs age
-## u1_moves: matrix of commuter data, with columns:
-##            home LAD, work LAD
-## u1: 3D array of commuter data, with dimensions:
+## u: list with elements:
+##      u1_moves: matrix of commuter data, with columns:
+##              home LAD, work LAD
+##      u1: 3D array of commuter data, with dimensions:
 ##            nclasses x nages x nrow(u1_moves)
-## u2_moves: matrix of commuter data, with columns:
+##      u2_moves: matrix of commuter data, with columns:
 ##            home LAD, play LAD, prob of moving
-## u2: 3D array of player data, with dimensions:
+##      u2: 3D array of player data, with dimensions:
 ##            nclasses x nages x nlads
+##  or a list with elements (generated from a previous run with snapshot = TRUE):
+##      u1_moves: matrix of commuter data, with columns:
+##              home LAD, work LAD
+##      u1: list of length npart with each element a
+##            3D array of commuter data, with dimensions:
+##            nclasses x nages x nrow(u1_moves)
+##      u2: list of length npart with each element a
+##            3D array of commuter data, with dimensions:
+##            nclasses x nages x nlads
+##      playprobs: a vector of play probabilities
+##      ncohorts1: a vector of movement lookups
+##      ncohorts2: a vector of movement lookups
 ## tstart: when to start the outbreak
 ## tstop: when to stop the outbreak
 ## npart: the number of particles
@@ -41,15 +54,19 @@ log_sum_exp <- function(x, mn = FALSE) {
 ## a1, a2, b: parameters for Skellam observation process
 ## saveAll: a logical specifying whether to return all states (if FALSE then returns just observed states))
 ## writeExt: a logical denoting whether to save particles externally or not
+## snapshot: a logical determining whether to save a snapshot of the whole system at 'tstop' 
+##           (for use in forwards simulations)
 ## PF:      a logical denoting whether to run a particle filter, or just simulate from the model
 ## ncores:  the number of cores for OpenMP parallelisation (if NA then defaults to all available cores)
 ## parEnsemble: decides whether to parallelise across or within ensemble
 
-BPF <- function(pars, C1, C2, lockdown_day, cumDeath_lad, cumDeath_age_region, hosp_nhsregion, cumHospAd_age_nhsregion,
-        lookup, age_lookup, u1_moves, u1, u2_moves, u2, tstart, tstop, npart = 10, niter = 0, 
+BPF <- function(pars, C1, C2, lockdown_day, cumDeath_lad, cumDeath_age_region, 
+        hosp_nhsregion, cumHospAd_age_nhsregion,
+        lookup, age_lookup, u, tstart, tstop, npart = 10, niter = 0, 
         a1 = 0.01, a2 = 0.2, b = 0.1, a_dis = 0.05, b_dis = 0.05, 
         sigma2_lad = 1, sigma2_age_region = 1, sigma2_nhsregion = 1, sigma2_age_nhsregion = 1,
-        saveAll = NA, writeExt = FALSE, outputName = "saveOut", PF = TRUE, ncores = NA, parEnsemble = FALSE) {
+        saveAll = NA, writeExt = FALSE, snapshot = FALSE, outputName = "saveOut", PF = TRUE, 
+        ncores = NA, parEnsemble = FALSE) {
                
     ## set default for saveAll if PF = FALSE
     if(!PF & is.na(saveAll)) saveAll <- TRUE
@@ -62,6 +79,7 @@ BPF <- function(pars, C1, C2, lockdown_day, cumDeath_lad, cumDeath_age_region, h
     }
     PFint <- ifelse(PF, 1, 0)
     writeExtint <- ifelse(writeExt, 1, 0)
+    snapshotint <- ifelse(snapshot, 1, 0)
     
     ## check number of requested cores
     if(is.na(ncores)) {
@@ -86,64 +104,105 @@ BPF <- function(pars, C1, C2, lockdown_day, cumDeath_lad, cumDeath_age_region, h
         stopifnot(all((cumHospAd_age_nhsregion$t - tstart:tstop) == 0))
     }
     
-    ## check no missing lads
-    if(
-        !identical(sort(unique(u1_moves[, 1])), sort(unique(u1_moves[, 1]))) |
-        !identical(sort(unique(u1_moves[, 1])), sort(unique(u1_moves[, 2]))) |
-        !identical(sort(unique(u1_moves[, 1])), sort(unique(u2_moves[, 1]))) |
-        !identical(sort(unique(u1_moves[, 1])), sort(unique(u2_moves[, 2])))
-    ) {
-        stop("Can't match LADS")
-    }
-    if(any((1:length(unique(u1_moves[, 1])) - sort(unique(u1_moves[, 1]))) != 0)) stop("Can't match all LADs")
-    if(dim(u2)[3] != length(unique(u2_moves[, 1]))) stop("u2 does not have entries for all LADS")
-    if(!identical(dim(u1)[1:2], dim(u2)[1:2])) stop("u1 and u2 have different numbers of ages / classes")
-    
-    ## check probabilities
-    if(!all((tapply(u2_moves[, 3], u2_moves[, 1], sum) - 1) < 1e-15)) stop("u2 probs don't sum to one")
-    
-    ## create dummy cohorts for players and bind with workers
-    temp <- array(0, c(dim(u1)[1], dim(u1)[2], nrow(u2_moves)))
-    u1 <- abind(u1, temp, along = 3)
-    u1_moves <- rbind(cbind(u1_moves, rep(NA, nrow(u1_moves))), u2_moves)
-    inds <- order(u1_moves[, 1], -u1_moves[, 3])
-    u1_moves <- u1_moves[inds, ]
-    u1 <- u1[, , inds, drop = FALSE]
-    
-    ## convert play probs to conditional probs
-    playprobs <- tapply(u1_moves[, 3], u1_moves[, 1], function(y) {
-        x <- y[!is.na(y)]
-        tp <- x[1]
-        for(i in 2:length(x)) {
-            x[i:length(x)] <- x[i:length(x)] / (1 - tp)
-            tp <- x[i]
-            ## deal with rounding errors
-            if(sum(x[i:length(x)]) != 1) {
-#                print(sum(x[i:length(x)]))
-                x[i:length(x)] <- x[i:length(x)] / sum(x[i:length(x)])
-            }
+    if(!is.list(u)) stop("'u' is not a list")
+    if(!"u1" %in% names(u)) stop("'u' must have 'u1' element")
+    if(!is.list(u$u1)) {
+        if(!all(c("u1", "u2", "u1_moves", "u2_moves") %in% names(u))) {
+            stop("'u' must have elements: 'u1', 'u2', 'u1_moves', 'u2_moves'")
         }
-        x[length(x)] <- 1
-        y[!is.na(y)] <- x
-        y
-    })
-    playprobs <- do.call("c", playprobs)
+        u1_moves <- u$u1_moves
+        u2_moves <- u$u2_moves
+        u1 <- u$u1
+        u2 <- u$u2
+        if(!is.matrix(u1_moves) & ncol(u1_moves) != 2) stop("'u$u1_moves' must be matrix with two columns")
+        if(!is.matrix(u2_moves) & ncol(u2_moves) != 2) stop("'u$u2_moves' must be matrix with two columns")
+        if(!is.array(u1) & length(dim(u1)) != 3) stop("'u$u1' must be 3D array")
+        if(!is.array(u2) & length(dim(u2)) != 3) stop("'u$u2' must be 3D array")
     
-    ## generate number of cohorts
-    ncohorts1 <- tapply(u1_moves[, 1], u1_moves[, 1], length)
-    ncohorts1 <- c(0, cumsum(ncohorts1))
-    names(ncohorts1) <- NULL
-    
-    ## generate number of play cohorts
-    ncohorts2 <- tapply(u1_moves[, 3], u1_moves[, 1], function(x) sum(!is.na(x)))
-    names(ncohorts2) <- NULL
-    
-    ## remove extraneous column
-    u1_moves <- u1_moves[, -3]   
+        ## check no missing lads
+        if(
+            !identical(sort(unique(u1_moves[, 1])), sort(unique(u1_moves[, 1]))) |
+            !identical(sort(unique(u1_moves[, 1])), sort(unique(u1_moves[, 2]))) |
+            !identical(sort(unique(u1_moves[, 1])), sort(unique(u2_moves[, 1]))) |
+            !identical(sort(unique(u1_moves[, 1])), sort(unique(u2_moves[, 2])))
+        ) {
+            stop("Can't match LADS")
+        }
+        if(any((1:length(unique(u1_moves[, 1])) - sort(unique(u1_moves[, 1]))) != 0)) stop("Can't match all LADs")
+      
+        ## check probabilities
+        if(!all((tapply(u2_moves[, 3], u2_moves[, 1], sum) - 1) < 1e-15)) stop("u2 probs don't sum to one")
+        ## check entries
+        if(dim(u2)[3] != length(unique(u2_moves[, 1]))) stop("u2 does not have entries for all LADS")
+        if(!identical(dim(u1)[1:2], dim(u2)[1:2])) stop("u1 and u2 have different numbers of ages / classes")
+        
+        ## create dummy cohorts for players and bind with workers
+        temp <- array(0, c(dim(u1)[1], dim(u1)[2], nrow(u2_moves)))
+        u1 <- abind(u1, temp, along = 3)
+        u1_moves <- rbind(cbind(u1_moves, rep(NA, nrow(u1_moves))), u2_moves)
+        inds <- order(u1_moves[, 1], -u1_moves[, 3])
+        u1_moves <- u1_moves[inds, ]
+        u1 <- u1[, , inds, drop = FALSE]
+        
+        ## create list to pass to R
+        u1_list <- list(NULL)
+        u2_list <- list(NULL)
+        for(i in 1:npart) {
+            u1_list[[i]] <- u1
+            u2_list[[i]] <- u2
+        }
+        
+        ## convert play probs to conditional probs
+        playprobs <- tapply(u1_moves[, 3], u1_moves[, 1], function(y) {
+            x <- y[!is.na(y)]
+            tp <- x[1]
+            for(i in 2:length(x)) {
+                x[i:length(x)] <- x[i:length(x)] / (1 - tp)
+                tp <- x[i]
+                ## deal with rounding errors
+                if(sum(x[i:length(x)]) != 1) {
+#                    print(sum(x[i:length(x)]))
+                    x[i:length(x)] <- x[i:length(x)] / sum(x[i:length(x)])
+                }
+            }
+            x[length(x)] <- 1
+            y[!is.na(y)] <- x
+            y
+        })
+        playprobs <- do.call("c", playprobs)
+        
+        ## generate number of cohorts
+        ncohorts1 <- tapply(u1_moves[, 1], u1_moves[, 1], length)
+        ncohorts1 <- c(0, cumsum(ncohorts1))
+        names(ncohorts1) <- NULL
+        
+        ## generate number of play cohorts
+        ncohorts2 <- tapply(u1_moves[, 3], u1_moves[, 1], function(x) sum(!is.na(x)))
+        names(ncohorts2) <- NULL
+        
+        ## remove extraneous column
+        u1_moves <- u1_moves[, -3]   
+    } else {
+        ## NOTE TO REALLY ADD MORE CHECKS IN FOR FUTURE DEVELOPMENT
+        if(!all(c("u1", "u2", "u1_moves", "playprobs", "ncohorts1", "ncohorts2") %in% names(u))) {
+            stop("'u' must have elements: 'u1', 'u2', 'u1_moves', 'playprobs', 'ncohorts1', 'ncohorts2'")
+        }
+        u1_moves <- u$u1_moves
+        u1_list <- u$u1
+        u2_list <- u$u2
+        playprobs <- u$playprobs
+        ncohorts1 <- u$ncohorts1
+        ncohorts2 <- u$ncohorts2
+        if(length(u1) != length(u2) | length(u1) != npart) stop("'u1'/'u2' must have 'npart' elements")
+    }
     
     ## set up output folder
     if(writeExt) {
-        if(dir.exists(outputName)) system(paste0("rm -rf ", outputName))
+        if(!dir.exists(outputName) & is.list(u$u1)) stop("How are you doing continuation without output folder existing?")
+        if(is.list(u$u1)) outputName <- paste0(outputName, "_cont")
+        if(dir.exists(outputName)) {
+            system(paste0("rm -rf ", outputName))
+        }
         dir.create(outputName, recursive = TRUE)
     }
     
@@ -156,7 +215,7 @@ BPF <- function(pars, C1, C2, lockdown_day, cumDeath_lad, cumDeath_age_region, h
     }
     
     ## run particle filter for each set of inputs
-    runs <- mclapply(1:nrow(pars), function(k, pars, C1, C2, lockdown_day, u1_moves, ncohorts1, u1, u2, playprobs, ncohorts2, npart, niter, tstart, tstop, cumDeath_lad, cumDeath_age_region, hosp_nhsregion, cumHospAd_age_nhsregion, lookup, age_lookup, a1, a2, b, a_dis, b_dis, sigma2_lad, sigma2_age_region, sigma2_nhsregion, sigma2_age_nhsregion, saveAll, writeExt, outputName, PF, ncores) {
+    runs <- mclapply(1:nrow(pars), function(k, pars, C1, C2, lockdown_day, u1_moves, ncohorts1, u1, u2, playprobs, ncohorts2, npart, niter, tstart, tstop, cumDeath_lad, cumDeath_age_region, hosp_nhsregion, cumHospAd_age_nhsregion, lookup, age_lookup, a1, a2, b, a_dis, b_dis, sigma2_lad, sigma2_age_region, sigma2_nhsregion, sigma2_age_nhsregion, saveAll, writeExt, snapshot, outputName, PF, ncores) {
     
         ## set up lookups and numbers of regions
         lookup <- as.matrix(lookup)
@@ -191,8 +250,8 @@ BPF <- function(pars, C1, C2, lockdown_day, cumDeath_lad, cumDeath_age_region, h
         pars <- unlist(pars[k, ])
         
         ## extract number of stages, age classes and lads
-        nclasses <- dim(u1)[1]
-        nages <- dim(u1)[2]
+        nclasses <- dim(u1[[1]])[1]
+        nages <- dim(u1[[1]])[2]
         nlads <- max(u1_moves[, 1])
     
         ## do garbage collection (seems to solve allocation issue)
@@ -209,7 +268,7 @@ BPF <- function(pars, C1, C2, lockdown_day, cumDeath_lad, cumDeath_age_region, h
                 nregions, nnhsages, nnhsregions, u1_moves, ncohorts1, u1, u2, playprobs, 
                 ncohorts2, tstart, tstop, npart, niter, a1, a2, b, a_dis, b_dis, sigma2_lad, 
                 sigma2_age_region, sigma2_nhsregion, sigma2_age_nhsregion, saveAll, writeExt, 
-                outputName, PF, ncores)
+                snapshot, outputName, PF, ncores)
             return(particles)
         }
         
@@ -219,14 +278,14 @@ BPF <- function(pars, C1, C2, lockdown_day, cumDeath_lad, cumDeath_age_region, h
                 nregions, nnhsages, nnhsregions, u1_moves, ncohorts1, u1, u2, playprobs, 
                 ncohorts2, tstart, tstop, npart, niter, a1, a2, b, a_dis, b_dis, sigma2_lad, 
                 sigma2_age_region, sigma2_nhsregion, sigma2_age_nhsregion, saveAll, writeExt, 
-                outputName, PF, ncores)
+                snapshot, outputName, PF, ncores)
         
         if(saveAll != 0 & writeExt == 0) {
             return(list(ll = particles$ll, particles = particles$particles))
         } else {
             return(list(ll = particles$ll))
         }
-    }, pars = pars, C1 = C1, C2 = C2, lockdown_day = lockdown_day, u1_moves = u1_moves, ncohorts1 = ncohorts1, u1 = u1, u2 = u2, playprobs = playprobs, ncohorts2 = ncohorts2, npart = npart, niter = niter, tstart = tstart, tstop = tstop, cumDeath_lad = cumDeath_lad, cumDeath_age_region = cumDeath_age_region, hosp_nhsregion = hosp_nhsregion, cumHospAd_age_nhsregion = cumHospAd_age_nhsregion, lookup = lookup, age_lookup = age_lookup, a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis, sigma2_lad = sigma2_lad, sigma2_age_region = sigma2_age_region, sigma2_nhsregion = sigma2_nhsregion, sigma2_age_nhsregion = sigma2_age_nhsregion, saveAll = saveAllint, writeExt = writeExtint, outputName = outputName, PF = PFint, ncores = ncores, mc.cores = ncoresEns)
+    }, pars = pars, C1 = C1, C2 = C2, lockdown_day = lockdown_day, u1_moves = u1_moves, ncohorts1 = ncohorts1, u1 = u1_list, u2 = u2_list, playprobs = playprobs, ncohorts2 = ncohorts2, npart = npart, niter = niter, tstart = tstart, tstop = tstop, cumDeath_lad = cumDeath_lad, cumDeath_age_region = cumDeath_age_region, hosp_nhsregion = hosp_nhsregion, cumHospAd_age_nhsregion = cumHospAd_age_nhsregion, lookup = lookup, age_lookup = age_lookup, a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis, sigma2_lad = sigma2_lad, sigma2_age_region = sigma2_age_region, sigma2_nhsregion = sigma2_nhsregion, sigma2_age_nhsregion = sigma2_age_nhsregion, saveAll = saveAllint, writeExt = writeExtint, snapshot = snapshotint, outputName = outputName, PF = PFint, ncores = ncores, mc.cores = ncoresEns)
     if(!is.na(saveAll)) {
         ndays <- tstop - tstart
         if(!writeExt) {

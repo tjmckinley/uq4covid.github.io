@@ -106,10 +106,13 @@ age_lookup <- readRDS("data/age_lookup.rds")
 saveRDS(lookup, "outputs/lookup.rds")
 saveRDS(age_lookup, "outputs/age_lookup.rds")
 
+## set up input object
+u <- list(u1_moves = u1_moves, u1 = u1, u2 = u2, u2_moves = as.matrix(PM19))
+
 ## simulate discrete-time model
 disSims_full <- BPF(pars, C1 = contact1, C2 = contact2, lockdown_day = 20, 
-    lookup = lookup, age_lookup = age_lookup, u1_moves = u1_moves, a1 = 0, a2 = 0, b = 0.1,
-    u1 = u1, u2_moves = as.matrix(PM19), u2 = u2, tstart = 0, tstop = 100, npart = 8, PF = FALSE)
+    lookup = lookup, age_lookup = age_lookup, u = u, a1 = 0, a2 = 0, b = 0.1,
+    tstart = 0, tstop = 100, npart = 8, PF = FALSE)
     
 ###############################################
 #######        LAD-level truth          #######
