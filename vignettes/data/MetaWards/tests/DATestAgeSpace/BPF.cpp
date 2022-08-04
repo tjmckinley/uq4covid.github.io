@@ -1149,17 +1149,9 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
     
     std::vector<arma::cube> mu_night_age_lad(npart);
     std::vector<arma::cube> mu_night_age_lad1(npart);
-    std::vector<arma::ivec> u_night_lad_cum(npart);
-    std::vector<arma::imat> u_night_age_region_cum(npart);
-    std::vector<arma::imat> u_night_age_nhsregion_cum(npart);
-    std::vector<arma::ivec> u_night_vec_cum1(npart);
-    std::vector<arma::imat> u_night_mat_cum1(npart);
     for(i = 0; i < npart; i++) {
         mu_night_age_lad[i] = arma::cube(4, nages, ndeathlads); mu_night_age_lad[i].zeros();
         mu_night_age_lad1[i] = arma::cube(4, nages, ndeathlads); mu_night_age_lad1[i].zeros();
-        u_night_lad_cum[i] = arma::ivec(ndeathlads); u_night_lad_cum[i].zeros();
-        u_night_age_region_cum[i] = arma::imat(nages, nregions); u_night_age_region_cum[i].zeros();
-        u_night_age_nhsregion_cum[i] = arma::imat(nnhsages, nnhsregions); u_night_age_nhsregion_cum[i].zeros();
     }
         
     // set up weight vector
@@ -1321,20 +1313,6 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                     );
                 }
             }
-            // cumulate incidence
-            for(l = 0; l < ndeathlads; l++) {
-                u_night_lad_cum[i](l) = u_night_lad(l);
-            }
-            for(l = 0; l < nregions; l++) {
-                for(j = 0; j < nages; j++) {
-                    u_night_age_region_cum[i](j, l) = u_night_age_region(j, l);
-                }
-            }
-            for(l = 0; l < nnhsregions; l++) {
-                for(j = 0; j < nnhsages; j++) {
-                    u_night_age_nhsregion_cum[i](j, l) = u_night_age_nhsregion(j, l);
-                }
-            }
             if(saveAll == 2) {
                 u_night_full.zeros();
                 for(l = 0; l < u1_moves.n_rows; l++) {
@@ -1354,9 +1332,9 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
             }
             if(writeExt == 0) { 
                 if(saveAll == 1) {
-                    out[i] = List::create(Named("lads") = u_night_lad_cum[i], _["age_region"] = u_night_age_region_cum[i], _["nhsregion"] = u_night_nhsregion, _["age_nhsregion"] = u_night_age_nhsregion_cum[i]);
+                    out[i] = List::create(Named("lads") = u_night_lad, _["age_region"] = u_night_age_region, _["nhsregion"] = u_night_nhsregion, _["age_nhsregion"] = u_night_age_nhsregion);
                 } else {
-                    out[i] = List::create(Named("full") = u_night_full, _["lads"] = u_night_lad_cum[i], _["age_region"] = u_night_age_region_cum[i], _["nhsregion"] = u_night_nhsregion, _["age_nhsregion"] = u_night_age_nhsregion_cum[i]);
+                    out[i] = List::create(Named("full") = u_night_full, _["lads"] = u_night_lad, _["age_region"] = u_night_age_region, _["nhsregion"] = u_night_nhsregion, _["age_nhsregion"] = u_night_age_nhsregion);
                 }
             } else {
                 if(saveAll == 2) {
@@ -1381,7 +1359,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                 file.open(file_name);
                 file << "time, deaths, lad\n";
                 for(l = 0; l < ndeathlads; l++) {
-                    file << t << ", " << u_night_lad_cum[i](l) << ", ";
+                    file << t << ", " << u_night_lad(l) << ", ";
                     file << l + 1 << "\n";
                 }
                 file.close();
@@ -1394,7 +1372,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                 for(l = 0; l < nregions; l++) {
                     file << t << ", ";
                     for(j = 0; j < nages; j++) {
-                        file << u_night_age_region_cum[i](j, l) << ", ";
+                        file << u_night_age_region(j, l) << ", ";
                     }
                     file << l + 1 << "\n";
                 }
@@ -1418,7 +1396,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                 for(l = 0; l < nnhsregions; l++) {
                     file << t << ", ";
                     for(j = 0; j < nnhsages; j++) {
-                        file << u_night_age_nhsregion_cum[i](j, l) << ", ";
+                        file << u_night_age_nhsregion(j, l) << ", ";
                     }
                     file << l + 1 << "\n";
                 }
@@ -2032,15 +2010,6 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
             
             for(i = 0; i < npart; i++) mu_night_age_lad1[i] = mu_night_age_lad[inds(i)];
             for(i = 0; i < npart; i++) mu_night_age_lad[i] = mu_night_age_lad1[i];
-            
-            for(i = 0; i < npart; i++) u_night_vec_cum1[i] = u_night_lad_cum[inds(i)];
-            for(i = 0; i < npart; i++) u_night_lad_cum[i] = u_night_vec_cum1[i];
-            
-            for(i = 0; i < npart; i++) u_night_mat_cum1[i] = u_night_age_region_cum[inds(i)];
-            for(i = 0; i < npart; i++) u_night_age_region_cum[i] = u_night_mat_cum1[i];
-            
-            for(i = 0; i < npart; i++) u_night_mat_cum1[i] = u_night_age_nhsregion_cum[inds(i)];
-            for(i = 0; i < npart; i++) u_night_age_nhsregion_cum[i] = u_night_mat_cum1[i];
             
             // Metropolis-Hastings steps to deal with particle impoverishment
             if(niter > 0) {
@@ -2821,20 +2790,6 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                         );
                     }
                 }
-                // cumulate incidence
-                for(l = 0; l < ndeathlads; l++) {
-                    u_night_lad_cum[i](l) += u_night_lad(l);
-                }
-                for(l = 0; l < nregions; l++) {
-                    for(j = 0; j < nages; j++) {
-                        u_night_age_region_cum[i](j, l) += u_night_age_region(j, l);
-                    }
-                }
-                for(l = 0; l < nnhsregions; l++) {
-                    for(j = 0; j < nnhsages; j++) {
-                        u_night_age_nhsregion_cum[i](j, l) += u_night_age_nhsregion(j, l);
-                    }
-                }
                 if(saveAll == 2) {
                     u_night_full.zeros();
                     for(l = 0; l < u1_moves.n_rows; l++) {
@@ -2847,9 +2802,9 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                 }
                 if(writeExt == 0) { 
                     if(saveAll == 1) {
-                        out[i + npart * (t - tstart + 1)] = List::create(Named("lads") = u_night_lad_cum[i], _["age_region"] = u_night_age_region_cum[i], _["nhsregion"] = u_night_nhsregion, _["age_nhsregion"] = u_night_age_nhsregion_cum[i]);
+                        out[i + npart * (t - tstart + 1)] = List::create(Named("lads") = u_night_lad, _["age_region"] = u_night_age_region, _["nhsregion"] = u_night_nhsregion, _["age_nhsregion"] = u_night_age_nhsregion);
                     } else {
-                        out[i + npart * (t - tstart + 1)] = List::create(Named("full") = u_night_full, _["lads"] = u_night_lad_cum[i], _["age_region"] = u_night_age_region_cum[i], _["nhsregion"] = u_night_nhsregion, _["age_nhsregion"] = u_night_age_nhsregion_cum[i]);
+                        out[i + npart * (t - tstart + 1)] = List::create(Named("full") = u_night_full, _["lads"] = u_night_lad, _["age_region"] = u_night_age_region, _["nhsregion"] = u_night_nhsregion, _["age_nhsregion"] = u_night_age_nhsregion);
                     }
                 } else {
                     if(saveAll == 2) {
@@ -2870,7 +2825,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                     std::sprintf(file_name, "%s/p_lads_%u.csv", std::string(outputName[0]).c_str(), i);
                     file.open(file_name, std::ios::app);
                     for(l = 0; l < ndeathlads; l++) {
-                        file << t + 1 << ", " << u_night_lad_cum[i](l) << ", ";
+                        file << t + 1 << ", " << u_night_lad(l) << ", ";
                         file << l + 1 << "\n";
                     }
                     file.close();
@@ -2880,7 +2835,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                     for(l = 0; l < nregions; l++) {
                         file << t + 1 << ", ";
                         for(j = 0; j < nages; j++) {
-                            file << u_night_age_region_cum[i](j, l) << ", ";
+                            file << u_night_age_region(j, l) << ", ";
                         }
                         file << l + 1 << "\n";
                     }
@@ -2900,7 +2855,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                     for(l = 0; l < nnhsregions; l++) {
                         file << t + 1 << ", ";
                         for(j = 0; j < nnhsages; j++) {
-                            file << u_night_age_nhsregion_cum[i](j, l) << ", ";
+                            file << u_night_age_nhsregion(j, l) << ", ";
                         }
                         file << l + 1 << "\n";
                     }

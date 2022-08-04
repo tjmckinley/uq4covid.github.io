@@ -210,6 +210,11 @@ disSims <- map(1:length(disSims_full$particles[[1]]$lads), function(i, x) {
 colnames(disSims) <- c(paste0("deaths_", 1:(ncol(disSims) - 2)), "rep", "t")
 disSims <- as_tibble(disSims) %>%
     mutate(t = t - 1)
+    
+## convert to cumulative count for plotting
+disSims <- group_by(disSims, rep) %>%
+    mutate(across(starts_with("deaths_"), cumsum)) %>%
+    ungroup()
 
 ## extract simulation closest to median
 medRep <- inner_join(medRepInd, disSims, by = "rep") %>%
@@ -269,6 +274,11 @@ tempNames <- paste0("deaths_", apply(tempNames, 1, paste, collapse = "_"))
 colnames(disSims) <- c(tempNames, "rep", "t")
 disSims <- as_tibble(disSims) %>%
     mutate(t = t - 1)
+    
+## convert to cumulative count for plotting
+disSims <- group_by(disSims, rep) %>%
+    mutate(across(starts_with("deaths_"), cumsum)) %>%
+    ungroup()
 
 ## extract simulation closest to median
 medRep <- inner_join(medRepInd, disSims, by = "rep") %>%
@@ -386,6 +396,11 @@ tempNames <- paste0("hospInc_", apply(tempNames, 1, paste, collapse = "_"))
 colnames(disSims) <- c(tempNames, "rep", "t")
 disSims <- as_tibble(disSims) %>%
     mutate(t = t - 1)
+    
+## convert to cumulative count for plotting
+disSims <- group_by(disSims, rep) %>%
+    mutate(across(starts_with("hospInc_"), cumsum)) %>%
+    ungroup()
 
 ## extract simulation closest to median
 medRep <- inner_join(medRepInd, disSims, by = "rep") %>%
@@ -477,6 +492,11 @@ disSims <- map(1:length(disSims_full$particles[[1]]$lads), function(i, x) {
 colnames(disSims) <- c(paste0("deaths_", 1:(ncol(disSims) - 2)), "rep", "t")
 disSims <- as_tibble(disSims) %>%
     mutate(t = t - 1)
+    
+## convert to cumulative count for plotting
+disSims <- group_by(disSims, rep) %>%
+    mutate(across(starts_with("deaths_"), cumsum)) %>%
+    ungroup()
 
 ## extract simulation closest to median
 medRep <- inner_join(medRepInd, disSims, by = "rep") %>%
@@ -504,6 +524,11 @@ tempNames <- paste0("deaths_", apply(tempNames, 1, paste, collapse = "_"))
 colnames(disSims) <- c(tempNames, "rep", "t")
 disSims <- as_tibble(disSims) %>%
     mutate(t = t - 1)
+    
+## convert to cumulative count for plotting
+disSims <- group_by(disSims, rep) %>%
+    mutate(across(starts_with("deaths_"), cumsum)) %>%
+    ungroup()
 
 ## extract simulation closest to median
 medRep <- inner_join(medRepInd, disSims, by = "rep") %>%
@@ -554,6 +579,11 @@ tempNames <- paste0("hospInc_", apply(tempNames, 1, paste, collapse = "_"))
 colnames(disSims) <- c(tempNames, "rep", "t")
 disSims <- as_tibble(disSims) %>%
     mutate(t = t - 1)
+    
+## convert to cumulative count for plotting
+disSims <- group_by(disSims, rep) %>%
+    mutate(across(starts_with("hospInc_"), cumsum)) %>%
+    ungroup()
 
 ## extract simulation closest to median
 medRep <- inner_join(medRepInd, disSims, by = "rep") %>%

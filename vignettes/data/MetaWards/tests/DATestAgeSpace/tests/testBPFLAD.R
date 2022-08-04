@@ -177,6 +177,8 @@ files <- files[grep("p_lads_[0-9]*.csv", files)]
 ## load in runs and group at the national level
 sims_md <- map(files, function(y, folder) {
         read.csv(paste0(folder, "/", y), header = TRUE) %>%
+            group_by(lad) %>%
+            mutate(deaths = cumsum(deaths)) %>%
             group_by(time) %>%
             summarise(deaths = sum(deaths), .groups = "drop") %>%
             rename(t = time, n = deaths)
@@ -232,6 +234,9 @@ sims_md <- map(files, function(y, folder, lookup) {
             pivot_longer(!c(time, region), names_to = "age", values_to = "n") %>%
             mutate(age = as.numeric(gsub("age", "", age))) %>%
             rename(t = time) %>%
+            group_by(region, age) %>%
+            mutate(n = cumsum(n)) %>%
+            ungroup() %>%
             inner_join(lookup, by = c("region" = "FID")) %>%
             select(t, n, age, RGN19NM)
     }, folder = folder, lookup = region_lookup) %>%
@@ -334,6 +339,10 @@ sims_md <- map(files, function(y, folder, lookup) {
             pivot_longer(!c(time, nhsregion), names_to = "age", values_to = "n") %>%
             mutate(age = as.numeric(gsub("age", "", age))) %>%
             rename(t = time) %>%
+            arrange(t, nhsregion, age) %>%
+            group_by(nhsregion, age) %>%
+            mutate(n = cumsum(n)) %>%
+            ungroup() %>%
             inner_join(lookup, by = c("nhsregion" = "FID")) %>%
             select(t, n, age, areaName)
     }, folder = folder, lookup = nhsregion_lookup) %>%
