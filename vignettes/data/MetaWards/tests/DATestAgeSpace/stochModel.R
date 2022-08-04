@@ -108,7 +108,7 @@ saveRDS(age_lookup, "outputs/age_lookup.rds")
 
 ## simulate discrete-time model
 disSims_full <- BPF(pars, C1 = contact1, C2 = contact2, lockdown_day = 20, 
-    lookup = lookup, age_lookup = age_lookup, u1_moves = u1_moves,
+    lookup = lookup, age_lookup = age_lookup, u1_moves = u1_moves, a1 = 0, a2 = 0, b = 0.1,
     u1 = u1, u2_moves = as.matrix(PM19), u2 = u2, tstart = 0, tstop = 100, npart = 8, PF = FALSE)
     
 ###############################################

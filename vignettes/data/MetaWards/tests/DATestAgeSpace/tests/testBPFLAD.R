@@ -82,8 +82,10 @@ age_lookup <- readRDS("../outputs/age_lookup.rds")
 set.seed(42)
 
 ## set number of days to run for
+## and number of particles
 tstart <- 0
 tstop <- 100
+npart <- 10
 
 ## set save folder
 folder <- "saveOut"
@@ -97,8 +99,8 @@ runs_md <- BPF(pars[100, ], C1 = contact1, C2 = contact2, lockdown_day = 20,
     cumDeath_lad = cumDeath_lad, cumDeath_age_region = cumDeath_age_region, 
     hosp_nhsregion = hosp_nhsregion, cumHospAd_age_nhsregion = cumHospAd_age_nhsregion, 
     lookup = lookup, age_lookup = age_lookup, u1_moves = u1_moves,
-    u1 = u1, u2_moves = as.matrix(PM19), u2 = u2, tstart = tstart, tstop = tstop, npart = 10, 
-    a1 = 0.01, a2 = 0.2, b = 0.1, a_dis = 0.05, b_dis = 0.05, 
+    u1 = u1, u2_moves = as.matrix(PM19), u2 = u2, tstart = tstart, tstop = tstop, npart = npart, 
+    a1 = 0, a2 = 0, b = 0.1, a_dis = 0.05, b_dis = 0.05, 
     sigma2_lad = 1, sigma2_age_region = 1, sigma2_nhsregion = 1, sigma2_age_nhsregion = 1,
     saveAll = TRUE, writeExt = TRUE)
     
