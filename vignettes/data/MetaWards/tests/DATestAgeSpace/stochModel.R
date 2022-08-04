@@ -303,7 +303,7 @@ p1[[3]] <- ggplot(p, aes(x = t)) +
             inner_join(region_lookup, by = c("region" = "FID")),
         col = "red", linetype = "dashed"
     ) +
-    facet_grid(RGN19NM ~ age, labeller = label_wrap_gen(width = 10)) +
+    facet_grid(RGN19NM ~ age, labeller = label_wrap_gen(width = 10), scales = "free_y") +
     xlab("Days") + 
     ylab("Counts") +
     ggtitle("Observed cumulative deaths (age / region)")
@@ -359,7 +359,7 @@ p1[[4]] <- ggplot(p, aes(x = t)) +
             inner_join(nhsregion_lookup, by = c("region" = "FID")),
         col = "red", linetype = "dashed"
     ) +
-    facet_wrap(~ areaName, nrow = 1, labeller = label_wrap_gen(width = 10)) +
+    facet_wrap(~ areaName, nrow = 1, labeller = label_wrap_gen(width = 10), scales = "free_y") +
     xlab("Days") + 
     ylab("Counts") +
     ggtitle("Observed hospital cases (NHS region)")
@@ -420,7 +420,7 @@ p1[[5]] <- ggplot(p, aes(x = t)) +
             inner_join(nhsregion_lookup, by = c("region" = "FID")),
         col = "red", linetype = "dashed"
     ) +
-    facet_grid(areaName ~ age, labeller = label_wrap_gen(width = 10)) +
+    facet_grid(areaName ~ age, labeller = label_wrap_gen(width = 10), scales = "free_y") +
     xlab("Days") + 
     ylab("Counts") +
     ggtitle("Observed cumulative hospital incidence (NHS age / region)")
