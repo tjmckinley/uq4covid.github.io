@@ -3,3 +3,9 @@
 *.gif
 saveOut*
 unusedData
+
+JASMINcode/*.Rout
+JASMINcode/*.txt
+JASMINcode/submit_job.sbatch
+JASMINcode/*.err
+JASMINcode/*.out

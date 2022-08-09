@@ -1,6 +1,5 @@
 Here we can run various pieces of helper code on JASMIN.
 
-
 To run a design or plotting code we can first run `setupSLURM.R`, passing in `wave` and
 `runCode` arguments: `wave` should be numerical, matching where the ensemble design is 
 held (the design must be in a folder called e.g. `wave1`). The `runCode` argument should 
@@ -9,6 +8,19 @@ be one of `runDesign`, `runPlotSum` or `runPlotAgg`.
 **NOTE**: the default max wall time is 35 mins. You can add a third argument to the
 `setupSLURM` calls below to change this if required e.g. `01:00:00` will make into an
 hour etc.
+
+## Check design
+
+To check a design that has been passed from a previous wave of HM, and then to
+convert this to the correct format for the model, make sure the `.csv` file
+is stored in a file e.g. `wavex/FILENAME.csv`, where `x` is the current wave
+and `FILENAME` is the name of the file (e.g. `wave2/inputsWave2.csv`).
+
+Then call e.g. from the main directory
+
+```
+R CMD BATCH --no-restore --no-save --slave '--args 2 inputsWave2.csv' checkWavexDesign.R
+```
 
 ## Design
 
@@ -40,6 +52,41 @@ R CMD BATCH --no-restore --no-save --slave '--args 1 FALSE' concatenateRuns.R
 This checks that runs have completed and tidies up the outputs if so. If successful,
 then this returns an object `ll.rds` in the relevant folder with all the log-likelihood
 estimates stored in it. If not, then it returns an error (see below).
+
+The first argument is the `wave` and the second is `FALSE` if you simply wish to return 
+an error if the script fails, or if set to `TRUE` then this also recreates `job_lookup.txt`
+and `submit_job.sbatch` with the failed runs so that they can be easily resubmitted to
+the scheduler.
+
+## Forecasts
+
+To run a forecast use e.g.
+
+```
+R CMD BATCH --no-restore --no-save --slave '--args 1 runForecast' setupSLURM.R
+```
+
+This sets up a file called `job_lookup.txt` containing IDs for running the code, and
+a file called `submit_job.sbatch` which can submitted to the SLURM scheduler.
+
+```
+sbatch submit_job.sbatch
+```
+
+Jobs can be monitored using e.g.
+
+```
+squeue -u USERNAME
+```
+
+Once jobs are run, results can be checked using `concatenateForecasts.R` e.g.
+
+```
+R CMD BATCH --no-restore --no-save --slave '--args 1 FALSE' concatenateForecasts.R
+```
+
+This checks that runs have completed and tidies up the outputs if so. If not successful,
+then this returns an error (see below).
 
 The first argument is the `wave` and the second is `FALSE` if you simply wish to return 
 an error if the script fails, or if set to `TRUE` then this also recreates `job_lookup.txt`
@@ -88,5 +135,15 @@ in the usual way. Once the corresponding `submit_job.sbatch` file has completed,
 ```
 R CMD BATCH --no-restore --no-save --slave '--args 1 FALSE' concatenateEns.R
 ```
+
+Then the plot can be run by e.g.
+
+```
+R CMD BATCH --no-restore --no-save --slave '--args 1 51 NA' plotEnsembleTrajectories.R
+```
+
+where the first argument is the wave, the second is the start of the forecasts (if forecasting,
+else set as `NA`), and the third is the final time point to plot (if set as `NA` then defaults
+to the longest point present in the simulations).
 
 

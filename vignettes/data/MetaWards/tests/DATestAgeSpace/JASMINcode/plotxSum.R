@@ -28,70 +28,220 @@ if(file.exists("JASMINcode/lads.txt")) {
 }
 
 ## set writeExt (eventually pass in as argument)
-writeExt <- FALSE
+writeExt <- TRUE
 
 ## extract file names
-folder <- paste0("wave", wave)
+folder <- paste0("wave", wave, "/saveOut_", hash)
 
 ## lookup table for classes
-lookup <- data.frame(var = c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "RI", "H", "RH", "DH", "DIobs", "DHobs")) %>%
+class_lookup <- data.frame(var = c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "RI", "H", "RH", "DH", "DIobs", "DHobs")) %>%
     mutate(class = 0:(n() - 1))
 
 if(!writeExt) {
-    file <- paste0(folder, "/runs_md_", hash, ".rds")
-    runs <- readRDS(file)$particles[[1]]
-    
-    ## aggregate to national level
-    runs1 <- map(1:length(runs), function(j, y) {
-        y <- y[[j]]
-        map(1:length(y), function(i, x) {
-            x <- apply(x[[i]], c(1, 2), sum)
-            as.vector(x) %>%
-            cbind(rep(1:dim(x)[2], each = dim(x)[1])) %>%
-            cbind(rep(1:dim(x)[1], times = dim(x)[2])) %>%
-            cbind(rep(i, nrow(.)))
-        }, x = y) %>%
-        {do.call("rbind", .)} %>%
-        cbind(rep(j, nrow(.)))
-    }, y = runs) %>%
-    {do.call("rbind", .)}
-    colnames(runs1) <- c("n", "age", "class", "particle", "time")
-    runs1 <- as_tibble(runs1) %>%
-        mutate(class = class - 1) %>%
-        inner_join(lookup, by = "class") %>%
-        select(!class) %>%
-        mutate(lad = "agg") %>%
-        select(n, lad, age, particle, time, var)
-        
-    ## extract subset of LADs also if required
-    if(!is.na(lads[1])) {
-        ## extract subset of LADs
-        runs <- map(1:length(runs), function(j, y, lads) {
-            y <- y[[j]]
-            map(1:length(y), function(i, x, lads) {
-                x <- x[[i]][, , lads]
-                as.vector(x) %>%
-                cbind(rep(lads, each = prod(dim(x)[-3]))) %>%
-                cbind(rep(rep(1:dim(x)[2], each = dim(x)[1]), times = dim(x)[3])) %>%
-                cbind(rep(1:dim(x)[1], times = prod(dim(x)[-1]))) %>%
-                cbind(rep(i, nrow(.)))
-            }, x = y, lads = lads) %>%
-            {do.call("rbind", .)} %>%
-            cbind(rep(j, nrow(.)))
-        }, y = runs, lads = lads) %>%
-        {do.call("rbind", .)}
-        colnames(runs) <- c("n", "lad", "age", "class", "particle", "time")
-        runs <- as_tibble(runs) %>%
-            mutate(class = class - 1) %>%
-            inner_join(lookup, by = "class") %>%
-            select(!class)
-        runs1 <- rbind(runs1, runs)
-    }
-    saveRDS(runs1, paste0(folder, "/plotSum_", hash, ".rds"))
+    stop("Not yet implemented for new model and writeExt = FALSE")
 } else {
-    stop("Not yet implemented when writeExt == FALSE")
+    ## extract file names
+    files <- list.files(folder)
+    files <- files[grep("p_[0-9]*.csv", files)]
+    files <- paste0(folder, "/", files)
+    ## extract file names
+    files1 <- list.files(paste0(folder, "_cont"))
+    files1 <- files1[grep("p_[0-9]*.csv", files1)]
+    if(length(files1) > 0) {
+        files1 <- paste0(folder, "_cont/", files1)
+        files <- c(files, files1)
+    }
+
+    ## load in runs and group at the national level
+    sims_md <- map(files, function(y) {
+            read.csv(y, header = TRUE) %>%
+            group_by(time, class) %>%
+            summarise(across(!lad, sum), .groups = "drop")
+        })
+    names(sims_md) <- gsub("^.*_([0-9]*).csv", "\\1", files)    
+    sims_md <- bind_rows(sims_md, .id = "particle") %>%    
+        inner_join(class_lookup, by = "class") %>%
+        select(!class) %>%
+        rename(t = time) %>%
+        pivot_longer(!c(particle, t, var), names_to = "age", values_to = "n") %>%
+        mutate(age = as.numeric(gsub("age", "", age)))
+        
+    ## save output
+    saveRDS(sims_md, paste0("wave", wave, "/plotSum_", hash, "_natFull.rds"))
+            
+    ###############################################
+    #######     LAD-level observations      #######
+    ###############################################
+
+    ## extract file names
+    files <- list.files(folder)
+    files <- files[grep("p_lads_[0-9]*.csv", files)]
+    files <- paste0(folder, "/", files)
+    ## extract file names
+    files1 <- list.files(paste0(folder, "_cont"))
+    files1 <- files1[grep("p_lads_[0-9]*.csv", files1)]
+    if(length(files1) > 0) {
+        files1 <- paste0(folder, "_cont/", files1)
+        files <- c(files, files1)
+    }
+
+    ## load in runs and group at the national level
+    sims_md <- map(files, read.csv, header = TRUE)
+    names(sims_md) <- gsub("^.*_([0-9]*).csv", "\\1", files)
+    sims_md <- bind_rows(sims_md, .id = "particle") %>%
+        arrange(particle, time, lad) %>%
+        group_by(particle, lad) %>%
+        mutate(deaths = cumsum(deaths)) %>%
+        group_by(particle, time) %>%
+        summarise(deaths = sum(deaths), .groups = "drop") %>%
+        rename(t = time, n = deaths)
+        
+    ## save output
+    saveRDS(sims_md, paste0("wave", wave, "/plotSum_", hash, "_natDeaths.rds"))
+              
+    ###############################################
+    #######  age/region-level observations  #######
+    ###############################################
+
+    ## load lookup for labels
+    region_lookup <- readRDS("data/region_lookup.rds")
+        
+    ## extract file names
+    files <- list.files(folder)
+    files <- files[grep("p_age_region_[0-9]*.csv", files)]
+    files <- paste0(folder, "/", files)
+    ## extract file names
+    files1 <- list.files(paste0(folder, "_cont"))
+    files1 <- files1[grep("p_age_region_[0-9]*.csv", files1)]
+    if(length(files1) > 0) {
+        files1 <- paste0(folder, "_cont/", files1)
+        files <- c(files, files1)
+    }
+
+    ## load in runs and group at the national level
+    sims_md <- map(files, read.csv, header = TRUE)
+    names(sims_md) <- gsub("^.*_([0-9]*).csv", "\\1", files)
+    sims_md <- bind_rows(sims_md, .id = "particle") %>%
+        pivot_longer(!c(particle, time, region), names_to = "age", values_to = "n") %>%
+        mutate(age = as.numeric(gsub("age", "", age))) %>%
+        rename(t = time) %>%
+        arrange(particle, region, age, t) %>%
+        group_by(particle, region, age) %>%
+        mutate(n = cumsum(n)) %>%
+        ungroup() %>%
+        inner_join(region_lookup, by = c("region" = "FID")) %>%
+        select(particle, t, n, age, RGN19NM)
+        
+    ## save output
+    saveRDS(sims_md, paste0("wave", wave, "/plotSum_", hash, "_ageRegionDeaths.rds"))
+        
+    ###############################################
+    #######     NHS region observations     #######
+    ###############################################
+
+    ## load lookup for labels
+    nhsregion_lookup <- readRDS("data/nhsregion_lookup.rds")
+
+    ## extract file names
+    files <- list.files(folder)
+    files <- files[grep("p_nhsregion_[0-9]*.csv", files)]
+    files <- paste0(folder, "/", files)
+    ## extract file names
+    files1 <- list.files(paste0(folder, "_cont"))
+    files1 <- files1[grep("p_nhsregion_[0-9]*.csv", files1)]
+    if(length(files1) > 0) {
+        files1 <- paste0(folder, "_cont/", files1)
+        files <- c(files, files1)
+    }
+
+    ## load in runs and group at the national level
+    sims_md <- map(files, read.csv, header = TRUE)
+    names(sims_md) <- gsub("^.*_([0-9]*).csv", "\\1", files)
+
+    ## load in runs and group at the national level
+    sims_md <- bind_rows(sims_md, .id = "particle") %>%
+        rename(t = time, n = hosp) %>%
+        inner_join(nhsregion_lookup, by = c("nhsregion" = "FID")) %>%
+        select(particle, t, n, areaName) %>%
+        arrange(particle, areaName, t)
+        
+    ## save output
+    saveRDS(sims_md, paste0("wave", wave, "/plotSum_", hash, "_nhsregionHosp.rds"))
+        
+    ###############################################
+    #####  NHS age/region-level observations  #####
+    ###############################################
+
+    ## extract file names
+    files <- list.files(folder)
+    files <- files[grep("p_age_nhsregion_[0-9]*.csv", files)]
+    files <- paste0(folder, "/", files)
+    ## extract file names
+    files1 <- list.files(paste0(folder, "_cont"))
+    files1 <- files1[grep("p_age_nhsregion_[0-9]*.csv", files1)]
+    if(length(files1) > 0) {
+        files1 <- paste0(folder, "_cont/", files1)
+        files <- c(files, files1)
+    }
+
+    ## load in runs and group at the national level
+    sims_md <- map(files, read.csv, header = TRUE)
+    names(sims_md) <- gsub("^.*_([0-9]*).csv", "\\1", files)
+
+    ## load in runs and group at the national level
+    sims_md <- bind_rows(sims_md, .id = "particle") %>%
+        pivot_longer(!c(particle, time, nhsregion), names_to = "age", values_to = "n") %>%
+        mutate(age = as.numeric(gsub("age", "", age))) %>%
+        rename(t = time) %>%
+        arrange(particle, nhsregion, age, t) %>%
+        group_by(particle, nhsregion, age) %>%
+        mutate(n = cumsum(n)) %>%
+        ungroup() %>%
+        inner_join(nhsregion_lookup, by = c("nhsregion" = "FID")) %>%
+        select(particle, t, n, age, areaName)
+        
+    ## save output
+    saveRDS(sims_md, paste0("wave", wave, "/plotSum_", hash, "_ageNhsregionHosp.rds"))
+    
+    ## produce lad-level plots if required
+    if(!is.na(lads[1])) {
+      
+        ###############################################
+        #####          LAD-level plots            #####
+        ###############################################
+
+        ## extract file names
+        files <- list.files(folder)
+        files <- files[grep("p_[0-9]*.csv", files)]
+        files <- paste0(folder, "/", files)
+        ## extract file names
+        files1 <- list.files(paste0(folder, "_cont"))
+        files1 <- files1[grep("p_[0-9]*.csv", files1)]
+        if(length(files1) > 0) {
+            files1 <- paste0(folder, "_cont/", files1)
+            files <- c(files, files1)
+        }
+
+        ## load in runs and group at the national level
+        sims_md <- map(files, function(y, lads) {
+                read.csv(y, header = TRUE) %>%
+                    filter(lad %in% lads)
+            }, lads = lads)
+        names(sims_md) <- gsub("^.*_([0-9]*).csv", "\\1", files)
+        sims_md <- bind_rows(sims_md, .id = "particle") %>% 
+            inner_join(class_lookup, by = "class") %>%
+            select(!class) %>%
+            rename(t = time) %>%
+            pivot_longer(!c(particle, t, var, lad), names_to = "age", values_to = "n") %>%
+            mutate(age = as.numeric(gsub("age", "", age))) %>%
+            mutate(var = gsub("one", "1", var)) %>%
+            mutate(var = gsub("two", "2", var)) %>%
+            mutate(lad = as.character(lad))
+            
+        ## save output
+        saveRDS(sims_md, paste0("wave", wave, "/plotSum_", hash, "_lads.rds"))
+    }
 }
 
 print("Finished")
-
 

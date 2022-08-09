@@ -29,18 +29,19 @@ if(length(args) != 0) {
 pars <- readRDS(paste0("../wave", wave, "/disease.rds"))
 
 ## check that all summaries are present
-runs <- map_lgl(1:nrow(pars), function(i, wave, lads) {
-    if(is.na(lads[1])) {
-        if(file.exists(paste0("../wave", wave, "/plotSum_", i, ".rds"))) {
-            run <- TRUE
-        } else {
-            run <- FALSE
-        }
-    } else {
-        stop("Not yet implemented for individual LADs")
+runs <- map_lgl(1:nrow(pars), function(i, wave) {
+    run <- TRUE
+    run <- ifelse(file.exists(paste0("../wave", wave, "/plotSum_", i, "_natFull.rds")), run, FALSE)
+    run <- ifelse(file.exists(paste0("../wave", wave, "/plotSum_", i, "_natDeaths.rds")), run, FALSE)
+    run <- ifelse(file.exists(paste0("../wave", wave, "/plotSum_", i, "_ageRegionDeaths.rds")), run, FALSE)
+    run <- ifelse(file.exists(paste0("../wave", wave, "/plotSum_", i, "_nhsregionHosp.rds")), run, FALSE)
+    run <- ifelse(file.exists(paste0("../wave", wave, "/plotSum_", i, "_ageNhsregionHosp.rds")), run, FALSE)
+    ## produce lad-level plots if required
+    if(file.exists("lads.txt")) {
+        run <- ifelse(file.exists(paste0("../wave", wave, "/plotSum_", i, "_lads.rds")), run, FALSE)
     }
     run
-}, wave = wave, lads = NA)
+}, wave = wave)
 
 if(!all(runs)) {
     cat("Missing runs:\n")

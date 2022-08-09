@@ -23,7 +23,7 @@ if(length(args) != 0) {
     #runCode <- "runPlotSum"
     #runCode <- "runPlotAgg"
 }
-if(!runCode %in% c("runDesign", "runPlotSum", "runPlotAgg")) stop("Incorrect 'runCode'")
+if(!runCode %in% c("runDesign", "runForecasts", "runPlotSum", "runPlotAgg")) stop("Incorrect 'runCode'")
 
 ## read in input file
 pars <- readRDS(paste0("../wave", wave, "/disease.rds"))
@@ -45,10 +45,10 @@ if(runCode != "runPlotAgg") {
 } else {
     
     ## load representative run in
-    runs <- readRDS(paste0("../wave", wave, "/plotSum_1.rds"))
+    runs <- readRDS(paste0("../wave", wave, "/plotSum_1_natFull.rds"))
 
     ## extract days / ages / classes
-    days <- unique(runs$time)
+    days <- unique(runs$t)
     
     ## expand grid
     jobs <- data.frame(t = days)
