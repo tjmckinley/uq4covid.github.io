@@ -181,8 +181,6 @@ if(cont) {
     files <- c(files, files1)
 }
 
-sims_md <- map(files, read.csv, header = TRUE)
-
 ## load in runs and group at the national level
 sims_md <- map(files, function(y) {
         read.csv(y, header = TRUE) %>%
