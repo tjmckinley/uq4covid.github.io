@@ -34,6 +34,9 @@ contact2 <- read_csv("inputs/coMix_matrix.csv", col_names = FALSE) %>%
 
 ## extract parameters for simulation   
 pars <- select(slice(pars, 100), !output)
+pars_save <- readRDS("wave1/inputs.rds") %>%
+    slice(100)
+saveRDS(pars_save, "outputs/pars.rds")
 
 ## solution to round numbers preserving sum
 ## adapted from:
@@ -452,9 +455,6 @@ p1[[4]] <- p1[[4]] / p1[[2]]
 p1 <- p1[-2]
 p1 <- wrap_plots(p1, nrow = 2, heights = c(0.8, 0.5))
 ggsave("outputs/simsNational.pdf", p1, width = 15, height = 15)
-
-## save parameters
-saveRDS(pars, "outputs/pars.rds")
 
 ## truth
 disSims <- map(1:length(disSims_full$particles[[1]]$full), function(i, x) {
