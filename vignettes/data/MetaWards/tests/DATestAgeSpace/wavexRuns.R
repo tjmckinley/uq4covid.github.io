@@ -37,6 +37,9 @@ sigma2_lad <- 1
 sigma2_age_region <- 1
 sigma2_nhsregion <- 1
 sigma2_age_nhsregion <- 1
+saveAll <- TRUE
+snapshot <- TRUE
+writeExt <- TRUE
 
 ## source Rcpp PF code
 sourceCpp("BPF.cpp")
@@ -120,22 +123,23 @@ if(exists("hash")) {
         tstart = tstart, tstop = tstop, npart = npart, niter = niter,
         a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis,
         sigma2_lad = sigma2_lad, sigma2_age_region = sigma2_age_region, 
-	sigma2_nhsregion = sigma2_nhsregion, sigma2_age_nhsregion = sigma2_age_nhsregion,
-        saveAll = TRUE, snapshot = TRUE, writeExt = TRUE, outputName = paste0("saveOut_", hash),
-	ncores = 1)
+        sigma2_nhsregion = sigma2_nhsregion, sigma2_age_nhsregion = sigma2_age_nhsregion,
+        saveAll = saveAll, snapshot = snapshot, writeExt = writeExt, 
+        outputName = paste0("saveOut_", hash),
+        ncores = 1)
     ## save outputs
     saveRDS(runs_md, paste0("wave", wave, "/runs_md_", hash, ".rds"))
-    system(paste0("mv saveOut_", hash, " wave", wave))
+    if(writeExt) system(paste0("mv saveOut_", hash, " wave", wave))
 } else {
     runs_md <- BPF(pars, C1 = contact1, C2 = contact2, lockdown_day = 20,
-    	cumDeath_lad = cumDeath_lad, cumDeath_age_region = cumDeath_age_region, 
-    	hosp_nhsregion = hosp_nhsregion, cumHospAd_age_nhsregion = cumHospAd_age_nhsregion, 
-    	lookup = lookup, age_lookup = age_lookup, u = u,
-    	tstart = tstart, tstop = tstop, npart = npart, niter = niter,
-	a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis,
+        cumDeath_lad = cumDeath_lad, cumDeath_age_region = cumDeath_age_region, 
+        hosp_nhsregion = hosp_nhsregion, cumHospAd_age_nhsregion = cumHospAd_age_nhsregion, 
+        lookup = lookup, age_lookup = age_lookup, u = u,
+        tstart = tstart, tstop = tstop, npart = npart, niter = niter,
+        a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis,
         sigma2_lad = sigma2_lad, sigma2_age_region = sigma2_age_region, 
         sigma2_nhsregion = sigma2_nhsregion, sigma2_age_nhsregion = sigma2_age_nhsregion,
-    	saveAll = NA)
+        saveAll = NA)
     ## save outputs
     saveRDS(runs_md, paste0("wave", wave, "/runs_md.rds"))
 }
