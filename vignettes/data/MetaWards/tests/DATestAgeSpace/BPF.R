@@ -238,6 +238,12 @@ BPF <- function(pars, C1, C2, lockdown_day, cumDeath_lad, cumDeath_age_region,
             hospInc_age_nhsregion <- mutate(cumHospAd_age_nhsregion, across(!t, ~. - lag(., default = 0))) %>%
                 select(!t) %>%
                 as.matrix()
+                
+            ## set missing values to be negative for Rcpp code
+            deathInc_lad[is.na(as.matrix(select(cumDeath_lad, !t)))] <- -1
+            deathInc_age_region[is.na(as.matrix(select(cumDeath_age_region, !t)))] <- -1
+            hosp_nhsregion[is.na(hosp_nhsregion)] <- -1
+            hospInc_age_nhsregion[is.na(as.matrix(select(cumHospAd_age_nhsregion, !t)))] <- -1
         } else {
             ## set dummies if required
             deathInc_lad <- matrix(0, 1, 1)

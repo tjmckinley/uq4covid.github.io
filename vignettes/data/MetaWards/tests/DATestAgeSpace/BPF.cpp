@@ -1942,44 +1942,52 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                 // apply observation error
                 for(l = 0; l < ndeathlads; l++) {
                     // death incidence in LADs
-                    weights(i) += ldtnorm_cpp(
-                        obsInc_lad(l),
-                        mu_night_lad1(l), 
-                        sqrt(sigma2_lad),
-                        0,
-                        std::numeric_limits<double>::infinity()
-                    );
-                }
-                for(l = 0; l < nregions; l++) {
-                    for(j = 0; j < nages; j++) {
-                        // death incidence by age and region
+                    if(obsInc_lad(l) >= 0) {
                         weights(i) += ldtnorm_cpp(
-                            obsInc_age_region(j * nregions + l),
-                            mu_night_age_region1(j, l), 
-                            sqrt(sigma2_age_region),
+                            obsInc_lad(l),
+                            mu_night_lad1(l), 
+                            sqrt(sigma2_lad),
                             0,
                             std::numeric_limits<double>::infinity()
                         );
                     }
                 }
+                for(l = 0; l < nregions; l++) {
+                    for(j = 0; j < nages; j++) {
+                        // death incidence by age and region
+                        if(obsInc_age_region(j * nregions + l) >= 0) {
+                            weights(i) += ldtnorm_cpp(
+                                obsInc_age_region(j * nregions + l),
+                                mu_night_age_region1(j, l), 
+                                sqrt(sigma2_age_region),
+                                0,
+                                std::numeric_limits<double>::infinity()
+                            );
+                        }
+                    }
+                }
                 for(l = 0; l < nnhsregions; l++) {
                     // and hospital count by NHS region
-                    weights(i) += ldtnorm_cpp(
-                        obs_nhsregion(l),
-                        u_night_nhsregion1(l) + mu_night_nhsregion1(l), 
-                        sqrt(sigma2_age_region),
-                        0,
-                        std::numeric_limits<double>::infinity()
-                    );  
-                    for(j = 0; j < nnhsages; j++) {
-                        // hospital incidence by age and NHS region
+                    if(obs_nhsregion(l) >= 0) {
                         weights(i) += ldtnorm_cpp(
-                            obsInc_age_nhsregion(j * nnhsregions + l),
-                            mu_night_age_nhsregion1(j, l), 
-                            sqrt(sigma2_age_nhsregion),
+                            obs_nhsregion(l),
+                            u_night_nhsregion1(l) + mu_night_nhsregion1(l), 
+                            sqrt(sigma2_age_region),
                             0,
                             std::numeric_limits<double>::infinity()
                         );
+                    }  
+                    for(j = 0; j < nnhsages; j++) {
+                        // hospital incidence by age and NHS region
+                        if(obsInc_age_nhsregion(j * nnhsregions + l) >= 0) {
+                            weights(i) += ldtnorm_cpp(
+                                obsInc_age_nhsregion(j * nnhsregions + l),
+                                mu_night_age_nhsregion1(j, l), 
+                                sqrt(sigma2_age_nhsregion),
+                                0,
+                                std::numeric_limits<double>::infinity()
+                            );
+                        }
                     }
                 }
             }
@@ -2165,44 +2173,52 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                     // apply observation error
                     for(l = 0; l < ndeathlads; l++) {
                         // death incidence in LADs
-                        acccurr += ldtnorm_cpp(
-                            obsInc_lad(l),
-                            mu_night_lad1(l), 
-                            sqrt(sigma2_lad),
-                            0,
-                            std::numeric_limits<double>::infinity()
-                        );
-                    }
-                    for(l = 0; l < nregions; l++) {
-                        for(j = 0; j < nages; j++) {
-                            // death incidence by age and region
+                        if(obsInc_lad(l) >= 0) {
                             acccurr += ldtnorm_cpp(
-                                obsInc_age_region(j * nregions + l),
-                                mu_night_age_region1(j, l), 
-                                sqrt(sigma2_age_region),
+                                obsInc_lad(l),
+                                mu_night_lad1(l), 
+                                sqrt(sigma2_lad),
                                 0,
                                 std::numeric_limits<double>::infinity()
                             );
                         }
                     }
+                    for(l = 0; l < nregions; l++) {
+                        for(j = 0; j < nages; j++) {
+                            // death incidence by age and region
+                            if(obsInc_age_region(j * nregions + l) >= 0) {
+                                acccurr += ldtnorm_cpp(
+                                    obsInc_age_region(j * nregions + l),
+                                    mu_night_age_region1(j, l), 
+                                    sqrt(sigma2_age_region),
+                                    0,
+                                    std::numeric_limits<double>::infinity()
+                                );
+                            }
+                        }
+                    }
                     for(l = 0; l < nnhsregions; l++) {
                         // and hospital count by NHS region
-                        acccurr += ldtnorm_cpp(
-                            obs_nhsregion(l),
-                            u_night_nhsregion1(l) + mu_night_nhsregion1(l), 
-                            sqrt(sigma2_age_region),
-                            0,
-                            std::numeric_limits<double>::infinity()
-                        );  
-                        for(j = 0; j < nnhsages; j++) {
-                            // hospital incidence by age and NHS region
+                        if(obs_nhsregion(l) >= 0) {
                             acccurr += ldtnorm_cpp(
-                                obsInc_age_nhsregion(j * nnhsregions + l),
-                                mu_night_age_nhsregion1(j, l), 
-                                sqrt(sigma2_age_nhsregion),
+                                obs_nhsregion(l),
+                                u_night_nhsregion1(l) + mu_night_nhsregion1(l), 
+                                sqrt(sigma2_age_region),
                                 0,
                                 std::numeric_limits<double>::infinity()
                             );
+                        }  
+                        for(j = 0; j < nnhsages; j++) {
+                            // hospital incidence by age and NHS region
+                            if(obsInc_age_nhsregion(j * nnhsregions + l) >= 0) {
+                                acccurr += ldtnorm_cpp(
+                                    obsInc_age_nhsregion(j * nnhsregions + l),
+                                    mu_night_age_nhsregion1(j, l), 
+                                    sqrt(sigma2_age_nhsregion),
+                                    0,
+                                    std::numeric_limits<double>::infinity()
+                                );
+                            }
                         }
                     }
                                     
@@ -2366,44 +2382,52 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                         // apply observation error
                         for(l = 0; l < ndeathlads; l++) {
                             // death incidence in LADs
-                            accprop += ldtnorm_cpp(
-                                obsInc_lad(l),
-                                mu_night_lad1(l), 
-                                sqrt(sigma2_lad),
-                                0,
-                                std::numeric_limits<double>::infinity()
-                            );
-                        }
-                        for(l = 0; l < nregions; l++) {
-                            for(j = 0; j < nages; j++) {
-                                // death incidence by age and region
+                            if(obsInc_lad(l) >= 0) {
                                 accprop += ldtnorm_cpp(
-                                    obsInc_age_region(j * nregions + l),
-                                    mu_night_age_region1(j, l), 
-                                    sqrt(sigma2_age_region),
+                                    obsInc_lad(l),
+                                    mu_night_lad1(l), 
+                                    sqrt(sigma2_lad),
                                     0,
                                     std::numeric_limits<double>::infinity()
                                 );
                             }
                         }
+                        for(l = 0; l < nregions; l++) {
+                            for(j = 0; j < nages; j++) {
+                                // death incidence by age and region
+                                if(obsInc_age_region(j * nregions + l) >= 0) {
+                                    accprop += ldtnorm_cpp(
+                                        obsInc_age_region(j * nregions + l),
+                                        mu_night_age_region1(j, l), 
+                                        sqrt(sigma2_age_region),
+                                        0,
+                                        std::numeric_limits<double>::infinity()
+                                    );
+                                }
+                            }
+                        }
                         for(l = 0; l < nnhsregions; l++) {
                             // and hospital count by NHS region
-                            accprop += ldtnorm_cpp(
-                                obs_nhsregion(l),
-                                u_night_nhsregion1(l) + mu_night_nhsregion1(l), 
-                                sqrt(sigma2_age_region),
-                                0,
-                                std::numeric_limits<double>::infinity()
-                            );  
-                            for(j = 0; j < nnhsages; j++) {
-                                // hospital incidence by age and NHS region
+                            if(obs_nhsregion(l) >= 0) {
                                 accprop += ldtnorm_cpp(
-                                    obsInc_age_nhsregion(j * nnhsregions + l),
-                                    mu_night_age_nhsregion1(j, l), 
-                                    sqrt(sigma2_age_nhsregion),
+                                    obs_nhsregion(l),
+                                    u_night_nhsregion1(l) + mu_night_nhsregion1(l), 
+                                    sqrt(sigma2_age_region),
                                     0,
                                     std::numeric_limits<double>::infinity()
                                 );
+                            }  
+                            for(j = 0; j < nnhsages; j++) {
+                                // hospital incidence by age and NHS region
+                                if(obsInc_age_nhsregion(j * nnhsregions + l) >= 0) {
+                                    accprop += ldtnorm_cpp(
+                                        obsInc_age_nhsregion(j * nnhsregions + l),
+                                        mu_night_age_nhsregion1(j, l), 
+                                        sqrt(sigma2_age_nhsregion),
+                                        0,
+                                        std::numeric_limits<double>::infinity()
+                                    );
+                                }
                             }
                         }
                                 
