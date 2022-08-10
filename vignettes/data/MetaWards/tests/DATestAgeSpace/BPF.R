@@ -354,6 +354,6 @@ BPF <- function(pars, C1, C2, lockdown_day, cumDeath_lad, cumDeath_age_region,
     } else {
         ll <- map(runs, "ll")
         ll <- do.call("c", ll)
-        return(ll)
+        return(list(ll = ll))
     }
 }
