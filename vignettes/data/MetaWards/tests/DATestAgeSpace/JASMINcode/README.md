@@ -16,7 +16,7 @@ convert this to the correct format for the model, make sure the `.csv` file
 is stored in a file e.g. `wavex/FILENAME.csv`, where `x` is the current wave
 and `FILENAME` is the name of the file (e.g. `wave2/inputsWave2.csv`).
 
-Then call e.g. from the main directory
+Then call e.g. from the **main directory**:
 
 ```
 R CMD BATCH --no-restore --no-save --slave '--args 2 inputsWave2.csv' checkWavexDesign.R
@@ -63,7 +63,7 @@ the scheduler.
 To run a forecast use e.g.
 
 ```
-R CMD BATCH --no-restore --no-save --slave '--args 1 runForecast' setupSLURM.R
+R CMD BATCH --no-restore --no-save --slave '--args 1 runForecasts' setupSLURM.R
 ```
 
 This sets up a file called `job_lookup.txt` containing IDs for running the code, and
@@ -91,7 +91,7 @@ then this returns an error (see below).
 The first argument is the `wave` and the second is `FALSE` if you simply wish to return 
 an error if the script fails, or if set to `TRUE` then this also recreates `job_lookup.txt`
 and `submit_job.sbatch` with the failed runs so that they can be easily resubmitted to
-the scheduler.
+the scheduler. The optinal third argument is the wall-time to pass to `submit_job.sbatch`.
 
 ## Plotting summaries
 
@@ -145,5 +145,10 @@ R CMD BATCH --no-restore --no-save --slave '--args 1 51 NA' plotEnsembleTrajecto
 where the first argument is the wave, the second is the start of the forecasts (if forecasting,
 else set as `NA`), and the third is the final time point to plot (if set as `NA` then defaults
 to the longest point present in the simulations).
+
+**Note**: the final `plotEnsembleTrajectories.R` call must use the `job_lookup.txt` file
+from the `runPlotAgg`/`setupSLURM.R` call above. Hence you might need to re-run this
+original call if e.g. any of the orignal runs had failed and needed to be re-run (in which
+case `job_lookup.txt` would be different).
 
 
