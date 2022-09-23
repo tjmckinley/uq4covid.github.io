@@ -40,11 +40,11 @@ if(any(ll == 0)) {
     print(which(ll == 0))
     if(updateJobLookup) {
         system("rm job_lookup.txt")
-        writeLines(as.character(which(is.na(ll))), "job_lookup.txt")
+        writeLines(as.character(which(ll == 0)), "job_lookup.txt")
         code <- readLines("submit_job_template.sbatch")
-        code <- gsub("RANGES", paste0("1-", sum(is.na(ll))), code)
+        code <- gsub("RANGES", paste0("1-", sum(ll == 0)), code)
         code <- gsub("FILEDIR", wave, code)
-        code <- gsub("RUNCODE", "runDesign", code)
+        code <- gsub("RUNCODE", "runForecasts", code)
         code <- gsub("TIME", time, code)
         writeLines(code, "submit_job.sbatch")
     }
