@@ -103,7 +103,7 @@ runs_md <- BPF(pars[100, ], C1 = contact1, C2 = contact2, lockdown_day = 20,
     cumDeath_lad = cumDeath_lad, cumDeath_age_region = cumDeath_age_region, 
     hosp_nhsregion = hosp_nhsregion, cumHospAd_age_nhsregion = cumHospAd_age_nhsregion, 
     lookup = lookup, age_lookup = age_lookup, u = u, tstart = tstart, tstop = tstop, npart = npart, 
-    a1 = 0, a2 = 0, b = 0.1, a_dis = 0.05, b_dis = 0.05, niter = 10,
+    a1 = 0, a2 = 0, b1 = 0.05, b2 = 0.05, a_dis = 0.05, b_dis = 0.05, niter = 10,
     sigma2_lad = 1, sigma2_age_region = 1, sigma2_nhsregion = 1, sigma2_age_nhsregion = 1,
     saveAll = TRUE, writeExt = TRUE, snapshot = TRUE)
     
@@ -149,7 +149,7 @@ if(cont) {
     ## run model with model discrepancy
     runs_md <- BPF(pars[100, ], C1 = contact1, C2 = contact2, lockdown_day = 20,
         lookup = lookup, age_lookup = age_lookup, u = u, tstart = tstart, tstop = tstop, 
-        npart = npart, a1 = 0, a2 = 0, b = 0.1, a_dis = 0.05, b_dis = 0.05, 
+        npart = npart, a1 = 0, a2 = 0, b1 = 0.05, b2 = 0.05, a_dis = 0.05, b_dis = 0.05, 
         sigma2_lad = 1, sigma2_age_region = 1, sigma2_nhsregion = 1, sigma2_age_nhsregion = 1,
         saveAll = TRUE, writeExt = TRUE, PF = FALSE)   
 } 

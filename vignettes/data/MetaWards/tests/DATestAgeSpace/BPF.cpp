@@ -1113,7 +1113,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
     arma::uword ndeathlads, arma::uword nregions, arma::uword nnhsages, arma::uword nnhsregions,  
     arma::imat u1_moves, arma::ivec ncohorts1, List u1_comb, 
     List u2_comb, arma::vec playprobs, arma::ivec ncohorts2, arma::uword tstart, arma::uword tstop, 
-    arma::uword npart, int niter, double a1, double a2, double b, double a_dis, double b_dis,
+    arma::uword npart, int niter, double a1, double a2, double b1, double b2, double a_dis, double b_dis,
     double sigma2_lad, double sigma2_age_region, double sigma2_nhsregion, double sigma2_age_nhsregion,
     int saveAll, int writeExt, int snapshot, CharacterVector outputName, int PF, int ncores) {
     
@@ -1235,8 +1235,8 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                         for(j = 0; j < nages; j++) {
                             // simulate mu terms where necessary
                             for(int s = 0; s < 4; s++) {
-                                muy = a1 - a2 + u_night_age_lad(s, j, k);
-                                sigma2y = a1 + a2 + b * u_night_age_lad(s, j, k);
+                                muy = (a1 - a2) + (b1 - b2 + 1) * u_night_age_lad(s, j, k);
+                                sigma2y = a1 + a2 + (b1 + b2) * u_night_age_lad(s, j, k);
                                 mu_night_age_lad[i](s, j, k) = rtnorm_one(-10000000, 10000000, engSerial);
                                 mu_night_age_lad[i](s, j, k) = mu_night_age_lad[i](s, j, k) * sqrt(sigma2y) + muy;
                             }
@@ -1457,7 +1457,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
         
         // loop over particles
 #ifdef _OPENMP
-#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, nages, nclasses, nlads, C1, C2, u1_moves, u1, u1_new, ncohorts1, u2, u2_new, playprobs, ncohorts2, t, pars, weights, a_dis, b_dis, a1, a2, b, obsInc_lad, obsInc_age_region, obsInc_age_nhsregion, obs_nhsregion, PF, tstart, tstop, ndeathlads, nregions, nnhsages, nnhsregions, lookup, age_lookup, sigma2_lad, sigma2_age_region, sigma2_nhsregion, sigma2_age_nhsregion, mu_night_age_lad, lockdown_day)
+#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, nages, nclasses, nlads, C1, C2, u1_moves, u1, u1_new, ncohorts1, u2, u2_new, playprobs, ncohorts2, t, pars, weights, a_dis, b_dis, a1, a2, b1, b2, obsInc_lad, obsInc_age_region, obsInc_age_nhsregion, obs_nhsregion, PF, tstart, tstop, ndeathlads, nregions, nnhsages, nnhsregions, lookup, age_lookup, sigma2_lad, sigma2_age_region, sigma2_nhsregion, sigma2_age_nhsregion, mu_night_age_lad, lockdown_day)
 #endif
         for(i = 0; i < npart; i++) {
     
@@ -1905,8 +1905,8 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                         for(j = 0; j < nages; j++) {
                             // simulate mu terms where necessary
                             for(int s = 0; s < 4; s++) {
-                                muy = a1 - a2 + u_night_age_lad1(s, j, k);
-                                sigma2y = a1 + a2 + b * u_night_age_lad1(s, j, k);
+                                muy = (a1 - a2) + (b1 - b2 + 1) * u_night_age_lad1(s, j, k);
+                                sigma2y = a1 + a2 + (b1 + b2) * u_night_age_lad1(s, j, k);
                                 mu_night_age_lad[i](s, j, k) = rtnorm_one(-10000000, 10000000, eng);
                                 mu_night_age_lad[i](s, j, k) = mu_night_age_lad[i](s, j, k) * sqrt(sigma2y) + muy;
                             }
@@ -2040,7 +2040,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
             // Metropolis-Hastings steps to deal with particle impoverishment
             if(niter > 0) {
 #ifdef _OPENMP
-#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, nages, nclasses, nlads, C1, C2, ncohorts1, u1_moves, u1, u1_new, ncohorts2, u2, u2_new, playprobs, t, pars, a_dis, b_dis, a1, a2, b, obsInc_lad, obsInc_age_region, obsInc_age_nhsregion, obs_nhsregion, PF, tstart, tstop, ndeathlads, nregions, nnhsages, nnhsregions, lookup, age_lookup, sigma2_lad, sigma2_age_region, sigma2_nhsregion, sigma2_age_nhsregion, condpars, niter, nacc, mu_night_age_lad, mu_night_age_lad1, lockdown_day)
+#pragma omp parallel for default(none) private(j, l, k) shared(seeds, npart, nages, nclasses, nlads, C1, C2, ncohorts1, u1_moves, u1, u1_new, ncohorts2, u2, u2_new, playprobs, t, pars, a_dis, b_dis, a1, a2, b1, b2, obsInc_lad, obsInc_age_region, obsInc_age_nhsregion, obs_nhsregion, PF, tstart, tstop, ndeathlads, nregions, nnhsages, nnhsregions, lookup, age_lookup, sigma2_lad, sigma2_age_region, sigma2_nhsregion, sigma2_age_nhsregion, condpars, niter, nacc, mu_night_age_lad, mu_night_age_lad1, lockdown_day)
 #endif
                 for(i = 0; i < npart; i++) {
             
@@ -2345,8 +2345,8 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                                 for(j = 0; j < nages; j++) {
                                     // simulate mu terms where necessary
                                     for(int s = 0; s < 4; s++) {
-                                        muy = a1 - a2 + u_night_age_lad1(s, j, k);
-                                        sigma2y = a1 + a2 + b * u_night_age_lad1(s, j, k);
+                                        muy = (a1 - a2) + (b1 - b2 + 1) * u_night_age_lad1(s, j, k);
+                                        sigma2y = a1 + a2 + (b1 + b2) * u_night_age_lad1(s, j, k);
                                         mu_night_age_lad1[i](s, j, k) = rtnorm_one(-10000000, 10000000, eng);
                                         mu_night_age_lad1[i](s, j, k) = mu_night_age_lad1[i](s, j, k) * sqrt(sigma2y) + muy;
                                     }
@@ -2752,8 +2752,8 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                         for(j = 0; j < nages; j++) {
                             // simulate mu terms where necessary
                             for(int s = 0; s < 4; s++) {
-                                muy = a1 - a2 + u_night_age_lad(s, j, k);
-                                sigma2y = a1 + a2 + b * u_night_age_lad(s, j, k);
+                                muy = (a1 - a2) + (b1 - b2 + 1) * u_night_age_lad(s, j, k);
+                                sigma2y = a1 + a2 + (b1 + b2) * u_night_age_lad(s, j, k);
                                 mu_night_age_lad1[i](s, j, k) = rtnorm_one(-10000000, 10000000, engSerial);
                                 mu_night_age_lad1[i](s, j, k) = mu_night_age_lad1[i](s, j, k) * sqrt(sigma2y) + muy;
                             }
