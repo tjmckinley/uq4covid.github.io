@@ -82,13 +82,13 @@ p1[[2]] <- ggplot(sims_md, aes(x = t)) +
     geom_line(
         aes(y = n), 
         data = data,
-        col = "red", linetype = "dashed"
+        col = "blue", linetype = "dashed"
     ) +
     xlab("Days") + 
     ylab("Counts") +
     ggtitle("Observed cumulative deaths (aggregated over LADs)")
     
-if(cont) p1[[2]] <- p1[[2]] + geom_vline(xintercept = tstart, linetype = "dashed", colour = "blue")
+if(cont) p1[[2]] <- p1[[2]] + geom_vline(xintercept = tstart, linetype = "dashed")
               
 ###############################################
 #######  age/region-level observations  #######
@@ -118,14 +118,14 @@ p1[[3]] <- ggplot(sims_md, aes(x = t)) +
     geom_line(
         aes(y = n), 
         data = data,
-        col = "red", linetype = "dashed"
+        col = "blue", linetype = "dashed"
     ) +
     facet_grid(RGN19NM ~ age, labeller = label_wrap_gen(width = 10)) +
     xlab("Days") + 
     ylab("Counts") +
     ggtitle("Observed cumulative deaths (age / region)")
     
-if(cont) p1[[3]] <- p1[[3]] + geom_vline(xintercept = tstart, linetype = "dashed", colour = "blue")
+if(cont) p1[[3]] <- p1[[3]] + geom_vline(xintercept = tstart, linetype = "dashed")
         
 ###############################################
 #######     NHS region observations     #######
@@ -152,14 +152,14 @@ p1[[4]] <- ggplot(sims_md, aes(x = t)) +
     geom_line(
         aes(y = n), 
         data = data,
-        col = "red", linetype = "dashed"
+        col = "blue", linetype = "dashed"
     ) +
     facet_wrap(~ areaName, nrow = 1, labeller = label_wrap_gen(width = 10)) +
     xlab("Days") + 
     ylab("Counts") +
     ggtitle("Observed hospital cases (NHS region)")
     
-if(cont) p1[[4]] <- p1[[4]] + geom_vline(xintercept = tstart, linetype = "dashed", colour = "blue")
+if(cont) p1[[4]] <- p1[[4]] + geom_vline(xintercept = tstart, linetype = "dashed")
         
 ###############################################
 #####  NHS age/region-level observations  #####
@@ -186,14 +186,14 @@ p1[[5]] <- ggplot(sims_md, aes(x = t)) +
     geom_line(
         aes(y = n), 
         data = data,
-        col = "red", linetype = "dashed"
+        col = "blue", linetype = "dashed"
     ) +
     facet_grid(areaName ~ age, labeller = label_wrap_gen(width = 10)) +
     xlab("Days") + 
     ylab("Counts") +
     ggtitle("Observed cumulative hospital incidence (NHS age / region)")
     
-if(cont) p1[[5]] <- p1[[5]] + geom_vline(xintercept = tstart, linetype = "dashed", colour = "blue")
+if(cont) p1[[5]] <- p1[[5]] + geom_vline(xintercept = tstart, linetype = "dashed")
         
 ###############################################
 #####   combine plots and save outputs    #####
@@ -244,7 +244,7 @@ if(file.exists("lads.txt")) {
         ylab("Counts") +
         ggtitle("Truth")
 
-    if(cont) p1 <- p1 + geom_vline(xintercept = tstart, linetype = "dashed", colour = "blue")
+    if(cont) p1 <- p1 + geom_vline(xintercept = tstart, linetype = "dashed")
 
     ggsave(paste0("../wave", wave, "/simsTopLADsBPFEns.pdf"), p1, width = 10, height = 10)
 }

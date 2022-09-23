@@ -26,6 +26,7 @@ if(length(args) != 0) {
 ## set case specific values
 tstart <- 0
 tstop <- 50
+lockdown_day <- 20
 npart <- 50
 niter <- 10
 a1 <- 0
@@ -116,7 +117,7 @@ u <- list(u1 = u1, u2 = u2, u1_moves = u1_moves, u2_moves = as.matrix(PM19))
 
 ## run PF with some model discrepancy
 if(exists("hash")) {
-    runs_md <- BPF(pars[hash, ], C1 = contact1, C2 = contact2, lockdown_day = 20,
+    runs_md <- BPF(pars[hash, ], C1 = contact1, C2 = contact2, lockdown_day = lockdown_day,
         cumDeath_lad = cumDeath_lad, cumDeath_age_region = cumDeath_age_region,
         hosp_nhsregion = hosp_nhsregion, cumHospAd_age_nhsregion = cumHospAd_age_nhsregion,
         lookup = lookup, age_lookup = age_lookup, u = u,
