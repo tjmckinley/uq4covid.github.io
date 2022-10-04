@@ -6,6 +6,7 @@ library(sitmo)
 library(abind)
 library(parallel)
 library(data.table)
+library(R.utils)
 
 ## check if being run in batch mode
 args <- commandArgs(TRUE)
@@ -65,28 +66,28 @@ age_lookup <- readRDS("outputs/age_lookup.rds")
 folder <- paste0("wave", wave, "/saveOut_", hash)
 
 ## set up inputs
-u1_moves <- read_csv(paste0(folder, "/snapshot_u1moves_t", tstart, ".csv"), col_names = FALSE) %>%
+u1_moves <- read_csv(paste0(folder, "/snapshot_u1moves_t", tstart, ".csv.bz2"), col_names = FALSE) %>%
     as.matrix()
 colnames(u1_moves) <- NULL
-ncohorts1 <- read_csv(paste0(folder, "/snapshot_ncohorts1_t", tstart, ".csv"), col_names = FALSE)$X1 %>%
+ncohorts1 <- read_csv(paste0(folder, "/snapshot_ncohorts1_t", tstart, ".csv.bz2"), col_names = FALSE)$X1 %>%
     as.vector()
-ncohorts2 <- read_csv(paste0(folder, "/snapshot_ncohorts2_t", tstart, ".csv"), col_names = FALSE)$X1 %>%
+ncohorts2 <- read_csv(paste0(folder, "/snapshot_ncohorts2_t", tstart, ".csv.bz2"), col_names = FALSE)$X1 %>%
     as.vector()
-playprobs <- read_csv(paste0(folder, "/snapshot_playprobs_t", tstart, ".csv"), col_names = FALSE)$X1 %>%
+playprobs <- read_csv(paste0(folder, "/snapshot_playprobs_t", tstart, ".csv.bz2"), col_names = FALSE)$X1 %>%
     as.vector()
 
 ## read in snapshots
 u1 <- list()
 u2 <- list()
 for(i in 1:npart) {
-    u1[[i]] <- fread(paste0(folder, "/snapshot_u1_t", tstart, "_", i - 1, ".csv"))
+    u1[[i]] <- fread(paste0(folder, "/snapshot_u1_t", tstart, "_", i - 1, ".csv.bz2"))
     udims <- c(max(u1[[i]]$class) + 1, ncol(u1[[i]]) - 2, max(u1[[i]]$cohort))
     u1[[i]][, class := NULL]
     u1[[i]][, cohort := NULL]
     u1[[i]] <- as.matrix(u1[[i]])
     u1[[i]] <- aperm(array(t(u1[[i]]), c(udims[2], udims[1], udims[3])), c(2, 1, 3))
         
-    u2[[i]] <- fread(paste0(folder, "/snapshot_u2_t", tstart, "_", i - 1, ".csv"))
+    u2[[i]] <- fread(paste0(folder, "/snapshot_u2_t", tstart, "_", i - 1, ".csv.bz2"))
     udims <- c(max(u2[[i]]$class) + 1, ncol(u2[[i]]) - 2, max(u2[[i]]$lad))
     u2[[i]][, class := NULL]
     u2[[i]][, lad := NULL]

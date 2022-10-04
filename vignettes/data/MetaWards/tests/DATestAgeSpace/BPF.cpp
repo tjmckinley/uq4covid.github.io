@@ -2976,6 +2976,8 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                         }
                     }
                     file.close();
+                    std::sprintf(file_name, "bzip2 -z %s/snapshot_u1_t%u_%u.csv", std::string(outputName[0]).c_str(), tstop, i);
+                    j = std::system(file_name);
                     std::sprintf(file_name, "%s/snapshot_u2_t%u_%u.csv", std::string(outputName[0]).c_str(), tstop, i);
                     file.open(file_name);
                     file << "class, ";
@@ -2991,6 +2993,9 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                         }
                     }
                     file.close();
+                // zip up outputs
+                    std::sprintf(file_name, "bzip2 -z %s/snapshot_u2_t%u_%u.csv", std::string(outputName[0]).c_str(), tstop, i);
+                    j = std::system(file_name);
                 }
                 std::sprintf(file_name, "%s/snapshot_u1moves_t%u.csv", std::string(outputName[0]).c_str(), tstop);
                 file.open(file_name);
@@ -2998,6 +3003,9 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                     file << u1_moves(l, 0) << ", " << u1_moves(l, 1) << "\n";
                 }
                 file.close();
+                // zip up outputs
+                std::sprintf(file_name, "bzip2 -z %s/snapshot_u1moves_t%u.csv", std::string(outputName[0]).c_str(), tstop);
+                j = std::system(file_name);
                 
                 std::sprintf(file_name, "%s/snapshot_playprobs_t%u.csv", std::string(outputName[0]).c_str(), tstop);
                 file.open(file_name);
@@ -3005,6 +3013,9 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                     file << playprobs(l) << "\n";
                 }
                 file.close();
+                // zip up outputs
+                std::sprintf(file_name, "bzip2 -z %s/snapshot_playprobs_t%u.csv", std::string(outputName[0]).c_str(), tstop);
+                j = std::system(file_name);
                 
                 std::sprintf(file_name, "%s/snapshot_ncohorts1_t%u.csv", std::string(outputName[0]).c_str(), tstop);
                 file.open(file_name);
@@ -3012,6 +3023,9 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                     file << ncohorts1(l) << "\n";
                 }
                 file.close();
+                // zip up outputs
+                std::sprintf(file_name, "bzip2 -z %s/snapshot_ncohorts1_t%u.csv", std::string(outputName[0]).c_str(), tstop);
+                j = std::system(file_name);
                 
                 std::sprintf(file_name, "%s/snapshot_ncohorts2_t%u.csv", std::string(outputName[0]).c_str(), tstop);
                 file.open(file_name);
@@ -3019,6 +3033,9 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                     file << ncohorts2(l) << "\n";
                 }
                 file.close();
+                // zip up outputs
+                std::sprintf(file_name, "bzip2 -z %s/snapshot_ncohorts2_t%u.csv", std::string(outputName[0]).c_str(), tstop);
+                j = std::system(file_name);
             }
         }
         if(writeExt == 0) {
@@ -3036,6 +3053,25 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                 }
             }
         } else {
+        
+            // zip up outputs
+            if(saveAll == 2) {
+                for(i = 0; i < npart; i++) {
+                    std::sprintf(file_name, "bzip2 -z %s/p_%u.csv", std::string(outputName[0]).c_str(), i);
+                    j = std::system(file_name);
+                }
+            }
+            for(i = 0; i < npart; i++) {
+                std::sprintf(file_name, "bzip2 -z %s/p_lads_%u.csv", std::string(outputName[0]).c_str(), i);
+                j = std::system(file_name);            
+                std::sprintf(file_name, "bzip2 -z %s/p_age_region_%u.csv", std::string(outputName[0]).c_str(), i);
+                j = std::system(file_name);          
+                std::sprintf(file_name, "bzip2 -z %s/p_nhsregion_%u.csv", std::string(outputName[0]).c_str(), i);
+                j = std::system(file_name);
+                std::sprintf(file_name, "bzip2 -z %s/p_age_nhsregion_%u.csv", std::string(outputName[0]).c_str(), i);
+                j = std::system(file_name);
+            }
+            
             if(PF == 1) {
                 return List::create(Named("ll") = ll);
             } else {

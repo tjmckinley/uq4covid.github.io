@@ -42,11 +42,11 @@ if(!writeExt) {
 } else {
     ## extract file names
     files <- list.files(folder)
-    files <- files[grep("p_[0-9]*.csv", files)]
+    files <- files[grep("p_[0-9]*.csv.bz2", files)]
     files <- paste0(folder, "/", files)
     ## extract file names
     files1 <- list.files(paste0(folder, "_cont"))
-    files1 <- files1[grep("p_[0-9]*.csv", files1)]
+    files1 <- files1[grep("p_[0-9]*.csv.bz2", files1)]
     if(length(files1) > 0) {
         files1 <- paste0(folder, "_cont/", files1)
         files <- c(files, files1)
@@ -58,7 +58,7 @@ if(!writeExt) {
             group_by(time, class) %>%
             summarise(across(!lad, sum), .groups = "drop")
         })
-    names(sims_md) <- gsub("^.*_([0-9]*).csv", "\\1", files)    
+    names(sims_md) <- gsub("^.*_([0-9]*).csv.bz2", "\\1", files)    
     sims_md <- bind_rows(sims_md, .id = "particle") %>%    
         inner_join(class_lookup, by = "class") %>%
         select(!class) %>%
@@ -75,11 +75,11 @@ if(!writeExt) {
 
     ## extract file names
     files <- list.files(folder)
-    files <- files[grep("p_lads_[0-9]*.csv", files)]
+    files <- files[grep("p_lads_[0-9]*.csv.bz2", files)]
     files <- paste0(folder, "/", files)
     ## extract file names
     files1 <- list.files(paste0(folder, "_cont"))
-    files1 <- files1[grep("p_lads_[0-9]*.csv", files1)]
+    files1 <- files1[grep("p_lads_[0-9]*.csv.bz2", files1)]
     if(length(files1) > 0) {
         files1 <- paste0(folder, "_cont/", files1)
         files <- c(files, files1)
@@ -87,7 +87,7 @@ if(!writeExt) {
 
     ## load in runs and group at the national level
     sims_md <- map(files, read.csv, header = TRUE)
-    names(sims_md) <- gsub("^.*_([0-9]*).csv", "\\1", files)
+    names(sims_md) <- gsub("^.*_([0-9]*).csv.bz2", "\\1", files)
     sims_md <- bind_rows(sims_md, .id = "particle") %>%
         arrange(particle, time, lad) %>%
         group_by(particle, lad) %>%
@@ -108,11 +108,11 @@ if(!writeExt) {
         
     ## extract file names
     files <- list.files(folder)
-    files <- files[grep("p_age_region_[0-9]*.csv", files)]
+    files <- files[grep("p_age_region_[0-9]*.csv.bz2", files)]
     files <- paste0(folder, "/", files)
     ## extract file names
     files1 <- list.files(paste0(folder, "_cont"))
-    files1 <- files1[grep("p_age_region_[0-9]*.csv", files1)]
+    files1 <- files1[grep("p_age_region_[0-9]*.csv.bz2", files1)]
     if(length(files1) > 0) {
         files1 <- paste0(folder, "_cont/", files1)
         files <- c(files, files1)
@@ -120,7 +120,7 @@ if(!writeExt) {
 
     ## load in runs and group at the national level
     sims_md <- map(files, read.csv, header = TRUE)
-    names(sims_md) <- gsub("^.*_([0-9]*).csv", "\\1", files)
+    names(sims_md) <- gsub("^.*_([0-9]*).csv.bz2", "\\1", files)
     sims_md <- bind_rows(sims_md, .id = "particle") %>%
         pivot_longer(!c(particle, time, region), names_to = "age", values_to = "n") %>%
         mutate(age = as.numeric(gsub("age", "", age))) %>%
@@ -144,11 +144,11 @@ if(!writeExt) {
 
     ## extract file names
     files <- list.files(folder)
-    files <- files[grep("p_nhsregion_[0-9]*.csv", files)]
+    files <- files[grep("p_nhsregion_[0-9]*.csv.bz2", files)]
     files <- paste0(folder, "/", files)
     ## extract file names
     files1 <- list.files(paste0(folder, "_cont"))
-    files1 <- files1[grep("p_nhsregion_[0-9]*.csv", files1)]
+    files1 <- files1[grep("p_nhsregion_[0-9]*.csv.bz2", files1)]
     if(length(files1) > 0) {
         files1 <- paste0(folder, "_cont/", files1)
         files <- c(files, files1)
@@ -156,7 +156,7 @@ if(!writeExt) {
 
     ## load in runs and group at the national level
     sims_md <- map(files, read.csv, header = TRUE)
-    names(sims_md) <- gsub("^.*_([0-9]*).csv", "\\1", files)
+    names(sims_md) <- gsub("^.*_([0-9]*).csv.bz2", "\\1", files)
 
     ## load in runs and group at the national level
     sims_md <- bind_rows(sims_md, .id = "particle") %>%
@@ -174,11 +174,11 @@ if(!writeExt) {
 
     ## extract file names
     files <- list.files(folder)
-    files <- files[grep("p_age_nhsregion_[0-9]*.csv", files)]
+    files <- files[grep("p_age_nhsregion_[0-9]*.csv.bz2", files)]
     files <- paste0(folder, "/", files)
     ## extract file names
     files1 <- list.files(paste0(folder, "_cont"))
-    files1 <- files1[grep("p_age_nhsregion_[0-9]*.csv", files1)]
+    files1 <- files1[grep("p_age_nhsregion_[0-9]*.csv.bz2", files1)]
     if(length(files1) > 0) {
         files1 <- paste0(folder, "_cont/", files1)
         files <- c(files, files1)
@@ -186,7 +186,7 @@ if(!writeExt) {
 
     ## load in runs and group at the national level
     sims_md <- map(files, read.csv, header = TRUE)
-    names(sims_md) <- gsub("^.*_([0-9]*).csv", "\\1", files)
+    names(sims_md) <- gsub("^.*_([0-9]*).csv.bz2", "\\1", files)
 
     ## load in runs and group at the national level
     sims_md <- bind_rows(sims_md, .id = "particle") %>%
@@ -212,11 +212,11 @@ if(!writeExt) {
 
         ## extract file names
         files <- list.files(folder)
-        files <- files[grep("p_[0-9]*.csv", files)]
+        files <- files[grep("p_[0-9]*.csv.bz2", files)]
         files <- paste0(folder, "/", files)
         ## extract file names
         files1 <- list.files(paste0(folder, "_cont"))
-        files1 <- files1[grep("p_[0-9]*.csv", files1)]
+        files1 <- files1[grep("p_[0-9]*.csv.bz2", files1)]
         if(length(files1) > 0) {
             files1 <- paste0(folder, "_cont/", files1)
             files <- c(files, files1)
@@ -227,7 +227,7 @@ if(!writeExt) {
                 read.csv(y, header = TRUE) %>%
                     filter(lad %in% lads)
             }, lads = lads)
-        names(sims_md) <- gsub("^.*_([0-9]*).csv", "\\1", files)
+        names(sims_md) <- gsub("^.*_([0-9]*).csv.bz2", "\\1", files)
         sims_md <- bind_rows(sims_md, .id = "particle") %>% 
             inner_join(class_lookup, by = "class") %>%
             select(!class) %>%
