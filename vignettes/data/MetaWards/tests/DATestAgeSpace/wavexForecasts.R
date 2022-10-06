@@ -32,7 +32,8 @@ tstop <- 75
 npart <- 50
 a1 <- 0
 a2 <- 0
-b <- 0.1
+b1 <- 0.1
+b2 <- 0.1
 b_dis <- 0.05
 sigma2_lad <- 1
 sigma2_age_region <- 1
@@ -100,7 +101,7 @@ u <- list(u1_moves = u1_moves, u1 = u1, u2 = u2, ncohorts1 = ncohorts1, ncohorts
 runs_md <- BPF(pars[hash, ], C1 = contact1, C2 = contact2, lockdown_day = 20,
     lookup = lookup, age_lookup = age_lookup, u = u,
     tstart = tstart, tstop = tstop, npart = npart,
-    a1 = a1, a2 = a2, b = b, b_dis = b_dis,
+    a1 = a1, a2 = a2, b1 = b1, b2 = b2, b_dis = b_dis,
     sigma2_lad = sigma2_lad, sigma2_age_region = sigma2_age_region, 
     sigma2_nhsregion = sigma2_nhsregion, sigma2_age_nhsregion = sigma2_age_nhsregion,
     saveAll = TRUE, writeExt = TRUE, outputName = paste0("wave", wave, "/saveOut_", hash),
