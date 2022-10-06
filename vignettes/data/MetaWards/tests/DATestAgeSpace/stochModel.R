@@ -24,7 +24,7 @@ source("BPF.R")
 pars <- readRDS("wave1/disease.rds") %>%
     rename(nu = `beta[1]`, nuA = `beta[6]`) %>%
     select(!c(starts_with("beta["), repeats)) %>%
-    select(nu, nuA, !c(beta_scale, p_move, output), beta_scale, p_move, output)
+    select(nu, nuA, !c(beta_scale, p_move, a_dis, output), beta_scale, p_move, a_dis, output)
 
 ## read in contact matrices
 contact1 <- read_csv("inputs/POLYMOD_matrix.csv", col_names = FALSE) %>%
@@ -114,8 +114,8 @@ u <- list(u1_moves = u1_moves, u1 = u1, u2 = u2, u2_moves = as.matrix(PM19))
 
 ## simulate discrete-time model
 disSims_full <- BPF(pars, C1 = contact1, C2 = contact2, lockdown_day = 20, 
-    lookup = lookup, age_lookup = age_lookup, u = u, a1 = 0, a2 = 0, b = 0.1,
-    tstart = 0, tstop = 100, npart = 8, PF = FALSE)
+    lookup = lookup, age_lookup = age_lookup, u = u, a1 = 0, a2 = 0,
+    b1 = 0.1, b2 = 0.1, b_dis = 0.01, tstart = 0, tstop = 100, npart = 8, PF = FALSE)
     
 ###############################################
 #######        LAD-level truth          #######

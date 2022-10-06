@@ -32,8 +32,7 @@ niter <- 10
 a1 <- 0
 a2 <- 0
 b <- 0.1
-a_dis <- 0.05
-b_dis <- 0.05
+b_dis <- 0.01
 sigma2_lad <- 1
 sigma2_age_region <- 1
 sigma2_nhsregion <- 1
@@ -58,7 +57,7 @@ cumHospAd_age_nhsregion <- readRDS("outputs/cumHospAd_age_nhsregion.rds")
 pars <- readRDS(paste0("wave", wave, "/disease.rds")) %>%
     rename(nu = `beta[1]`, nuA = `beta[6]`) %>%
     select(!c(starts_with("beta["), repeats)) %>%
-    select(nu, nuA, !c(beta_scale, p_move, output), beta_scale, p_move)
+    select(nu, nuA, !c(beta_scale, p_move, a_dis, output), beta_scale, p_move, a_dis)
 
 ## read in contact matrix
 contact1 <- read_csv("inputs/POLYMOD_matrix.csv", col_names = FALSE) %>%
@@ -122,7 +121,7 @@ if(exists("hash")) {
         hosp_nhsregion = hosp_nhsregion, cumHospAd_age_nhsregion = cumHospAd_age_nhsregion,
         lookup = lookup, age_lookup = age_lookup, u = u,
         tstart = tstart, tstop = tstop, npart = npart, niter = niter,
-        a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis,
+        a1 = a1, a2 = a2, b = b, b_dis = b_dis,
         sigma2_lad = sigma2_lad, sigma2_age_region = sigma2_age_region, 
         sigma2_nhsregion = sigma2_nhsregion, sigma2_age_nhsregion = sigma2_age_nhsregion,
         saveAll = saveAll, snapshot = snapshot, writeExt = writeExt, 
@@ -137,7 +136,7 @@ if(exists("hash")) {
         hosp_nhsregion = hosp_nhsregion, cumHospAd_age_nhsregion = cumHospAd_age_nhsregion, 
         lookup = lookup, age_lookup = age_lookup, u = u,
         tstart = tstart, tstop = tstop, npart = npart, niter = niter,
-        a1 = a1, a2 = a2, b = b, a_dis = a_dis, b_dis = b_dis,
+        a1 = a1, a2 = a2, b = b, b_dis = b_dis,
         sigma2_lad = sigma2_lad, sigma2_age_region = sigma2_age_region, 
         sigma2_nhsregion = sigma2_nhsregion, sigma2_age_nhsregion = sigma2_age_nhsregion,
         saveAll = NA)
