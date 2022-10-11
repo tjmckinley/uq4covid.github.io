@@ -8,16 +8,24 @@ if(length(args) != 0) {
     ## extract command line arguments
     args <- commandArgs(TRUE)
     if(length(args) > 0) {
-        stopifnot(length(args) == 2)
+        stopifnot(length(args) == 3)
         wave <- args[1]
-        file <- args[2]
+	prevwave <- args[2]
+        file <- args[3]
     } else {
         stop("No arguments")
     }
 } else {
     wave <- "2"
+    prevwave <- "1"
     file <- "inputsWave2.csv"
 }
+print(wave)
+print(prevwave)
+print(file)
+
+## copy fixed parameters over
+stopifnot(file.copy(paste0("wave", prevwave, "/fixedInputs.txt"), paste0("wave", wave, "/fixedInputs.txt")))
 
 ## source dataTools
 source("inputs/dataTools.R")

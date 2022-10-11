@@ -7,11 +7,12 @@ if(length(args) != 0) {
     ## extract command line arguments
     args <- commandArgs(TRUE)
     if(length(args) > 0) {
-        stopifnot(length(args) >= 2)
-        wave <- as.numeric(args[1])
-        updateJobLookup <- as.logical(args[2])
-        if(length(args) > 2) {
-            time <- args[3]
+        stopifnot(length(args) >= 3)
+        wave <- args[1]
+	outputs <- args[2]
+        updateJobLookup <- as.logical(args[3])
+        if(length(args) > 3) {
+            time <- args[4]
         } else {
             time <- "00:35:00"
         }
@@ -21,6 +22,7 @@ if(length(args) != 0) {
 } else {
     ## set name of directory to search for outcomes
     wave <- 1
+    outputs <- "outputs"
     updateJobLookup <- TRUE
     time <- "00:35:00"
 }
@@ -37,7 +39,7 @@ runs <- map_lgl(1:nrow(pars), function(i, wave) {
     run <- ifelse(file.exists(paste0("../wave", wave, "/plotSum_", i, "_nhsregionHosp.rds")), run, FALSE)
     run <- ifelse(file.exists(paste0("../wave", wave, "/plotSum_", i, "_ageNhsregionHosp.rds")), run, FALSE)
     ## produce lad-level plots if required
-    if(file.exists("lads.txt")) {
+    if(file.exists(paste0("lads_", outputs, ".txt"))) {
         run <- ifelse(file.exists(paste0("../wave", wave, "/plotSum_", i, "_lads.rds")), run, FALSE)
     }
     run
@@ -53,8 +55,9 @@ if(!all(runs)) {
         code <- gsub("RANGES", paste0("1-", sum(!runs)), code)
         code <- gsub("FILEDIR", wave, code)
         code <- gsub("RUNCODE", "runPlotSum", code)
+        code <- gsub("OUTPUTS", outputs, code)
         code <- gsub("TIME", time, code)
-        writeLines(code, "submit_job.sbatch")
+        writeLines(code, paste0("submit_job_wave", wave, ".sbatch"))
     }
     stop("Stopped")
 }

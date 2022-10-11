@@ -4,7 +4,7 @@
 module load jasr
 
 ## read in jobs
-readarray -t jobs < "job_lookup.txt"
+readarray -t jobs < "job_lookup_wave$2.txt"
 
 ## extract path name
 jobname=${jobs[$1-1]}
@@ -12,7 +12,7 @@ echo $jobname
 
 ## run R script
 cd ..
-cmd="R CMD BATCH --no-restore --no-save --slave '--args $2 ${jobname}' JASMINcode/plotxAgg.R plot$2Agg_T${jobname}.Rout"
+cmd="R CMD BATCH --no-restore --no-save --slave '--args $2 $3 ${jobname}' JASMINcode/plotxAgg.R plot$2Agg_T${jobname}.Rout"
 eval $cmd
 
 cmd="mv plot$2Agg_T${jobname}.Rout wave$2"

@@ -129,11 +129,11 @@ if(exists("hash")) {
         sigma2_lad = sigma2_lad, sigma2_age_region = sigma2_age_region, 
         sigma2_nhsregion = sigma2_nhsregion, sigma2_age_nhsregion = sigma2_age_nhsregion,
         saveAll = saveAll, snapshot = snapshot, writeExt = writeExt, 
-        outputName = paste0("saveOut_", outputs, "_", hash),
+        outputName = paste0("saveOut_wave", wave, "_", hash),
         ncores = 1)
     ## save outputs
     saveRDS(runs_md, paste0("wave", wave, "/runs_md_", hash, ".rds"))
-    if(writeExt) system(paste0("mv saveOut_", outputs, "_", hash, " wave", wave))
+    if(writeExt) system(paste0("mv saveOut_wave", wave, "_", hash, " wave", wave))
 } else {
     runs_md <- BPF(pars, C1 = contact1, C2 = contact2, lockdown_day = 20,
         cumDeath_lad = cumDeath_lad, cumDeath_age_region = cumDeath_age_region, 

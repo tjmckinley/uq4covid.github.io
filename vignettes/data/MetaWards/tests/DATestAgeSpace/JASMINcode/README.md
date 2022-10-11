@@ -14,12 +14,13 @@ hour etc.
 To check a design that has been passed from a previous wave of HM, and then to
 convert this to the correct format for the model, make sure the `.csv` file
 is stored in a file e.g. `wavex/FILENAME.csv`, where `x` is the current wave
-and `FILENAME` is the name of the file (e.g. `wave2/inputsWave2.csv`).
+and `FILENAME` is the name of the file (e.g. `wave2/inputsWave2.csv`). You need
+to also give a `prevwave` argument to copy the `fixedInputs.txt` file across from.
 
 Then call e.g. from the **main directory**:
 
 ```
-R CMD BATCH --no-restore --no-save --slave '--args 2 inputsWave2.csv' checkWavexDesign.R
+R CMD BATCH --no-restore --no-save --slave '--args 2 1 inputsWave2.csv' checkWavexDesign.R
 ```
 
 ## Design

@@ -4,7 +4,7 @@
 module load jasr
 
 ## read in jobs
-readarray -t jobs < "job_lookup.txt"
+readarray -t jobs < "job_lookup_wave$2.txt"
 
 ## extract path name
 jobname=${jobs[$1-1]}

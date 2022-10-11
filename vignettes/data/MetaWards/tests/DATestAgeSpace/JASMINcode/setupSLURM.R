@@ -5,7 +5,7 @@ if(length(args) != 0) {
     args <- commandArgs(TRUE)
     if(length(args) > 0) {
         stopifnot(length(args) >= 3)
-        wave <- as.numeric(args[1])
+        wave <- args[1]
         runCode <- args[2]
         outputs <- args[3]
         if(length(args) > 3) {
@@ -18,7 +18,7 @@ if(length(args) != 0) {
     }
 } else {
     ## set name of directory to save outputs
-    wave <- 1
+    wave <- "1"
     runCode <- "runDesign"
     outputs <- "outputs"
     time <- "00:35:00"

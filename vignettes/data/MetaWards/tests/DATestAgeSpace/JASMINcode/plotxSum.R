@@ -33,7 +33,7 @@ if(file.exists(paste0("JASMINcode/lads_", outputs, ".txt"))) {
 writeExt <- TRUE
 
 ## extract file names
-folder <- paste0("wave", wave, "/saveOut_", outputs, "_", hash)
+folder <- paste0("wave", wave, "/saveOut_wave", wave, "_", hash)
 
 ## lookup table for classes
 class_lookup <- data.frame(var = c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "RI", "H", "RH", "DH", "DIobs", "DHobs")) %>%

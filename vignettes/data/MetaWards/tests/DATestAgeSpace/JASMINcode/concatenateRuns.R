@@ -54,7 +54,7 @@ if(any(is.na(ll))) {
         code <- gsub("RUNCODE", "runDesign", code)
         code <- gsub("OUTPUTS", outputs, code)
         code <- gsub("TIME", time, code)
-        writeLines(code, "submit_job.sbatch")
+        writeLines(code, paste0("submit_job_wave", wave, ".sbatch"))
     }
     stop("Stopped")
 }

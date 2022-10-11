@@ -26,9 +26,9 @@ dir.create(paste0("wave", wave))
 
 ## set case specific values for simulations
 tstart <- 0
-tstop <- 50
+tstop <- 5
 lockdown_day <- 20
-npart <- 50
+npart <- 5
 niter <- 10
 a1 <- 0
 a2 <- 0
@@ -63,9 +63,9 @@ parRanges <- data.frame(
 C <- as.matrix(read.csv("inputs/POLYMOD_matrix.csv", header = FALSE))
 
 ## generate LHS design (200 + 50 validation)
-ndesign <- 200
+ndesign <- 2
 design <- randomLHS(ndesign, nrow(parRanges))
-nval <- 50
+nval <- 2
 design <- rbind(design, randomLHS(nval, nrow(parRanges)))
 colnames(design) <- parRanges$parameter
 design <- as_tibble(design)

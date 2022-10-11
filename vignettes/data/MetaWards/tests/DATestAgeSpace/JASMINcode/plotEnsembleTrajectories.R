@@ -8,16 +8,18 @@ if(length(args) != 0) {
     ## extract command line arguments
     args <- commandArgs(TRUE)
     if(length(args) > 0) {
-        stopifnot(length(args) == 3)
-        wave <- as.numeric(args[1])
-        tstart <- as.numeric(args[2])
-        tstop <- as.numeric(args[3])
+        stopifnot(length(args) == 4)
+        wave <- args[1]
+	outputs <- args[2]
+        tstart <- as.numeric(args[3])
+        tstop <- as.numeric(args[4])
     } else {
         stop("No arguments")
     }
 } else {
     ## set wave number and hash
-    wave <- 1
+    wave <- "1"
+    outputs <- "outputs"
     tstart <- NA
     tstop <- NA
 }
@@ -32,7 +34,7 @@ sims_md <- readRDS(paste0("../wave", wave, "/sumEns_natFull.rds"))
 if(is.na(tstop)) tstop <- max(sims_md$t)
 
 ## load in data
-data <- readRDS("../outputs/disSims.rds") %>%
+data <- readRDS(paste0("../", outputs, "/disSims.rds")) %>%
     filter(t <= tstop) %>%
     pivot_longer(!t, names_to = "var", values_to = "n") %>%
     mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
@@ -65,7 +67,7 @@ if(cont) p1[[1]] <- p1[[1]] + geom_vline(xintercept = tstart, linetype = "dashed
 ###############################################
         
 ## collapse data for plotting
-data <- readRDS("../outputs/cumDeath_lad.rds") %>%
+data <- readRDS(paste0("../", outputs, "/cumDeath_lad.rds")) %>%
     filter(t <= tstop) %>%
     pivot_longer(!t, names_to = "lad", values_to = "n") %>%
     mutate(lad = as.numeric(gsub("deaths_", "", lad))) %>%
@@ -98,7 +100,7 @@ if(cont) p1[[2]] <- p1[[2]] + geom_vline(xintercept = tstart, linetype = "dashed
 region_lookup <- readRDS("../data/region_lookup.rds")
 
 ## collapse data for plotting
-data <- readRDS("../outputs/cumDeath_age_region.rds") %>%
+data <- readRDS(paste0("../", outputs, "/cumDeath_age_region.rds")) %>%
     filter(t <= tstop) %>%
     pivot_longer(!t, names_to = "var", values_to = "n") %>%
     mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
@@ -135,7 +137,7 @@ if(cont) p1[[3]] <- p1[[3]] + geom_vline(xintercept = tstart, linetype = "dashed
 nhsregion_lookup <- readRDS("../data/nhsregion_lookup.rds")
         
 ## collapse data for plotting
-data <- readRDS("../outputs/hosp_nhsregion.rds") %>%
+data <- readRDS(paste0("../", outputs, "/hosp_nhsregion.rds")) %>%
     filter(t <= tstop) %>%
     pivot_longer(!t, names_to = "region", values_to = "n") %>%
     mutate(region = as.numeric(gsub("hosp_", "", region))) %>%
@@ -166,7 +168,7 @@ if(cont) p1[[4]] <- p1[[4]] + geom_vline(xintercept = tstart, linetype = "dashed
 ###############################################
 
 ## collapse data for plotting
-data <- readRDS("../outputs/cumHospAd_age_nhsregion.rds") %>%
+data <- readRDS(paste0("../", outputs, "/cumHospAd_age_nhsregion.rds")) %>%
     filter(t <= tstop) %>%
     pivot_longer(!t, names_to = "var", values_to = "n") %>%
     mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
@@ -209,13 +211,13 @@ ggsave(paste0("../wave", wave, "/simsBPFEns.pdf"), p1, width = 15, height = 15)
 #####          LAD-level plots            #####
 ###############################################
 
-if(file.exists("lads.txt")) {
+if(file.exists(paste0("lads_", outputs, ".txt"))) {
 
     ## read in lads
-    lads <- as.numeric(readLines("lads.txt"))
+    lads <- as.numeric(readLines(paste0("lads_", outputs, ".txt")))
     
     ## load in data
-    data <- readRDS("../outputs/disSims.rds") %>%
+    data <- readRDS(paste0("../", outputs, "/disSims.rds")) %>%
         filter(t <= tstop) %>%
         pivot_longer(!t, names_to = "var", values_to = "n") %>%
         mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%

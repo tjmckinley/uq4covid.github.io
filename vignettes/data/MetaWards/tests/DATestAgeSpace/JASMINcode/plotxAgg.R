@@ -7,15 +7,17 @@ if(length(args) != 0) {
     ## extract command line arguments
     args <- commandArgs(TRUE)
     if(length(args) > 0) {
-        stopifnot(length(args) == 2)
-        wave <- as.numeric(args[1])
-        t <- as.numeric(args[2])
+        stopifnot(length(args) == 3)
+        wave <- args[1]
+	outputs <- args[2]
+        t <- as.numeric(args[3])
     } else {
         stop("No arguments")
     }
 } else {
     ## set name of directory to search for outcomes
-    wave <- 1
+    wave <- "1"
+    outputs <- "outputs"
     t <- 1
 }
 
@@ -123,7 +125,7 @@ runs <- map(1:nrow(pars), function(i, time, wave) {
 saveRDS(runs, paste0("wave", wave, "/plotAgg_T", t, "_ageNhsregionHosp.rds"))
 
 ## produce lad-level plots if required
-if(file.exists("JASMINcode/lads.txt")) {
+if(file.exists(paste0("JASMINcode/lads_", outputs, ".txt"))) {
     ## concatenate runs over ensemble
     runs <- map(1:nrow(pars), function(i, time, wave) {
             readRDS(paste0("wave", wave, "/plotSum_", i, "_lads.rds")) %>%
