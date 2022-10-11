@@ -108,7 +108,7 @@ Once a design has been run, we can also use JASMIN to generate summaries for plo
 an ensemble using e.g.
 
 ```
-R CMD BATCH --no-restore --no-save --slave '--args 1 runPlotSum 00:05:00' setupSLURM.R
+R CMD BATCH --no-restore --no-save --slave '--args 1 runPlotSum outputs 00:05:00' setupSLURM.R
 ```
 
 which generates `job_lookup.txt` and `submit_job.sbatch` which can be submitted to the
@@ -126,7 +126,7 @@ The file `checkEns.R` will check the design and update the scheduler files on fa
 if required (see above description of `concatenateRuns.R`) e.g.
 
 ```
-R CMD BATCH --no-restore --no-save --slave '--args 1 FALSE' checkEns.R
+R CMD BATCH --no-restore --no-save --slave '--args 1 outputs FALSE' checkEns.R
 ```
 
 ## Plotting the design
@@ -135,20 +135,20 @@ Finally, we can generate particle summaries for all age / class / time combinati
 combine them together using e.g.
 
 ```
-R CMD BATCH --no-restore --no-save --slave '--args 1 runPlotAgg 00:03:00' setupSLURM.R
+R CMD BATCH --no-restore --no-save --slave '--args 1 runPlotAgg outputs 00:03:00' setupSLURM.R
 ```
 
 in the usual way. Once the corresponding `submit_job.sbatch` file has completed, then
 `concatenateEns.R` can be used to check runs and concatenate together as seen fit e.g.
 
 ```
-R CMD BATCH --no-restore --no-save --slave '--args 1 FALSE' concatenateEns.R
+R CMD BATCH --no-restore --no-save --slave '--args 1 outputs FALSE' concatenateEns.R
 ```
 
 Then the plot can be run by e.g.
 
 ```
-R CMD BATCH --no-restore --no-save --slave '--args 1 51 NA' plotEnsembleTrajectories.R
+R CMD BATCH --no-restore --no-save --slave '--args 1 outputs 51 NA' plotEnsembleTrajectories.R
 ```
 
 where the first argument is the wave, the second is the start of the forecasts (if forecasting,
