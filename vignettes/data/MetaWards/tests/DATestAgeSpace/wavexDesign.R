@@ -10,9 +10,9 @@ source("inputs/dataTools.R")
 
 ## set up parameter ranges for uniform ranges
 parRanges <- data.frame(
-    parameter = c("R0", "TE", "TP", "TI1", "TI2", "nuA", "beta_scale", "p_move"),
-    lower = c(2, 0.1, 1.2, 2.8, 0.0001, 0, 0, 0),
-    upper = c(4.5, 2, 3, 4.5, 0.5, 1, 1, 1),
+    parameter = c("R0", "TE", "TP", "TI1", "TI2", "nuA", "beta_scale", "p_move", "a_dis"),
+    lower = c(2, 0.1, 1.2, 2.8, 0.0001, 0, 0, 0, 0.00014),
+    upper = c(4.5, 2, 3, 4.5, 0.5, 1, 1, 1, 0.05),
     stringsAsFactors = FALSE
 ) 
 
@@ -56,6 +56,8 @@ while(valid == 0) {
                       inputs$beta_scale <= parRanges$upper[parRanges$parameter == "beta_scale"], ]
     inputs <- inputs[inputs$p_move >= parRanges$lower[parRanges$parameter == "p_move"] & 
                       inputs$p_move <= parRanges$upper[parRanges$parameter == "p_move"], ]
+    inputs <- inputs[inputs$a_dis >= parRanges$lower[parRanges$parameter == "a_dis"] & 
+                      inputs$a_dis <= parRanges$upper[parRanges$parameter == "a_dis"], ]
     if(exists("temp_inputs")) {
         temp_inputs <- rbind(temp_inputs, inputs)
     } else {
