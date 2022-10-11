@@ -7,22 +7,24 @@ if(length(args) != 0) {
     ## extract command line arguments
     args <- commandArgs(TRUE)
     if(length(args) > 0) {
-        stopifnot(length(args) >= 2)
-        wave <- as.numeric(args[1])
-        updateJobLookup <- as.logical(args[2])
-        if(length(args) > 2) {
-            time <- args[3]
+        stopifnot(length(args) >= 3)
+        wave <- args[1]
+        outputs <- args[2]
+        updateJobLookup <- as.logical(args[3])
+        if(length(args) > 3) {
+            time <- args[4]
         } else {
             time <- "00:35:00"
         }
     } else {
         stop("No arguments")
-        time <- "00:35:00"
     }
 } else {
     ## set name of directory to search for outcomes
     wave <- 1
+    outputs <- "outputs"
     updateJobLookup <- TRUE
+    time <- "00:35:00"
 }
 
 ## read in input file
@@ -50,6 +52,7 @@ if(any(is.na(ll))) {
         code <- gsub("RANGES", paste0("1-", sum(is.na(ll))), code)
         code <- gsub("FILEDIR", wave, code)
         code <- gsub("RUNCODE", "runDesign", code)
+        code <- gsub("OUTPUTS", outputs, code)
         code <- gsub("TIME", time, code)
         writeLines(code, "submit_job.sbatch")
     }

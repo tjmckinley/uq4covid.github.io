@@ -27,14 +27,21 @@ R CMD BATCH --no-restore --no-save --slave '--args 2 inputsWave2.csv' checkWavex
 To run a design use e.g.
 
 ```
-R CMD BATCH --no-restore --no-save --slave '--args 1 runDesign' setupSLURM.R
+R CMD BATCH --no-restore --no-save --slave '--args 1 runDesign outputs 18:00:00' setupSLURM.R
 ```
 
-This sets up a file called `job_lookup.txt` containing IDs for running the code, and
-a file called `submit_job.sbatch` which can submitted to the SLURM scheduler.
+The first `args` argument is the wave number `x` (converted to `wavex` to specify the folder
+to find the inputs and save the outputs into. The next argument specifies that we wish to
+run a design (see other options below). Then we have the name of the file to find the data in
+(in this case `outputs`), and finally we have an optional argument setting the maximum wall
+time (defaults to `00:35:00` if left unspecified).
+
+This sets up a file called `job_lookup_wavex.txt` containing IDs for running the code, and
+a file called `submit_job_wavex.sbatch` (where `x` is replaced by the wave argument as above)
+which can submitted to the SLURM scheduler e.g.
 
 ```
-sbatch submit_job.sbatch
+sbatch submit_job_wave1.sbatch
 ```
 
 Jobs can be monitored using e.g.
@@ -46,17 +53,18 @@ squeue -u USERNAME
 Once jobs are run, results can be checked using `concatenateRuns.R` e.g.
 
 ```
-R CMD BATCH --no-restore --no-save --slave '--args 1 FALSE' concatenateRuns.R
+R CMD BATCH --no-restore --no-save --slave '--args 1 outputs FALSE' concatenateRuns.R
 ```
 
 This checks that runs have completed and tidies up the outputs if so. If successful,
 then this returns an object `ll.rds` in the relevant folder with all the log-likelihood
 estimates stored in it. If not, then it returns an error (see below).
 
-The first argument is the `wave` and the second is `FALSE` if you simply wish to return 
-an error if the script fails, or if set to `TRUE` then this also recreates `job_lookup.txt`
-and `submit_job.sbatch` with the failed runs so that they can be easily resubmitted to
-the scheduler.
+The first argument is the `wave`, the second is `outputs`, and the third is `FALSE` 
+if you simply wish to return an error if the script fails, or if set to `TRUE` then this 
+also recreates `job_lookup_wavex.txt` and `submit_job_wavex.sbatch` with the failed runs 
+so that they can be easily resubmitted to the scheduler. (You might also want to set the 
+time as an input e.g. `'--args 1 outputs TRUE 18:00:00'` else it defaults to `00:35:00`.)
 
 ## Forecasts
 

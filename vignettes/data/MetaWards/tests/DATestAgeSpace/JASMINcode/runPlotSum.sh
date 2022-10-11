@@ -12,7 +12,7 @@ echo $jobname
 
 ## run R script
 cd ..
-cmd="R CMD BATCH --no-restore --no-save --slave '--args $2 ${jobname}' JASMINcode/plotxSum.R plot$2Sum_${jobname}.Rout"
+cmd="R CMD BATCH --no-restore --no-save --slave '--args $2 ${jobname} $3' JASMINcode/plotxSum.R plot$2Sum_${jobname}.Rout"
 eval $cmd
 
 cmd="mv plot$2Sum_${jobname}.Rout wave$2"

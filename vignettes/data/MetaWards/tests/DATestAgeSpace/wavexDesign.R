@@ -2,8 +2,31 @@
 library(mclust)
 library(tidyverse)
 
-## set wave number
-wave <- 2
+## check if being run in batch mode
+args <- commandArgs(TRUE)
+if(length(args) != 0) {
+    ## extract command line arguments
+    args <- commandArgs(TRUE)
+    if(length(args) > 0) {
+        stopifnot(length(args) == 2)
+        wave <- args[1]
+        prevwave <- args[2]
+    } else {
+        stop("No arguments")
+    }
+} else {
+    wave <- "2"
+    prevwave <- "1"
+}
+
+## create directory to save samples
+if(dir.exists(paste0("wave", wave))) {
+    stop("Can't overwrite existing directory")
+}
+dir.create(paste0("wave", wave))
+
+## copy fixed parameters over
+file.copy(paste0("wave", prevwave, "/fixedInputs.txt"), paste0("wave", wave, "/fixedInputs.txt"))
 
 ## source dataTools
 source("inputs/dataTools.R")
@@ -203,7 +226,6 @@ inputs <- arrange(inputs, output)
 disease <- arrange(disease, output)
 
 ## save samples
-dir.create(paste0("wave", wave))
 saveRDS(inputs, paste0("wave", wave, "/inputs.rds"))
 saveRDS(disease, paste0("wave", wave, "/disease.rds"))
 

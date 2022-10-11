@@ -12,35 +12,41 @@ if(length(args) != 0) {
     ## extract command line arguments
     args <- commandArgs(TRUE)
     if(length(args) > 0) {
-        stopifnot(length(args) == 2)
-        wave <- as.numeric(args[1])
+        stopifnot(length(args) == 3)
+        wave <- args[1]
         hash <- as.numeric(args[2])
+        outputs <- args[3]
     } else {
         stop("No arguments")
     }
 } else {
     ## set wave number
-    wave <- 1
+    wave <- "1"
+    hash <- 1
+    outputs <- "outputs"
 }
 
+## read in fixed input data
+fixedInputs <- readLines(paste0("wave", wave, "/fixedInputs.txt"))
+
 ## set case specific values
-tstart <- 0
-tstop <- 50
-lockdown_day <- 20
-npart <- 50
-niter <- 10
-a1 <- 0
-a2 <- 0
-b1 <- 0.1
-b2 <- 0.1
-b_dis <- 0.01
-sigma2_lad <- 1
-sigma2_age_region <- 1
-sigma2_nhsregion <- 1
-sigma2_age_nhsregion <- 1
-saveAll <- TRUE
-snapshot <- TRUE
-writeExt <- TRUE
+tstart <- as.numeric(fixedInputs[1])
+tstop <- as.numeric(fixedInputs[2])
+lockdown_day <- as.numeric(fixedInputs[3])
+npart <- as.numeric(fixedInputs[4])
+niter <- as.numeric(fixedInputs[5])
+a1 <- as.numeric(fixedInputs[6])
+a2 <- as.numeric(fixedInputs[7])
+b1 <- as.numeric(fixedInputs[8])
+b2 <- as.numeric(fixedInputs[9])
+b_dis <- as.numeric(fixedInputs[10])
+sigma2_lad <- as.numeric(fixedInputs[11])
+sigma2_age_region <- as.numeric(fixedInputs[12])
+sigma2_nhsregion <- as.numeric(fixedInputs[13])
+sigma2_age_nhsregion <- as.numeric(fixedInputs[14])
+saveAll <- as.logical(as.numeric(fixedInputs[15]))
+snapshot <- as.logical(as.numeric(fixedInputs[16]))
+writeExt <- as.logical(as.numeric(fixedInputs[17]))
 
 ## source Rcpp PF code
 sourceCpp("BPF.cpp")
@@ -49,10 +55,10 @@ sourceCpp("BPF.cpp")
 source("BPF.R")
 
 ## read in simulated data
-cumDeath_lad <- readRDS("outputs/cumDeath_lad.rds")
-cumDeath_age_region <- readRDS("outputs/cumDeath_age_region.rds")
-hosp_nhsregion <- readRDS("outputs/hosp_nhsregion.rds")
-cumHospAd_age_nhsregion <- readRDS("outputs/cumHospAd_age_nhsregion.rds")
+cumDeath_lad <- readRDS(paste0(outputs, "/cumDeath_lad.rds"))
+cumDeath_age_region <- readRDS(paste0(outputs, "/cumDeath_age_region.rds"))
+hosp_nhsregion <- readRDS(paste0(outputs, "/hosp_nhsregion.rds"))
+cumHospAd_age_nhsregion <- readRDS(paste0(outputs, "/cumHospAd_age_nhsregion.rds"))
 
 ## read in parameters, remove guff and reorder
 pars <- readRDS(paste0("wave", wave, "/disease.rds")) %>%
@@ -65,10 +71,6 @@ contact1 <- read_csv("inputs/POLYMOD_matrix.csv", col_names = FALSE) %>%
     as.matrix()
 contact2 <- read_csv("inputs/coMix_matrix.csv", col_names = FALSE) %>%
     as.matrix()
-
-## read in initial conditions
-#u1 <- readRDS("outputs/u1.rds")
-u1_moves <- readRDS("outputs/u1_moves.rds")
 
 ## solution to round numbers preserving sum
 ## adapted from:
@@ -85,6 +87,7 @@ ageProbs <- read_csv("inputs/age_seeds.csv", col_names = FALSE)$X2
 
 ## read in commuter data
 EW19 <- read_delim("inputs/EW19.dat", delim = " ", col_names = FALSE)
+u1_moves <- as.matrix(EW19[, 1:2])
 
 ## expand to deal with age-classes
 u1 <- apply(EW19, 1, function(x, ageProbs) {
@@ -109,8 +112,8 @@ u2 <- apply(PlaySize19, 1, function(x, ageProbs) {
     abind(along = 3)
     
 ## load lookups
-lookup <- readRDS("outputs/lookup.rds")
-age_lookup <- readRDS("outputs/age_lookup.rds")
+lookup <- readRDS(paste0(outputs, "/lookup.rds"))
+age_lookup <- readRDS(paste0(outputs, "/age_lookup.rds"))
 
 ## set up inputs
 u <- list(u1 = u1, u2 = u2, u1_moves = u1_moves, u2_moves = as.matrix(PM19))
@@ -126,11 +129,11 @@ if(exists("hash")) {
         sigma2_lad = sigma2_lad, sigma2_age_region = sigma2_age_region, 
         sigma2_nhsregion = sigma2_nhsregion, sigma2_age_nhsregion = sigma2_age_nhsregion,
         saveAll = saveAll, snapshot = snapshot, writeExt = writeExt, 
-        outputName = paste0("saveOut_", hash),
+        outputName = paste0("saveOut_", outputs, "_", hash),
         ncores = 1)
     ## save outputs
     saveRDS(runs_md, paste0("wave", wave, "/runs_md_", hash, ".rds"))
-    if(writeExt) system(paste0("mv saveOut_", hash, " wave", wave))
+    if(writeExt) system(paste0("mv saveOut_", outputs, "_", hash, " wave", wave))
 } else {
     runs_md <- BPF(pars, C1 = contact1, C2 = contact2, lockdown_day = 20,
         cumDeath_lad = cumDeath_lad, cumDeath_age_region = cumDeath_age_region, 

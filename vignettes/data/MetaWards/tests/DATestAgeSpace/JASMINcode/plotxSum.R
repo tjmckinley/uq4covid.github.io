@@ -7,22 +7,24 @@ if(length(args) != 0) {
     ## extract command line arguments
     args <- commandArgs(TRUE)
     if(length(args) > 0) {
-        stopifnot(length(args) == 2)
-        wave <- as.numeric(args[1])
+        stopifnot(length(args) == 3)
+        wave <- args[1]
         hash <- as.numeric(args[2])
+        outputs <- args[3]
     } else {
         stop("No arguments")
     }
 } else {
     ## set wave number and hash
-    wave <- 1
+    wave <- "1"
     hash <- 1
+    outputs <- "outputs"
 }
 
 ## read in LADs from file
 ## (lad = NA gives national plots, else give vector of lads)
-if(file.exists("JASMINcode/lads.txt")) {
-    lads <- as.numeric(readLines("JASMINcode/lads.txt"))
+if(file.exists(paste0("JASMINcode/lads_", outputs, ".txt"))) {
+    lads <- as.numeric(readLines(paste0("JASMINcode/lads_", outputs, ".txt")))
 } else {
     lads <- NA
 }
@@ -31,7 +33,7 @@ if(file.exists("JASMINcode/lads.txt")) {
 writeExt <- TRUE
 
 ## extract file names
-folder <- paste0("wave", wave, "/saveOut_", hash)
+folder <- paste0("wave", wave, "/saveOut_", outputs, "_", hash)
 
 ## lookup table for classes
 class_lookup <- data.frame(var = c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "RI", "H", "RH", "DH", "DIobs", "DHobs")) %>%

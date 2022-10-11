@@ -4,11 +4,12 @@ if(length(args) != 0) {
     ## extract command line arguments
     args <- commandArgs(TRUE)
     if(length(args) > 0) {
-        stopifnot(length(args) >= 2)
+        stopifnot(length(args) >= 3)
         wave <- as.numeric(args[1])
         runCode <- args[2]
-        if(length(args) > 2) {
-            time <- args[3]
+        outputs <- args[3]
+        if(length(args) > 3) {
+            time <- args[4]
         } else {
             time <- "00:35:00"
         }
@@ -19,6 +20,7 @@ if(length(args) != 0) {
     ## set name of directory to save outputs
     wave <- 1
     runCode <- "runDesign"
+    outputs <- "outputs"
     time <- "00:35:00"
     #runCode <- "runPlotSum"
     #runCode <- "runPlotAgg"
@@ -32,6 +34,7 @@ pars <- readRDS(paste0("../wave", wave, "/disease.rds"))
 code <- readLines("submit_job_template.sbatch")
 code <- gsub("FILEDIR", wave, code)
 code <- gsub("RUNCODE", runCode, code)
+code <- gsub("OUTPUTS", outputs, code)
 code <- gsub("TIME", time, code)
 
 if(runCode != "runPlotAgg") {
@@ -40,7 +43,7 @@ if(runCode != "runPlotAgg") {
     code <- gsub("RANGES", paste0("1-", nrow(pars)), code)
 
     ## write csv to query
-    write.table(data.frame(job = 1:nrow(pars)), "job_lookup.txt", col.names = FALSE, row.names = FALSE, quote = FALSE)
+    write.table(data.frame(job = 1:nrow(pars)), paste0("job_lookup_wave", wave, ".txt"), col.names = FALSE, row.names = FALSE, quote = FALSE)
     
 } else {
     
@@ -57,11 +60,11 @@ if(runCode != "runPlotAgg") {
     code <- gsub("RANGES", paste0("1-", nrow(jobs)), code)
 
     ## write csv to query
-    write.table(jobs, "job_lookup.txt", col.names = FALSE, row.names = FALSE, quote = FALSE)
+    write.table(jobs, paste0("job_lookup_wave", wave, ".txt"), col.names = FALSE, row.names = FALSE, quote = FALSE)
 }   
 
 ## write run code
-writeLines(code, "submit_job.sbatch")
+writeLines(code, paste0("submit_job_wave", wave, ".sbatch"))
     
 print("All done.")
 

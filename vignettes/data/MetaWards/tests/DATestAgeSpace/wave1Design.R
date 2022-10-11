@@ -3,6 +3,51 @@ library(lhs)
 library(mclust)
 library(tidyverse)
 
+## check if being run in batch mode
+args <- commandArgs(TRUE)
+if(length(args) != 0) {
+    ## extract command line arguments
+    args <- commandArgs(TRUE)
+    if(length(args) > 0) {
+        stopifnot(length(args) == 1)
+        wave <- args[1]
+    } else {
+        stop("No arguments")
+    }
+} else {
+    wave <- "1"
+}
+
+## create directory to save samples
+if(dir.exists(paste0("wave", wave))) {
+    stop("Can't overwrite existing directory")
+}
+dir.create(paste0("wave", wave))
+
+## set case specific values for simulations
+tstart <- 0
+tstop <- 50
+lockdown_day <- 20
+npart <- 50
+niter <- 10
+a1 <- 0
+a2 <- 0
+b1 <- 0.1
+b2 <- 0.1
+b_dis <- 0.01
+sigma2_lad <- 1
+sigma2_age_region <- 1
+sigma2_nhsregion <- 1
+sigma2_age_nhsregion <- 1
+saveAll <- TRUE
+snapshot <- TRUE
+writeExt <- TRUE
+
+## write to file
+writeLines(as.character(c(tstart, tstop, lockdown_day, npart, niter, a1, a2,
+    b1, b2, b_dis, sigma2_lad, sigma2_age_region, sigma2_nhsregion, 
+    sigma2_age_nhsregion, saveAll, snapshot, writeExt)), paste0("wave", wave, "/fixedInputs.txt"))
+
 ## source dataTools
 source("inputs/dataTools.R")
 
@@ -133,12 +178,12 @@ inputs <- arrange(inputs, output)
 disease <- arrange(disease, output)
 
 ## save samples
-dir.create("wave1")
-saveRDS(inputs, "wave1/inputs.rds")
-saveRDS(disease, "wave1/disease.rds")
+saveRDS(inputs, paste0("wave", wave, "/inputs.rds"))
+saveRDS(disease, paste0("wave", wave, "/disease.rds"))
 
 ## plot inputs
 library(GGally)
 p <- select(inputs, -output, -repeats) %>%
     ggpairs(upper = "blank")
-ggsave("wave1/design.pdf", p, width = 10, height = 10)
+ggsave(paste0("wave", wave, "/design.pdf"), p, width = 10, height = 10)
+

@@ -14,31 +14,44 @@ if(length(args) != 0) {
     ## extract command line arguments
     args <- commandArgs(TRUE)
     if(length(args) > 0) {
-        stopifnot(length(args) == 2)
-        wave <- as.numeric(args[1])
+        stopifnot(length(args) == 3)
+        wave <- args[1]
         hash <- as.numeric(args[2])
+        outputs <- args[3]
     } else {
         stop("No arguments")
     }
 } else {
     ## set wave number
-    wave <- 1
+    wave <- "1"
     hash <- 1
+    outputs <- "outputs"
 }
+
+
+## read in fixed input data
+fixedInputs <- readLines(paste0("wave", wave, "/fixedInputs.txt"))
 
 ## set case specific values
 tstart <- 50
 tstop <- 75
-npart <- 50
-a1 <- 0
-a2 <- 0
-b1 <- 0.1
-b2 <- 0.1
-b_dis <- 0.05
-sigma2_lad <- 1
-sigma2_age_region <- 1
-sigma2_nhsregion <- 1
-sigma2_age_nhsregion <- 1
+print("Need to figure out best way to pass forecast stuff in")
+
+lockdown_day <- as.numeric(fixedInputs[3])
+npart <- as.numeric(fixedInputs[4])
+niter <- as.numeric(fixedInputs[5])
+a1 <- as.numeric(fixedInputs[6])
+a2 <- as.numeric(fixedInputs[7])
+b1 <- as.numeric(fixedInputs[8])
+b2 <- as.numeric(fixedInputs[9])
+b_dis <- as.numeric(fixedInputs[10])
+sigma2_lad <- as.numeric(fixedInputs[11])
+sigma2_age_region <- as.numeric(fixedInputs[12])
+sigma2_nhsregion <- as.numeric(fixedInputs[13])
+sigma2_age_nhsregion <- as.numeric(fixedInputs[14])
+saveAll <- as.logical(as.numeric(fixedInputs[15]))
+snapshot <- as.logical(as.numeric(fixedInputs[16]))
+writeExt <- as.logical(as.numeric(fixedInputs[17]))
 
 ## source Rcpp PF code
 sourceCpp("BPF.cpp")
@@ -59,11 +72,11 @@ contact2 <- read_csv("inputs/coMix_matrix.csv", col_names = FALSE) %>%
     as.matrix()
 
 ## load lookups
-lookup <- readRDS("outputs/lookup.rds")
-age_lookup <- readRDS("outputs/age_lookup.rds")
+lookup <- readRDS(paste0(outputs, "/lookup.rds"))
+age_lookup <- readRDS(paste0(outputs, "/age_lookup.rds"))
 
 ## set up output folder
-folder <- paste0("wave", wave, "/saveOut_", hash)
+folder <- paste0("wave", wave, "/saveOut_", outputs, "_", hash)
 
 ## set up inputs
 u1_moves <- read_csv(paste0(folder, "/snapshot_u1moves_t", tstart, ".csv.bz2"), col_names = FALSE) %>%

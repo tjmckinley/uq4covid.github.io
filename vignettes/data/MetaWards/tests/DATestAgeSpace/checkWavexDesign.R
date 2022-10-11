@@ -9,13 +9,13 @@ if(length(args) != 0) {
     args <- commandArgs(TRUE)
     if(length(args) > 0) {
         stopifnot(length(args) == 2)
-        wave <- as.numeric(args[1])
+        wave <- args[1]
         file <- args[2]
     } else {
         stop("No arguments")
     }
 } else {
-    wave <- 2
+    wave <- "2"
     file <- "inputsWave2.csv"
 }
 
