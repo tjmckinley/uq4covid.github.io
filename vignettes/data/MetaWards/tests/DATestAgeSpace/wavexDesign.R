@@ -52,6 +52,10 @@ while(valid == 0) {
                       inputs$TI2 <= parRanges$upper[parRanges$parameter == "TI2"], ]
     inputs <- inputs[inputs$TP >= parRanges$lower[parRanges$parameter == "TP"] & 
                       inputs$TP <= parRanges$upper[parRanges$parameter == "TP"], ]
+    inputs <- inputs[inputs$beta_scale >= parRanges$lower[parRanges$parameter == "beta_scale"] & 
+                      inputs$beta_scale <= parRanges$upper[parRanges$parameter == "beta_scale"], ]
+    inputs <- inputs[inputs$p_move >= parRanges$lower[parRanges$parameter == "p_move"] & 
+                      inputs$p_move <= parRanges$upper[parRanges$parameter == "p_move"], ]
     if(exists("temp_inputs")) {
         temp_inputs <- rbind(temp_inputs, inputs)
     } else {
