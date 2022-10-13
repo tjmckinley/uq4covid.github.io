@@ -26,14 +26,15 @@ dir.create(paste0("wave", wave))
 
 ## set case specific values for simulations
 tstart <- 0
-tstop <- 5
+tstop <- 50
 lockdown_day <- 20
-npart <- 5
+npart <- 50
 niter <- 10
 a1 <- 0
 a2 <- 0
 b1 <- 0.1
 b2 <- 0.1
+a_dis <- 0.05
 b_dis <- 0.01
 sigma2_lad <- 1
 sigma2_age_region <- 1
@@ -45,7 +46,7 @@ writeExt <- TRUE
 
 ## write to file
 writeLines(as.character(c(tstart, tstop, lockdown_day, npart, niter, a1, a2,
-    b1, b2, b_dis, sigma2_lad, sigma2_age_region, sigma2_nhsregion, 
+    b1, b2, a_dis, b_dis, sigma2_lad, sigma2_age_region, sigma2_nhsregion, 
     sigma2_age_nhsregion, saveAll, snapshot, writeExt)), paste0("wave", wave, "/fixedInputs.txt"))
 
 ## source dataTools
@@ -53,9 +54,9 @@ source("inputs/dataTools.R")
 
 ## set up parameter ranges for uniform ranges
 parRanges <- data.frame(
-    parameter = c("R0", "TE", "TP", "TI1", "TI2", "nuA", "beta_scale", "p_move", "a_dis"),
-    lower = c(2, 0.1, 1.2, 2.8, 0.0001, 0, 0, 0, 0.00014),
-    upper = c(4.5, 2, 3, 4.5, 0.5, 1, 1, 1, 0.05),
+    parameter = c("R0", "TE", "TP", "TI1", "TI2", "nuA", "beta_scale", "p_move"),
+    lower = c(2, 0.1, 1.2, 2.8, 0.0001, 0, 0, 0),
+    upper = c(4.5, 2, 3, 4.5, 0.5, 1, 1, 1),
     stringsAsFactors = FALSE
 ) 
 
@@ -63,9 +64,9 @@ parRanges <- data.frame(
 C <- as.matrix(read.csv("inputs/POLYMOD_matrix.csv", header = FALSE))
 
 ## generate LHS design (200 + 50 validation)
-ndesign <- 2
+ndesign <- 200
 design <- randomLHS(ndesign, nrow(parRanges))
-nval <- 2
+nval <- 50
 design <- rbind(design, randomLHS(nval, nrow(parRanges)))
 colnames(design) <- parRanges$parameter
 design <- as_tibble(design)

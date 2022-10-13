@@ -1113,7 +1113,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
     arma::uword ndeathlads, arma::uword nregions, arma::uword nnhsages, arma::uword nnhsregions,  
     arma::imat u1_moves, arma::ivec ncohorts1, List u1_comb, 
     List u2_comb, arma::vec playprobs, arma::ivec ncohorts2, arma::uword tstart, arma::uword tstop, 
-    arma::uword npart, int niter, double a1, double a2, double b1, double b2, double b_dis,
+    arma::uword npart, int niter, double a1, double a2, double b1, double b2, double a_dis, double b_dis,
     double sigma2_lad, double sigma2_age_region, double sigma2_nhsregion, double sigma2_age_nhsregion,
     int saveAll, int writeExt, int snapshot, CharacterVector outputName, int PF, int ncores) {
     
@@ -1434,10 +1434,6 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
         condpars(j + 8 * nages + 2) = 0.0;
         condpars(j + 9 * nages + 2) = 0.0;
     }
-    
-    // extract a_dis
-    double a_dis = pars(10 * nages + 4);
-    Rprintf("a_dis = %f\n", a_dis);
     
     // initialise timer
     Timer timer;

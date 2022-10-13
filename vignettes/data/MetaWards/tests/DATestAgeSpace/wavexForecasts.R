@@ -44,14 +44,15 @@ a1 <- as.numeric(fixedInputs[6])
 a2 <- as.numeric(fixedInputs[7])
 b1 <- as.numeric(fixedInputs[8])
 b2 <- as.numeric(fixedInputs[9])
-b_dis <- as.numeric(fixedInputs[10])
-sigma2_lad <- as.numeric(fixedInputs[11])
-sigma2_age_region <- as.numeric(fixedInputs[12])
-sigma2_nhsregion <- as.numeric(fixedInputs[13])
-sigma2_age_nhsregion <- as.numeric(fixedInputs[14])
-saveAll <- as.logical(as.numeric(fixedInputs[15]))
-snapshot <- as.logical(as.numeric(fixedInputs[16]))
-writeExt <- as.logical(as.numeric(fixedInputs[17]))
+a_dis <- as.numeric(fixedInputs[10])
+b_dis <- as.numeric(fixedInputs[11])
+sigma2_lad <- as.numeric(fixedInputs[12])
+sigma2_age_region <- as.numeric(fixedInputs[13])
+sigma2_nhsregion <- as.numeric(fixedInputs[14])
+sigma2_age_nhsregion <- as.numeric(fixedInputs[15])
+saveAll <- as.logical(as.numeric(fixedInputs[16]))
+snapshot <- as.logical(as.numeric(fixedInputs[17]))
+writeExt <- as.logical(as.numeric(fixedInputs[18]))
 
 ## source Rcpp PF code
 sourceCpp("BPF.cpp")
@@ -63,7 +64,7 @@ source("BPF.R")
 pars <- readRDS(paste0("wave", wave, "/disease.rds")) %>%
     rename(nu = `beta[1]`, nuA = `beta[6]`) %>%
     select(!c(starts_with("beta["), repeats)) %>%
-    select(nu, nuA, !c(beta_scale, p_move, a_dis, output), beta_scale, p_move, a_dis)
+    select(nu, nuA, !c(beta_scale, p_move, output), beta_scale, p_move)
 
 ## read in contact matrix
 contact1 <- read_csv("inputs/POLYMOD_matrix.csv", col_names = FALSE) %>%
@@ -114,7 +115,7 @@ u <- list(u1_moves = u1_moves, u1 = u1, u2 = u2, ncohorts1 = ncohorts1, ncohorts
 runs_md <- BPF(pars[hash, ], C1 = contact1, C2 = contact2, lockdown_day = 20,
     lookup = lookup, age_lookup = age_lookup, u = u,
     tstart = tstart, tstop = tstop, npart = npart,
-    a1 = a1, a2 = a2, b1 = b1, b2 = b2, b_dis = b_dis,
+    a1 = a1, a2 = a2, b1 = b1, b2 = b2, a_dis = a_dis, b_dis = b_dis,
     sigma2_lad = sigma2_lad, sigma2_age_region = sigma2_age_region, 
     sigma2_nhsregion = sigma2_nhsregion, sigma2_age_nhsregion = sigma2_age_nhsregion,
     saveAll = TRUE, writeExt = TRUE, outputName = paste0("wave", wave, "/saveOut_", hash),

@@ -30,13 +30,13 @@ convertInputToDisease <- function(input, C, N, S0, ages) {
   
     stopifnot(all(c("R0", "nuA", "TE", "TP", "TI1", "TI2", "alphaEP", 
         "alphaI1H", "alphaI1D", "alphaHD", "eta", 
-        "alphaTH", "etaTH", "repeats", "output", "beta_scale", "p_move", "a_dis") %in% colnames(input)))
+        "alphaTH", "etaTH", "repeats", "output", "beta_scale", "p_move") %in% colnames(input)))
     
     ## check unique ID
     stopifnot(length(unique(input$output)) == length(input$output))
     
     ## scaling for asymptomatics and lockdown
-    disease <- select(input, nuA, beta_scale, p_move, a_dis, output)
+    disease <- select(input, nuA, beta_scale, p_move, output)
   
     ## progressions out of the E class
     for(j in 1:length(ages)) {
