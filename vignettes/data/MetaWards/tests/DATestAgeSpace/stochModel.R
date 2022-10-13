@@ -21,10 +21,7 @@ sourceCpp("BPF.cpp")
 source("BPF.R")
 
 ## read in parameters, remove guff and reorder
-pars <- readRDS("wave1/disease.rds") %>%
-    rename(nu = `beta[1]`, nuA = `beta[6]`) %>%
-    select(!c(starts_with("beta["), repeats)) %>%
-    select(nu, nuA, !c(beta_scale, p_move, output), beta_scale, p_move, output)
+pars <- readRDS("wave1/disease.rds")
 
 ## read in contact matrices
 contact1 <- read_csv("inputs/POLYMOD_matrix.csv", col_names = FALSE) %>%

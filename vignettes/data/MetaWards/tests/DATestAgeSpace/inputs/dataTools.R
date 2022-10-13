@@ -30,7 +30,7 @@ convertInputToDisease <- function(input, C, N, S0, ages) {
   
     stopifnot(all(c("R0", "nuA", "TE", "TP", "TI1", "TI2", "alphaEP", 
         "alphaI1H", "alphaI1D", "alphaHD", "eta", 
-        "alphaTH", "etaTH", "repeats", "output", "beta_scale", "p_move") %in% colnames(input)))
+        "alphaTH", "etaTH", "output", "beta_scale", "p_move") %in% colnames(input)))
     
     ## check unique ID
     stopifnot(length(unique(input$output)) == length(input$output))
@@ -161,13 +161,10 @@ convertInputToDisease <- function(input, C, N, S0, ages) {
     
     ## finalise data set
     disease <- mutate(disease, nuA = nuA * nu) %>%
-        mutate(`beta[1]` = nu) %>% 
-        mutate(`beta[2]` = nu) %>%
-        rename(`beta[3]` = nu) %>%
-        rename(`beta[6]` = nuA) %>%
-        inner_join(select(input, repeats, output), by = "output")
-    
-    stopifnot(all(disease$`beta[6]` < disease$`beta[1]`))
+        inner_join(select(input, output), by = "output")
+        
+    ## reorder
+    disease <- select(disease, nu, nuA, !c(nu, nuA, beta_scale, p_move, output), beta_scale, p_move, output)
     
     print(paste0(nrow(input) - nrow(disease), " invalid inputs removed"))
     print(paste0(nrow(disease), " samples remaining"))

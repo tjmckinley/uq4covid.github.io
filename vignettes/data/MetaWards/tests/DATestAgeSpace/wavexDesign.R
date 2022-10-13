@@ -198,7 +198,6 @@ inputs <- cbind(inputs, hosp, pathways)
 ## (at the moment don't use "a0" type ensembleID, because MetaWards
 ## parses to dates)
 inputs$output <- ensembleIDGen(ensembleID = paste0("Ens", wave), nrow(inputs))
-inputs$repeats <- 1
 
 ## solution to round numbers preserving sum
 ## adapted from:
@@ -229,7 +228,7 @@ saveRDS(disease, paste0("wave", wave, "/disease.rds"))
 
 ## plot inputs
 library(GGally)
-p <- select(inputs, -output, -repeats) %>%
+p <- select(inputs, -output) %>%
     ggpairs(upper = "blank")
 ggsave(paste0("wave", wave, "/design.pdf"), p, width = 10, height = 10)
 
