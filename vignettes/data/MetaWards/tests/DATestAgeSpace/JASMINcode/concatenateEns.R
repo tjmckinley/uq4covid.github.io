@@ -49,8 +49,8 @@ if(!all(runs)) {
     cat("Missing runs:\n")
     print(jobs[which(!runs)])
     if(updateJobLookup) {
-        system("rm job_lookup.txt")
-        writeLines(as.character(jobs[which(!runs)]), "job_lookup.txt")
+        system(paste0("rm job_lookup_wave", wave, ".txt"))
+        writeLines(as.character(jobs[which(!runs)]), paste0("job_lookup_wave", wave, ".txt"))
         code <- readLines("submit_job_template.sbatch")
         code <- gsub("RANGES", paste0("1-", sum(!runs)), code)
         code <- gsub("FILEDIR", wave, code)

@@ -46,8 +46,8 @@ if(any(is.na(ll))) {
     cat("Missing runs:\n")
     print(which(is.na(ll)))
     if(updateJobLookup) {
-        system("rm job_lookup.txt")
-        writeLines(as.character(which(is.na(ll))), "job_lookup.txt")
+        system(paste0("rm job_lookup_wave", wave, ".txt"))
+        writeLines(as.character(which(is.na(ll))), paste0("job_lookup_wave", wave, ".txt"))
         code <- readLines("submit_job_template.sbatch")
         code <- gsub("RANGES", paste0("1-", sum(is.na(ll))), code)
         code <- gsub("FILEDIR", wave, code)
