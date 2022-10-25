@@ -46,13 +46,14 @@ b1 <- as.numeric(fixedInputs[8])
 b2 <- as.numeric(fixedInputs[9])
 a_dis <- as.numeric(fixedInputs[10])
 b_dis <- as.numeric(fixedInputs[11])
-sigma2_lad <- as.numeric(fixedInputs[12])
-sigma2_age_region <- as.numeric(fixedInputs[13])
-sigma2_nhsregion <- as.numeric(fixedInputs[14])
-sigma2_age_nhsregion <- as.numeric(fixedInputs[15])
-saveAll <- as.logical(as.numeric(fixedInputs[16]))
-snapshot <- as.logical(as.numeric(fixedInputs[17]))
-writeExt <- as.logical(as.numeric(fixedInputs[18]))
+b_dis_london <- as.numeric(fixedInputs[12])
+sigma2_lad <- as.numeric(fixedInputs[13])
+sigma2_age_region <- as.numeric(fixedInputs[14])
+sigma2_nhsregion <- as.numeric(fixedInputs[15])
+sigma2_age_nhsregion <- as.numeric(fixedInputs[16])
+saveAll <- as.logical(as.numeric(fixedInputs[17]))
+snapshot <- as.logical(as.numeric(fixedInputs[18]))
+writeExt <- as.logical(as.numeric(fixedInputs[19]))
 
 ## source Rcpp PF code
 sourceCpp("BPF.cpp")
@@ -108,6 +109,12 @@ for(i in 1:npart) {
 }
 
 u <- list(u1_moves = u1_moves, u1 = u1, u2 = u2, ncohorts1 = ncohorts1, ncohorts2 = ncohorts2, playprobs = playprobs)
+
+## create model discrepancy matrices
+region_lookup <- readRDS("data/region_lookup.rds")
+london_FID <- lookup$FID[!is.na(lookup$FID_region) & lookup$FID_region == region_lookup$FID[region_lookup$RGN19NM == "London"]]
+b_dis <- matrix(rep(b_dis, nrow(age_lookup) * nrow(lookup)), nrow(age_lookup), nrow(lookup))
+b_dis[, london_FID] <- b_dis_london
 
 ## run forecasts        
 runs_md <- BPF(pars[hash, ], C1 = contact1, C2 = contact2, lockdown_day = 20,

@@ -36,6 +36,7 @@ b1 <- 0.1
 b2 <- 0.1
 a_dis <- 0.05
 b_dis <- 0.01
+b_dis_london <- 0.5
 sigma2_lad <- 1
 sigma2_age_region <- 1
 sigma2_nhsregion <- 1
@@ -46,7 +47,7 @@ writeExt <- TRUE
 
 ## write to file
 writeLines(as.character(c(tstart, tstop, lockdown_day, npart, niter, a1, a2,
-    b1, b2, a_dis, b_dis, sigma2_lad, sigma2_age_region, sigma2_nhsregion, 
+    b1, b2, a_dis, b_dis, d_dis_london, sigma2_lad, sigma2_age_region, sigma2_nhsregion, 
     sigma2_age_nhsregion, saveAll, snapshot, writeExt)), paste0("wave", wave, "/fixedInputs.txt"))
 
 ## source dataTools

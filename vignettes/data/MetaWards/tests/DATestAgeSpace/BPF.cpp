@@ -1113,7 +1113,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
     arma::uword ndeathlads, arma::uword nregions, arma::uword nnhsages, arma::uword nnhsregions,  
     arma::imat u1_moves, arma::ivec ncohorts1, List u1_comb, 
     List u2_comb, arma::vec playprobs, arma::ivec ncohorts2, arma::uword tstart, arma::uword tstop, 
-    arma::uword npart, int niter, double a1, double a2, double b1, double b2, double a_dis, double b_dis,
+    arma::uword npart, int niter, double a1, double a2, double b1, double b2, arma::mat a_dis, arma::mat b_dis,
     double sigma2_lad, double sigma2_age_region, double sigma2_nhsregion, double sigma2_age_nhsregion,
     int saveAll, int writeExt, int snapshot, CharacterVector outputName, int PF, int ncores) {
     
@@ -1567,7 +1567,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                 for(l = 0; l < nlads; l++) {
                 
                     // sample MD conditional on simulator
-                    sigma2y = 2.0 * a_dis + 2.0 * b_dis * DHinc(j, l);
+                    sigma2y = 2.0 * a_dis(j, l) + 2.0 * b_dis(j, l) * DHinc(j, l);
                     muy = (double) DHinc(j, l);
                     int s = rdtnorm_cpp(
                         muy, 
@@ -1596,7 +1596,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                 for(l = 0; l < nlads; l++) {
                     
                     // sample MD conditional on simulator
-                    sigma2y = 2.0 * a_dis + 2.0 * b_dis * DIinc(j, l);
+                    sigma2y = 2.0 * a_dis(j, l) + 2.0 * b_dis(j, l) * DIinc(j, l);
                     muy = (double) DIinc(j, l);
                     int s = rdtnorm_cpp(
                         muy, 
@@ -1623,7 +1623,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
             }
             for(j = 0; j < nages; j++) {
                 for(l = 0; l < nlads; l++) {
-                    sigma2y = 2.0 * a_dis + 2.0 * b_dis * RHinc(j, l);
+                    sigma2y = 2.0 * a_dis(j, l) + 2.0 * b_dis(j, l) * RHinc(j, l);
                     tempMD(10, j, l) = rdtnorm_cpp(
                         0.0, 
                         sqrt(sigma2y),
@@ -1646,7 +1646,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
             }
             for(j = 0; j < nages; j++) {
                 for(l = 0; l < nlads; l++) {
-                    sigma2y = 2.0 * a_dis + 2.0 * b_dis * H(j, l);
+                    sigma2y = 2.0 * a_dis(j, l) + 2.0 * b_dis(j, l) * H(j, l);
                     tempMD(9, j, l) = rdtnorm_cpp(
                         0.0, 
                         sqrt(sigma2y),
@@ -1671,7 +1671,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
             }
             for(j = 0; j < nages; j++) {
                 for(l = 0; l < nlads; l++) {
-                    sigma2y = 2.0 * a_dis + 2.0 * b_dis * RIinc(j, l);
+                    sigma2y = 2.0 * a_dis(j, l) + 2.0 * b_dis(j, l) * RIinc(j, l);
                     tempMD(8, j, l) = rdtnorm_cpp(
                         0.0, 
                         sqrt(sigma2y),
@@ -1694,7 +1694,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
             }
             for(j = 0; j < nages; j++) {
                 for(l = 0; l < nlads; l++) {
-                    sigma2y = 2.0 * a_dis + 2.0 * b_dis * I2inc(j, l);
+                    sigma2y = 2.0 * a_dis(j, l) + 2.0 * b_dis(j, l) * I2inc(j, l);
                     tempMD(7, j, l) = rdtnorm_cpp(
                         0.0, 
                         sqrt(sigma2y),
@@ -1723,7 +1723,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
             }
             for(j = 0; j < nages; j++) {
                 for(l = 0; l < nlads; l++) {
-                    sigma2y = 2.0 * a_dis + 2.0 * b_dis * I1inc(j, l);
+                    sigma2y = 2.0 * a_dis(j, l) + 2.0 * b_dis(j, l) * I1inc(j, l);
                     tempMD(5, j, l) = rdtnorm_cpp(
                         0.0, 
                         sqrt(sigma2y),
@@ -1752,7 +1752,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
             }
             for(j = 0; j < nages; j++) {
                 for(l = 0; l < nlads; l++) {
-                    sigma2y = 2.0 * a_dis + 2.0 * b_dis * Pinc(j, l);
+                    sigma2y = 2.0 * a_dis(j, l) + 2.0 * b_dis(j, l) * Pinc(j, l);
                     tempMD(4, j, l) = rdtnorm_cpp(
                         0.0, 
                         sqrt(sigma2y),
@@ -1781,7 +1781,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
             }
             for(j = 0; j < nages; j++) {
                 for(l = 0; l < nlads; l++) {
-                    sigma2y = 2.0 * a_dis + 2.0 * b_dis * RAinc(j, l);
+                    sigma2y = 2.0 * a_dis(j, l) + 2.0 * b_dis(j, l) * RAinc(j, l);
                     tempMD(3, j, l) = rdtnorm_cpp(
                         0.0, 
                         sqrt(sigma2y),
@@ -1804,7 +1804,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
             }
             for(j = 0; j < nages; j++) {
                 for(l = 0; l < nlads; l++) {
-                    sigma2y = 2.0 * a_dis + 2.0 * b_dis * Ainc(j, l);
+                    sigma2y = 2.0 * a_dis(j, l) + 2.0 * b_dis(j, l) * Ainc(j, l);
                     tempMD(2, j, l) = rdtnorm_cpp(
                         0.0, 
                         sqrt(sigma2y),
@@ -1832,7 +1832,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
             }
             for(j = 0; j < nages; j++) {
                 for(l = 0; l < nlads; l++) {
-                    sigma2y = 2.0 * a_dis + 2.0 * b_dis * Einc(j, l);
+                    sigma2y = 2.0 * a_dis(j, l) + 2.0 * b_dis(j, l) * Einc(j, l);
                     tempMD(1, j, l) = rdtnorm_cpp(
                         0.0, 
                         sqrt(sigma2y),
@@ -2244,7 +2244,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                                 DHinc1(j, l) = r;
                             
                                 // sample MD conditional on simulator
-                                sigma2y = 2.0 * a_dis + 2.0 * b_dis * DHinc1(j, l);
+                                sigma2y = 2.0 * a_dis(j, l) + 2.0 * b_dis(j, l) * DHinc1(j, l);
                                 muy = (double) DHinc1(j, l);
                                 int s = rdtnorm_cpp(
                                     muy, 
@@ -2260,7 +2260,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                                 RHinc1(j, l) = r;
                             
                                 // sample MD conditional on simulator
-                                sigma2y = 2.0 * a_dis + 2.0 * b_dis * RHinc1(j, l);
+                                sigma2y = 2.0 * a_dis(j, l) + 2.0 * b_dis(j, l) * RHinc1(j, l);
                                 muy = (double) RHinc1(j, l);
                                 s = rdtnorm_cpp(
                                     muy, 
@@ -2276,7 +2276,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                                 DIinc1(j, l) = r;
                             
                                 // sample MD conditional on simulator
-                                sigma2y = 2.0 * a_dis + 2.0 * b_dis * DIinc1(j, l);
+                                sigma2y = 2.0 * a_dis(j, l) + 2.0 * b_dis(j, l) * DIinc1(j, l);
                                 muy = (double) DIinc1(j, l);
                                 s = rdtnorm_cpp(
                                     muy, 
@@ -2293,7 +2293,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                             
                                 // sample MD conditional on simulator
                                 H(j, l) = u1_night(9, j, l) + Hinc1(j, l) - DHinc1(j, l) - RHinc1(j, l);
-                                sigma2y = 2.0 * a_dis + 2.0 * b_dis * H(j, l);
+                                sigma2y = 2.0 * a_dis(j, l) + 2.0 * b_dis(j, l) * H(j, l);
                                 s = rdtnorm_cpp(
                                     0.0, 
                                     sqrt(sigma2y),
@@ -2504,7 +2504,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                         }
                         for(j = 0; j < nages; j++) {
                             for(l = 0; l < nlads; l++) {
-                                sigma2y = 2.0 * a_dis + 2.0 * b_dis * RIinc(j, l);
+                                sigma2y = 2.0 * a_dis(j, l) + 2.0 * b_dis(j, l) * RIinc(j, l);
                                 tempMD(8, j, l) = rdtnorm_cpp(
                                     0.0, 
                                     sqrt(sigma2y),
@@ -2527,7 +2527,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                         }
                         for(j = 0; j < nages; j++) {
                             for(l = 0; l < nlads; l++) {
-                                sigma2y = 2.0 * a_dis + 2.0 * b_dis * I2inc(j, l);
+                                sigma2y = 2.0 * a_dis(j, l) + 2.0 * b_dis(j, l) * I2inc(j, l);
                                 tempMD(7, j, l) = rdtnorm_cpp(
                                     0.0, 
                                     sqrt(sigma2y),
@@ -2556,7 +2556,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                         }
                         for(j = 0; j < nages; j++) {
                             for(l = 0; l < nlads; l++) {
-                                sigma2y = 2.0 * a_dis + 2.0 * b_dis * I1inc(j, l);
+                                sigma2y = 2.0 * a_dis(j, l) + 2.0 * b_dis(j, l) * I1inc(j, l);
                                 tempMD(5, j, l) = rdtnorm_cpp(
                                     0.0, 
                                     sqrt(sigma2y),
@@ -2585,7 +2585,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                         }
                         for(j = 0; j < nages; j++) {
                             for(l = 0; l < nlads; l++) {
-                                sigma2y = 2.0 * a_dis + 2.0 * b_dis * Pinc(j, l);
+                                sigma2y = 2.0 * a_dis(j, l) + 2.0 * b_dis(j, l) * Pinc(j, l);
                                 tempMD(4, j, l) = rdtnorm_cpp(
                                     0.0, 
                                     sqrt(sigma2y),
@@ -2614,7 +2614,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                         }
                         for(j = 0; j < nages; j++) {
                             for(l = 0; l < nlads; l++) {
-                                sigma2y = 2.0 * a_dis + 2.0 * b_dis * RAinc(j, l);
+                                sigma2y = 2.0 * a_dis(j, l) + 2.0 * b_dis(j, l) * RAinc(j, l);
                                 tempMD(3, j, l) = rdtnorm_cpp(
                                     0.0, 
                                     sqrt(sigma2y),
@@ -2637,7 +2637,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                         }
                         for(j = 0; j < nages; j++) {
                             for(l = 0; l < nlads; l++) {
-                                sigma2y = 2.0 * a_dis + 2.0 * b_dis * Ainc(j, l);
+                                sigma2y = 2.0 * a_dis(j, l) + 2.0 * b_dis(j, l) * Ainc(j, l);
                                 tempMD(2, j, l) = rdtnorm_cpp(
                                     0.0, 
                                     sqrt(sigma2y),
@@ -2665,7 +2665,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                         }
                         for(j = 0; j < nages; j++) {
                             for(l = 0; l < nlads; l++) {
-                                sigma2y = 2.0 * a_dis + 2.0 * b_dis * Einc(j, l);
+                                sigma2y = 2.0 * a_dis(j, l) + 2.0 * b_dis(j, l) * Einc(j, l);
                                 tempMD(1, j, l) = rdtnorm_cpp(
                                     0.0, 
                                     sqrt(sigma2y),

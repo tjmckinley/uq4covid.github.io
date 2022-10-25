@@ -22,7 +22,7 @@ hosp_nhsregion <- readRDS("../outputs/hosp_nhsregion.rds")
 cumHospAd_age_nhsregion <- readRDS("../outputs/cumHospAd_age_nhsregion.rds")
 
 ## read in parameters, remove guff and reorder
-pars <- readRDS("../wave1/disease.rds") %>%
+pars <- readRDS("../wave1test/disease.rds") %>%
     select(!output) %>%
     as.data.frame()
 
@@ -84,7 +84,7 @@ set.seed(42)
 ## set number of days to run for
 ## and number of particles
 tstart <- 0
-tstop <- 50
+tstop <- 20
 npart <- 8
 
 ## set save folder
@@ -110,8 +110,8 @@ runs_md <- BPF(pars[100, ], C1 = contact1, C2 = contact2, lockdown_day = 20,
 cont <- TRUE
 if(cont) {
     ## continuation method if required
-    tstart <- 50
-    tstop <- 75
+    tstart <- 20
+    tstop <- 25
 
     ## set up inputs
     u1_moves <- read_csv(paste0(folder, "/snapshot_u1moves_t", tstart, ".csv.bz2"), col_names = FALSE) %>%

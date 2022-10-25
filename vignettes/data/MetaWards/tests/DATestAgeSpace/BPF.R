@@ -51,8 +51,8 @@ log_sum_exp <- function(x, mn = FALSE) {
 ## npart: the number of particles
 ## niter: number of Metropolis-Hastings steps to counter particle impoverishment
 ## a1, a2, b1, b2: parameters for Skellam observation process
-## a_dis: intercept for Skellam MD process
-## b_dis: multiplicative scaling for Skellam MD process
+## a_dis: intercept for Skellam MD process (can be nages x nlads matrix)
+## b_dis: multiplicative scaling for truncated Gaussian MD process (can be nages x nlads matrix)
 ## saveAll: a logical specifying whether to return all states (if FALSE then returns just observed states))
 ## writeExt: a logical denoting whether to save particles externally or not
 ## snapshot: a logical determining whether to save a snapshot of the whole system at 'tstop' 
@@ -270,6 +270,20 @@ BPF <- function(pars, C1, C2, lockdown_day, cumDeath_lad, cumDeath_age_region,
         
         ## set pars
         pars <- unlist(pars[k, ])
+        
+        ## set up a_dis and b_dis matrices
+        if(!is.matrix(a_dis)) {
+            stopifnot(is.numeric(a_dis) & length(a_dis) == 1)
+            a_dis <- matrix(rep(a_dis, nages * nlads), nages, nlads)
+        } else {
+            stopifnot(is.numeric(a_dis) & nrow(a_dis) == nages & ncol(a_dis) == nlads)
+        }
+        if(!is.matrix(b_dis)) {
+            stopifnot(is.numeric(b_dis) & length(b_dis) == 1)
+            b_dis <- matrix(rep(b_dis, nages * nlads), nages, nlads)
+        } else {
+            stopifnot(is.numeric(b_dis) & nrow(b_dis) == nages & ncol(b_dis) == nlads)
+        }
     
         ## do garbage collection (seems to solve allocation issue)
         gc()
