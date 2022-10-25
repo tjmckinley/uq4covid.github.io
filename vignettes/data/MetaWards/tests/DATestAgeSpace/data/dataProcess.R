@@ -105,7 +105,7 @@ lookup <- left_join(lookup, select(death_lookup, !areaName), by = c("LAD19CD" = 
     rename(FID_death = FID.y, FID = FID.x)
 
 ## expand to correct format for model
-lad <- mutate(lad, FID = paste0("D_", FID)) %>%
+lad <- mutate(lad, FID = paste0("deaths_", FID)) %>%
     pivot_wider(names_from = FID, values_from = cumDeaths)
 
 ## save lad-level data
@@ -190,7 +190,7 @@ region <- filter(region, age != "00_59") %>%
     
 ## expand to correct format for model
 region <- mutate(region, age = as.numeric(factor(age))) %>%
-    mutate(age = paste0("D_", age)) %>%
+    mutate(age = paste0("deaths_", age)) %>%
     unite(FID, age, FID, sep = "_") %>%
     pivot_wider(names_from = FID, values_from = cumDeaths)
 
@@ -202,14 +202,14 @@ saveRDS(region, "death_region.rds")
 ######################################
 
 tempDeaths <- pivot_longer(lad, !date, names_to = "lad", values_to = "deaths") %>%
-    mutate(lad = as.numeric(gsub("D_", "", lad))) %>%
+    mutate(lad = as.numeric(gsub("deaths_", "", lad))) %>%
     inner_join(lookup, by = c("lad" = "FID_death")) %>%
     inner_join(region_lookup, by = c("FID_region" = "FID")) %>%
     group_by(RGN19NM, date) %>%
     summarise(deaths = sum(deaths), .groups = "drop")
 
 tempDeathsRegion <- pivot_longer(region, !date, names_to = "region", values_to = "deaths") %>%
-    mutate(region = gsub("D_", "", region)) %>%
+    mutate(region = gsub("deaths_", "", region)) %>%
     separate(region, c("age", "region"), sep = "_") %>%
     group_by(region, date) %>%
     summarise(deaths = sum(deaths), .groups = "drop") %>%
@@ -257,7 +257,7 @@ lookup <- left_join(lookup,
 ## wrangle nhs regional data into correct format
 nhsregion_hosp <- inner_join(nhsregion_hosp, nhsregion_lookup, by = "areaName") %>%
     select(FID, date, hospitalCases) %>%
-    mutate(FID = paste0("H_", FID)) %>%
+    mutate(FID = paste0("hosp_", FID)) %>%
     pivot_wider(names_from = FID, values_from = hospitalCases) %>%
     arrange(date)
 saveRDS(nhsregion_hosp, "nhsregion_hosp.rds")
@@ -282,7 +282,7 @@ nhsregion_cumadage <- mutate(nhsregion_cumadage, age = ifelse(age == "6_to_17", 
     inner_join(age_lookup, by = "age") %>%
     select(FID.y, FID.x, date, value) %>%
     arrange(FID.y, FID.x, date) %>%
-    mutate(FID.y = paste0("H_", FID.y)) %>%
+    mutate(FID.y = paste0("hospInc_", FID.y)) %>%
     unite(FID, FID.y, FID.x, sep = "_") %>%
     pivot_wider(names_from = FID, values_from = value) %>%
     arrange(date)

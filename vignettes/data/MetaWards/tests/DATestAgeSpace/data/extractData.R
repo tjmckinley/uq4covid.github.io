@@ -13,14 +13,14 @@ tstop <- dmy("23/03/2020")
 death_lad <- readRDS("death_lad.rds") %>%
     filter(date >= tstart & date <= tstop) %>%
     complete(date = seq(tstart, tstop, by = 1)) %>%
-    mutate(across(starts_with("D_"), ~ifelse(is.na(.), 0, .))) %>%
+    mutate(across(starts_with("deaths_"), ~ifelse(is.na(.), 0, .))) %>%
     mutate(date = as.numeric(date - tstart)) %>%
     rename(t = date)
     
 death_region <- readRDS("death_region.rds") %>%
     filter(date >= tstart & date <= tstop) %>%
     complete(date = seq(tstart, tstop, by = 1)) %>%
-    mutate(across(starts_with("D_"), ~ifelse(is.na(.), 0, .))) %>%
+    mutate(across(starts_with("deaths_"), ~ifelse(is.na(.), 0, .))) %>%
     mutate(date = as.numeric(date - tstart)) %>%
     rename(t = date)
     
