@@ -1144,16 +1144,16 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
     arma::imat u_night_age_nhsregion(nnhsages, nnhsregions); u_night_age_nhsregion.zeros();
     arma::ivec u_night_nhsregion(nnhsregions); u_night_nhsregion.zeros();
     
-    arma::vec mu_night_lad(ndeathlads); mu_night_lad.zeros();
-    arma::mat mu_night_age_region(nages, nregions); mu_night_age_region.zeros();
-    arma::mat mu_night_age_nhsregion(nnhsages, nnhsregions); mu_night_age_nhsregion.zeros();
-    arma::vec mu_night_nhsregion(nnhsregions); mu_night_nhsregion.zeros();
+    arma::ivec mu_night_lad(ndeathlads); mu_night_lad.zeros();
+    arma::imat mu_night_age_region(nages, nregions); mu_night_age_region.zeros();
+    arma::imat mu_night_age_nhsregion(nnhsages, nnhsregions); mu_night_age_nhsregion.zeros();
+    arma::ivec mu_night_nhsregion(nnhsregions); mu_night_nhsregion.zeros();
     
-    std::vector<arma::cube> mu_night_age_lad(npart);
-    std::vector<arma::cube> mu_night_age_lad1(npart);
+    std::vector<arma::icube> mu_night_age_lad(npart);
+    std::vector<arma::icube> mu_night_age_lad1(npart);
     for(i = 0; i < npart; i++) {
-        mu_night_age_lad[i] = arma::cube(4, nages, ndeathlads); mu_night_age_lad[i].zeros();
-        mu_night_age_lad1[i] = arma::cube(4, nages, ndeathlads); mu_night_age_lad1[i].zeros();
+        mu_night_age_lad[i] = arma::icube(4, nages, ndeathlads); mu_night_age_lad[i].zeros();
+        mu_night_age_lad1[i] = arma::icube(4, nages, ndeathlads); mu_night_age_lad1[i].zeros();
     }
         
     // set up weight vector
@@ -1237,8 +1237,13 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                             for(int s = 0; s < 4; s++) {
                                 muy = (a1 - a2) + (b1 - b2 + 1) * u_night_age_lad(s, j, k);
                                 sigma2y = a1 + a2 + (b1 + b2) * u_night_age_lad(s, j, k);
-                                mu_night_age_lad[i](s, j, k) = rtnorm_one(-10000000, 10000000, engSerial);
-                                mu_night_age_lad[i](s, j, k) = mu_night_age_lad[i](s, j, k) * sqrt(sigma2y) + muy;
+                                mu_night_age_lad[i](s, j, k) = rdtnorm_cpp(
+                                    muy, 
+                                    sqrt(sigma2y),
+                                    0,
+                                    std::numeric_limits<double>::infinity(),
+                                    engSerial
+                                );
                             }
                             
                             // aggregate death incidence by lad
@@ -1866,10 +1871,10 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                 arma::icube u_night_age_lad1(4, nages, ndeathlads); u_night_age_lad1.zeros();
                 arma::ivec u_night_nhsregion1(nnhsregions); u_night_nhsregion1.zeros();     
                            
-                arma::vec mu_night_lad1(ndeathlads); mu_night_lad1.zeros();
-                arma::mat mu_night_age_region1(nages, nregions); mu_night_age_region1.zeros();
-                arma::mat mu_night_age_nhsregion1(nnhsages, nnhsregions); mu_night_age_nhsregion1.zeros();
-                arma::vec mu_night_nhsregion1(nnhsregions); mu_night_nhsregion1.zeros();
+                arma::ivec mu_night_lad1(ndeathlads); mu_night_lad1.zeros();
+                arma::imat mu_night_age_region1(nages, nregions); mu_night_age_region1.zeros();
+                arma::imat mu_night_age_nhsregion1(nnhsages, nnhsregions); mu_night_age_nhsregion1.zeros();
+                arma::ivec mu_night_nhsregion1(nnhsregions); mu_night_nhsregion1.zeros();
             
                 // extract just counts for DI and DH
                 for(l = 0; l < nlads; l++) {
@@ -1907,8 +1912,13 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                             for(int s = 0; s < 4; s++) {
                                 muy = (a1 - a2) + (b1 - b2 + 1) * u_night_age_lad1(s, j, k);
                                 sigma2y = a1 + a2 + (b1 + b2) * u_night_age_lad1(s, j, k);
-                                mu_night_age_lad[i](s, j, k) = rtnorm_one(-10000000, 10000000, eng);
-                                mu_night_age_lad[i](s, j, k) = mu_night_age_lad[i](s, j, k) * sqrt(sigma2y) + muy;
+                                mu_night_age_lad[i](s, j, k) = rdtnorm_cpp(
+                                    muy, 
+                                    sqrt(sigma2y),
+                                    0,
+                                    std::numeric_limits<double>::infinity(),
+                                    engSerial
+                                );
                             }
                             
                             // aggregate death incidence by lad
@@ -2126,10 +2136,10 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                         }
                     }
                                
-                    arma::vec mu_night_lad1(ndeathlads); mu_night_lad1.zeros();
-                    arma::mat mu_night_age_region1(nages, nregions); mu_night_age_region1.zeros();
-                    arma::mat mu_night_age_nhsregion1(nnhsages, nnhsregions); mu_night_age_nhsregion1.zeros();
-                    arma::vec mu_night_nhsregion1(nnhsregions); mu_night_nhsregion1.zeros();
+                    arma::ivec mu_night_lad1(ndeathlads); mu_night_lad1.zeros();
+                    arma::imat mu_night_age_region1(nages, nregions); mu_night_age_region1.zeros();
+                    arma::imat mu_night_age_nhsregion1(nnhsages, nnhsregions); mu_night_age_nhsregion1.zeros();
+                    arma::ivec mu_night_nhsregion1(nnhsregions); mu_night_nhsregion1.zeros();
                     
                     // calculate latent mu terms
                     mu_night_age_lad[i].zeros();
@@ -2347,8 +2357,13 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                                     for(int s = 0; s < 4; s++) {
                                         muy = (a1 - a2) + (b1 - b2 + 1) * u_night_age_lad1(s, j, k);
                                         sigma2y = a1 + a2 + (b1 + b2) * u_night_age_lad1(s, j, k);
-                                        mu_night_age_lad1[i](s, j, k) = rtnorm_one(-10000000, 10000000, eng);
-                                        mu_night_age_lad1[i](s, j, k) = mu_night_age_lad1[i](s, j, k) * sqrt(sigma2y) + muy;
+                                        mu_night_age_lad1[i](s, j, k) = rdtnorm_cpp(
+                                            muy, 
+                                            sqrt(sigma2y),
+                                            0,
+                                            std::numeric_limits<double>::infinity(),
+                                            engSerial
+                                        );
                                     }
                                     
                                     // aggregate death incidence by lad
@@ -2754,8 +2769,13 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                             for(int s = 0; s < 4; s++) {
                                 muy = (a1 - a2) + (b1 - b2 + 1) * u_night_age_lad(s, j, k);
                                 sigma2y = a1 + a2 + (b1 + b2) * u_night_age_lad(s, j, k);
-                                mu_night_age_lad1[i](s, j, k) = rtnorm_one(-10000000, 10000000, engSerial);
-                                mu_night_age_lad1[i](s, j, k) = mu_night_age_lad1[i](s, j, k) * sqrt(sigma2y) + muy;
+                                mu_night_age_lad1[i](s, j, k) = rdtnorm_cpp(
+                                    muy, 
+                                    sqrt(sigma2y),
+                                    0,
+                                    std::numeric_limits<double>::infinity(),
+                                    engSerial
+                                );
                             }
                             
                             // aggregate death incidence by lad
