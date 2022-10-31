@@ -1917,7 +1917,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                                     sqrt(sigma2y),
                                     0,
                                     std::numeric_limits<double>::infinity(),
-                                    engSerial
+                                    eng
                                 );
                             }
                             
@@ -2362,7 +2362,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                                             sqrt(sigma2y),
                                             0,
                                             std::numeric_limits<double>::infinity(),
-                                            engSerial
+                                            eng
                                         );
                                     }
                                     
