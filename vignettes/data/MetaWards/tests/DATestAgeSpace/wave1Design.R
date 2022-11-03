@@ -47,7 +47,7 @@ writeExt <- TRUE
 
 ## write to file
 writeLines(as.character(c(tstart, tstop, lockdown_day, npart, niter, a1, a2,
-    b1, b2, a_dis, b_dis, d_dis_london, sigma2_lad, sigma2_age_region, sigma2_nhsregion, 
+    b1, b2, a_dis, b_dis, b_dis_london, sigma2_lad, sigma2_age_region, sigma2_nhsregion, 
     sigma2_age_nhsregion, saveAll, snapshot, writeExt)), paste0("wave", wave, "/fixedInputs.txt"))
 
 ## source dataTools
@@ -80,23 +80,39 @@ inputs <- convertDesignToInput(design, parRanges, "zero_one")
 ## load FMM objects
 hospStays <- readRDS("inputs/hospStays.rds")
 pathways <- readRDS("inputs/pathways.rds")
+hospThresh <- readRDS("inputs/hospThresh.rds")
+pathThresh <- readRDS("inputs/pathThresh.rds")
 
 ## generate design points for hospital stay lengths
 hospStaysInput <- FMMmaximin(
     hospStays, 
-    ndesign, 
+    ndesign + 20, 
     matrix(c(-Inf, Inf, 0, Inf), ncol = 2, byrow = TRUE)
 ) %>%
     as_tibble() %>%
     rename(alphaTH = x1, etaTH = x2)
+    
+## check against prior density restrictions
+hospStaysInput <- hospStaysInput[dens(as.matrix(hospStaysInput), hospStays$modelName, hospStays$parameters, logarithm = TRUE) > hospThresh, ]
+if(nrow(hospStaysInput) < ndesign) stop("Can't generate enough valid hospital points")
+hospStaysInput <- hospStaysInput[1:ndesign, ]
+
 ## add validation points
-hospStaysInput <- rbind(hospStaysInput, FMMmaximin(
+hospStaysVal <- FMMmaximin(
     hospStays, 
-    nval, 
+    nval + 20, 
     matrix(c(-Inf, Inf, 0, Inf), ncol = 2, byrow = TRUE)
 ) %>%
     as_tibble() %>%
-    rename(alphaTH = x1, etaTH = x2))
+    rename(alphaTH = x1, etaTH = x2)
+
+## check against prior density restrictions  
+hospStaysVal <- hospStaysVal[dens(as.matrix(hospStaysVal), hospStays$modelName, hospStays$parameters, logarithm = TRUE) > hospThresh, ]
+if(nrow(hospStaysVal) < nval) stop("Can't generate enough valid hospital points")
+hospStaysVal <- hospStaysVal[1:nval, ]
+
+## bind together
+hospStaysInput <- rbind(hospStaysInput, hospStaysVal)
 
 ## generate design points for other transition probabilities
 
@@ -129,23 +145,37 @@ pathwaysLimitFn <- function(x, ages) {
 ## produces design points subject to constraints
 pathwaysInput <- FMMmaximin(
     pathways, 
-    ndesign,
+    ndesign + 20,
     matrix(c(rep(c(-20, 0), times = 4), 0, 1), ncol = 2, byrow = TRUE),
     pathwaysLimitFn,
     ages = c(2.5, 11, 23.5, 34.5, 44.5, 55.5, 65.5, 75.5)
 ) %>%
     as_tibble() %>%
     rename(alphaEP = x1, alphaI1D = x2, alphaHD = x3, alphaI1H = x4, eta = x5)
+    
+## check against prior density restrictions
+pathwaysInput <- pathwaysInput[dens(as.matrix(pathwaysInput), pathways$modelName, pathways$parameters, logarithm = TRUE) > pathThresh, ]
+if(nrow(pathwaysInput) < ndesign) stop("Can't generate enough valid pathways points")
+pathwaysInput <- pathwaysInput[1:ndesign, ]
+    
 ## add validation points
-pathwaysInput <- rbind(pathwaysInput, FMMmaximin(
+pathwaysVal <- FMMmaximin(
     pathways, 
-    nval,
+    nval + 20,
     matrix(c(rep(c(-20, 0), times = 4), 0, 1), ncol = 2, byrow = TRUE),
     pathwaysLimitFn,
     ages = c(2.5, 11, 23.5, 34.5, 44.5, 55.5, 65.5, 75.5)
 ) %>%
     as_tibble() %>%
-    rename(alphaEP = x1, alphaI1D = x2, alphaHD = x3, alphaI1H = x4, eta = x5))
+    rename(alphaEP = x1, alphaI1D = x2, alphaHD = x3, alphaI1H = x4, eta = x5)
+    
+## check against prior density restrictions
+pathwaysVal <- pathwaysVal[dens(as.matrix(pathwaysVal), pathways$modelName, pathways$parameters, logarithm = TRUE) > pathThresh, ]
+if(nrow(pathwaysVal) < nval) stop("Can't generate enough valid pathways points")
+pathwaysVal <- pathwaysVal[1:nval, ]
+
+## bind together
+pathwaysInput <- rbind(pathwaysInput, pathwaysVal)
 
 ## bind to design
 inputs <- cbind(inputs, hospStaysInput, pathwaysInput)
