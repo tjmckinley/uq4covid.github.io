@@ -10,7 +10,7 @@ if(length(args) != 0) {
     if(length(args) > 0) {
         stopifnot(length(args) == 4)
         wave <- args[1]
-	outputs <- args[2]
+	    outputs <- args[2]
         tstart <- as.numeric(args[3])
         tstop <- as.numeric(args[4])
     } else {
