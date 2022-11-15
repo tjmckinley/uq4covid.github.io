@@ -29,7 +29,7 @@ convertInputToDisease <- function(input, C, N, S0, ages) {
     require(magrittr)
   
     stopifnot(all(c("R0", "nuA", "TE", "TP", "TI1", "TI2", "alphaEP", 
-        "alphaI1H", "alphaI1D", "alphaHD", "eta", 
+        "alphaI1H", "alphaI1D", "alphaHD", "eta", "eta_scale", 
         "alphaTH", "etaTH", "output", "beta_scale", "p_move") %in% colnames(input)))
     
     ## check unique ID
@@ -74,8 +74,8 @@ convertInputToDisease <- function(input, C, N, S0, ages) {
         }, ages = ages)) %>%
         unnest(cols = temp)
     disease <- mutate(disease, 
-        temp = map2(input$alphaI1D, input$eta, function(alpha, eta, ages) {
-            exp(alpha + eta * ages) %>%
+        temp = pmap(list(input$alphaI1D, input$eta, input$eta_scale), function(alpha, eta, eta_scale, ages) {
+            exp(alpha + eta * eta_scale * ages) %>%
                 matrix(nrow = 1) %>%
                 set_colnames(paste0(".pI1D_", 1:length(ages))) %>%
                 as_tibble()
@@ -175,7 +175,7 @@ convertInputToDisease <- function(input, C, N, S0, ages) {
 
 ## @knitr maximin
 ## function to generate maximin samples given an arbitrary FMM
-FMMmaximin <- function(model, nsamp, limits, limitFn = NULL, nseed = 10000, ...) {
+FMMmaximin <- function(model, nsamp, limits, limitFn = NULL, nseed = 10000, eta_scale = NA, ...) {
     
     ## check inputs and dependencies
     require(mclust)
@@ -208,6 +208,11 @@ FMMmaximin <- function(model, nsamp, limits, limitFn = NULL, nseed = 10000, ...)
             sims1 <- sims1[sims1[, i] >= limits[i, 1], ]
             sims1 <- sims1[sims1[, i] <= limits[i, 2], ]
         }
+        ## add eta_scale if needed
+        if(!is.na(eta_scale[1])) {
+            sims1 <- cbind(sims1, x6 = runif(nrow(sims1), eta_scale[1], eta_scale[2]))
+        }
+        ## check against limitFn
         if(!is.null(limitFn)) {
             sims1 <- sims1[limitFn(sims1, ...), ]
         }
