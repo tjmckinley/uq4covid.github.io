@@ -125,25 +125,31 @@ while(valid == 0) {
 ## load ages
 ages <- c(2.5, 11, 23.5, 34.5, 44.5, 55.5, 65.5, 75.5)
 
-## this function checks validity of inputs as probabilities
+## this function checks validity of inputs
 pathwaysLimitFn <- function(x, ages) {
     ## check all parameters give valid probabilities
     ## in (0, 1)
     singleProbs <- apply(x, 1, function(x, ages) {
         eta <- x[5]
-        alphas <- x[-5]
+        alphas <- x[c(1, 3, 4)]
         y <- sapply(alphas, function(a, eta, ages) {
             y <- exp(a + eta * ages)
             all(y >= 0 & y <= 1)
         }, eta = eta, ages = ages)
-        all(y)
+        y <- all(y)
+        eta <- x[5] * x[6]
+        a <- x[2]
+        y1 <- exp(a + eta * ages)
+        y1 <- all(y1 >= 0 & y1 <= 1)
+        y & y1
     }, ages = ages)
     ## check multinomial probabilities sum to one
     multiProbs <- apply(x[, -c(1, 3)], 1, function(x, ages) {
         alphaI1D <- x[1]
         alphaI1H <- x[2]
         eta <- x[3]
-        pI1D <- exp(alphaI1D + eta * ages)
+        eta_scale <- x[4]
+        pI1D <- exp(alphaI1D + eta * eta_scale * ages)
         pI1H <- exp(alphaI1H + eta * ages)
         p <- pI1D + pI1H
         all(p >= 0 & p <= 1)
@@ -157,8 +163,8 @@ pathThresh <- readRDS("inputs/pathThresh.rds")
 
 valid <- 0
 while(valid == 0) {
-    pathways <- matrix(c(runif(ndesign * 4, -20, 0), abs(rnorm(ndesign, 0, 0.1))), nrow = ndesign)
-    colnames(pathways) <- c("alphaEP", "alphaI1D", "alphaHD", "alphaI1H", "eta")
+    pathways <- matrix(c(runif(ndesign * 4, -20, 0), abs(rnorm(ndesign, 0, 0.1)), runif(ndesign, 0.5, 2)), nrow = ndesign)
+    colnames(pathways) <- c("alphaEP", "alphaI1D", "alphaHD", "alphaI1H", "eta", "eta_scale")
     pathways <- as_tibble(pathways)
     
     ## check ranges
@@ -167,12 +173,13 @@ while(valid == 0) {
     pathways <- pathways[pathways$alphaHD > -20 & pathways$alphaHD < 0, ]
     pathways <- pathways[pathways$alphaI1H > -20 & pathways$alphaI1H < 0, ]
     pathways <- pathways[pathways$eta > 0 & pathways$eta < 1, ]
+    pathways <- pathways[pathways$eta_scale > 0.5 & pathways$eta_scale < 2, ]
     
     ## check probabilities valid
     pathways <- pathways[pathwaysLimitFn(pathways, ages), ]
     
     ## check against prior density region
-    pathways <- pathways[dens(as.matrix(pathways), pathwaysMod$modelName, pathwaysMod$parameters, logarithm = TRUE) > pathThresh, ]
+    pathways <- pathways[dens(as.matrix(pathways)[, -6], pathwaysMod$modelName, pathwaysMod$parameters, logarithm = TRUE) > pathThresh, ]
     
     if(exists("temp_inputs")) {
         temp_inputs <- rbind(temp_inputs, pathways)
