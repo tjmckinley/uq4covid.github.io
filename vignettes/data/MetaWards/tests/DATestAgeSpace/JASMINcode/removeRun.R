@@ -39,10 +39,10 @@ saveRDS(pars, paste0("../wave", wave, "/inputs.rds"))
 inds <- 1:(nrow(pars) + 1)
 inds <- inds[inds > run]
 if(length(inds) > 0) {
+    system(paste0("rm -r ../wave", wave, "/saveOut_wave", wave, "_", run))
     for(i in inds) {
         system(paste0("mv ../wave", wave, "/runs_md_", i, ".rds ../wave", wave, "/runs_md_", i - 1, ".rds"))
         system(paste0("mv ../wave", wave, "/wave", wave, "Runs_", i, ".Rout ../wave", wave, "/wave", wave, "Runs_", i - 1, ".Rout"))
-        system(paste0("rm -r ../wave", wave, "/saveOut_wave", wave, "_", i - 1))
         system(paste0("mv ../wave", wave, "/saveOut_wave", wave, "_", i, " ../wave", wave, "/saveOut_wave", wave, "_", i - 1))
     }
 } else {
