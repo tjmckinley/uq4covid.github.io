@@ -94,7 +94,7 @@ pathwaysLimitFn <- function(x, ages) {
     ## in (0, 1)
     singleProbs <- apply(x, 1, function(x, ages) {
         eta <- x[5]
-        alphas <- x[c(1, 3, 4)]
+        alphas <- x[c(1, 4)]
         y <- sapply(alphas, function(a, eta, ages) {
             y <- exp(a + eta * ages)
             all(y >= 0 & y <= 1)
@@ -104,7 +104,11 @@ pathwaysLimitFn <- function(x, ages) {
         a <- x[2]
         y1 <- exp(a + eta * ages)
         y1 <- all(y1 >= 0 & y1 <= 1)
-        y & y1
+        eta <- x[5] * x[7]
+        a <- x[3]
+        y2 <- exp(a + eta * ages)
+        y2 <- all(y2 >= 0 & y2 <= 1)
+        y & y1 & y2
     }, ages = ages)
     ## check multinomial probabilities sum to one
     multiProbs <- apply(x[, -c(1, 3)], 1, function(x, ages) {
@@ -124,7 +128,7 @@ pathwaysLimitFn <- function(x, ages) {
 pathwaysMod <- readRDS("inputs/pathways.rds")
 pathThresh <- readRDS("inputs/pathThresh.rds")
 
-pathways <- select(inputs, alphaEP, alphaI1D, alphaHD, alphaI1H, eta, eta_scale)
+pathways <- select(inputs, alphaEP, alphaI1D, alphaHD, alphaI1H, eta, etaI_scale, etaH_scale)
 
 ## check ranges
 pathways <- pathways[pathways$alphaEP > -20 & pathways$alphaEP < 0, ]
@@ -132,13 +136,14 @@ pathways <- pathways[pathways$alphaI1D > -20 & pathways$alphaI1D < 0, ]
 pathways <- pathways[pathways$alphaHD > -20 & pathways$alphaHD < 0, ]
 pathways <- pathways[pathways$alphaI1H > -20 & pathways$alphaI1H < 0, ]
 pathways <- pathways[pathways$eta > 0 & pathways$eta < 1, ]
-pathways <- pathways[pathways$eta_scale > 0.5 & pathways$eta_scale < 2, ]
+pathways <- pathways[pathways$etaI_scale > 0.5 & pathways$etaI_scale < 2, ]
+pathways <- pathways[pathways$etaH_scale > 0.5 & pathways$etaH_scale < 2, ]
 
 ## check probabilities valid
 pathways <- pathways[pathwaysLimitFn(pathways, ages), ]
 
 ## check against prior density region
-pathways <- pathways[dens(as.matrix(pathways)[, -6], pathwaysMod$modelName, pathwaysMod$parameters, logarithm = TRUE) > pathThresh, ]
+pathways <- pathways[dens(as.matrix(pathways)[, -c(6, 7)], pathwaysMod$modelName, pathwaysMod$parameters, logarithm = TRUE) > pathThresh, ]
 
 if(nrow(pathways) != ndesign) stop("Design fails pathways checks")
 

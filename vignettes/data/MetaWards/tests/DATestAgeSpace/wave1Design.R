@@ -15,7 +15,7 @@ if(length(args) != 0) {
         stop("No arguments")
     }
 } else {
-    wave <- "1"
+    wave <- "1Feb_neweta1"
 }
 
 ## create directory to save samples
@@ -122,7 +122,7 @@ pathwaysLimitFn <- function(x, ages) {
     ## in (0, 1)
     singleProbs <- apply(x, 1, function(x, ages) {
         eta <- x[5]
-        alphas <- x[c(1, 3, 4)]
+        alphas <- x[c(1, 4)]
         y <- sapply(alphas, function(a, eta, ages) {
             y <- exp(a + eta * ages)
             all(y >= 0 & y <= 1)
@@ -132,7 +132,11 @@ pathwaysLimitFn <- function(x, ages) {
         a <- x[2]
         y1 <- exp(a + eta * ages)
         y1 <- all(y1 >= 0 & y1 <= 1)
-        y & y1
+        eta <- x[5] * x[7]
+        a <- x[3]
+        y2 <- exp(a + eta * ages)
+        y2 <- all(y2 >= 0 & y2 <= 1)
+        y & y1 & y2
     }, ages = ages)
     ## check multinomial probabilities sum to one
     multiProbs <- apply(x[, -c(1, 3)], 1, function(x, ages) {
@@ -158,11 +162,12 @@ pathwaysInput <- FMMmaximin(
     ages = c(2.5, 11, 23.5, 34.5, 44.5, 55.5, 65.5, 75.5)
 ) %>%
     as_tibble() %>%
-    rename(alphaEP = x1, alphaI1D = x2, alphaHD = x3, alphaI1H = x4, eta = x5, eta_scale = x6)
+    rename(alphaEP = x1, alphaI1D = x2, alphaHD = x3, alphaI1H = x4, eta = x5, etaI_scale = x6, etaH_scale = x7)
     
 ## check against prior density restrictions
-pathwaysInput <- pathwaysInput[dens(as.matrix(pathwaysInput)[, -6], pathways$modelName, pathways$parameters, logarithm = TRUE) > pathThresh, ]
+pathwaysInput <- pathwaysInput[dens(as.matrix(pathwaysInput)[, -c(6, 7)], pathways$modelName, pathways$parameters, logarithm = TRUE) > pathThresh, ]
 pathwaysInput <- pathwaysInput[pathwaysInput[, 6] > 0.5 & pathwaysInput[, 6] < 2, ]
+pathwaysInput <- pathwaysInput[pathwaysInput[, 7] > 0.5 & pathwaysInput[, 7] < 2, ]
 if(nrow(pathwaysInput) < ndesign) stop("Can't generate enough valid pathways points")
 pathwaysInput <- pathwaysInput[1:ndesign, ]
     
@@ -176,11 +181,12 @@ pathwaysVal <- FMMmaximin(
     ages = c(2.5, 11, 23.5, 34.5, 44.5, 55.5, 65.5, 75.5)
 ) %>%
     as_tibble() %>%
-    rename(alphaEP = x1, alphaI1D = x2, alphaHD = x3, alphaI1H = x4, eta = x5, eta_scale = x6)
+    rename(alphaEP = x1, alphaI1D = x2, alphaHD = x3, alphaI1H = x4, eta = x5, etaI_scale = x6, etaH_scale = x7)
     
 ## check against prior density restrictions
-pathwaysVal <- pathwaysVal[dens(as.matrix(pathwaysVal)[, -6], pathways$modelName, pathways$parameters, logarithm = TRUE) > pathThresh, ]
+pathwaysVal <- pathwaysVal[dens(as.matrix(pathwaysVal)[, -c(6, 7)], pathways$modelName, pathways$parameters, logarithm = TRUE) > pathThresh, ]
 pathwaysVal <- pathwaysVal[pathwaysVal[, 6] > 0.5 & pathwaysVal[, 6] < 2, ]
+pathwaysVal <- pathwaysVal[pathwaysVal[, 7] > 0.5 & pathwaysVal[, 7] < 2, ]
 if(nrow(pathwaysVal) < nval) stop("Can't generate enough valid pathways points")
 pathwaysVal <- pathwaysVal[1:nval, ]
 
