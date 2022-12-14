@@ -121,8 +121,12 @@ u <- list(u1 = u1, u2 = u2, u1_moves = u1_moves, u2_moves = as.matrix(PM19))
 ## create model discrepancy matrices
 region_lookup <- readRDS("data/region_lookup.rds")
 london_FID <- lookup$FID[!is.na(lookup$FID_region) & lookup$FID_region == region_lookup$FID[region_lookup$RGN19NM == "London"]]
-b_dis <- matrix(rep(b_dis, nrow(age_lookup) * nrow(lookup)), nrow(age_lookup), nrow(lookup))
-b_dis[, london_FID] <- b_dis_london
+a_dis <- a_dis * exp(-pars$MD_scale[hash] * (pars$MD_time[hash] - tstart:tstop) * ifelse(tstart:tstop < pars$MD_time[hash], 1, 0))
+a_dis <- array(rep(a_dis, nrow(age_lookup) * nrow(lookup)), c(tstop - tstart + 1, nrow(age_lookup), nrow(lookup)))
+b_dis <- b_dis * exp(-pars$MD_scale[hash] * (pars$MD_time[hash] - tstart:tstop) * ifelse(tstart:tstop < pars$MD_time[hash], 1, 0))
+b_dis <- array(rep(b_dis, nrow(age_lookup) * nrow(lookup)), c(tstop - tstart + 1, nrow(age_lookup), nrow(lookup)))
+b_dis_london <- b_dis_london * exp(-pars$MD_scale[hash] * (pars$MD_time[hash] - tstart:tstop) * ifelse(tstart:tstop < pars$MD_time[hash], 1, 0))
+b_dis[, , london_FID] <- rep(b_dis_london, length(london_FID))
 
 ## run PF with some model discrepancy
 if(exists("hash")) {

@@ -15,7 +15,7 @@ if(length(args) != 0) {
         stop("No arguments")
     }
 } else {
-    wave <- "1Feb_neweta1"
+    wave <- "1"
 }
 
 ## create directory to save samples
@@ -30,17 +30,17 @@ tstop <- 50
 lockdown_day <- 20
 npart <- 50
 niter <- 10
-a1 <- 0
-a2 <- 0
-b1 <- 0.1
-b2 <- 0.1
+a1 <- 0.001
+a2 <- 0.001
+b1 <- 0.025
+b2 <- 0.025
 a_dis <- 0.05
 b_dis <- 0.01
 b_dis_london <- 0.5
-sigma2_lad <- 1
-sigma2_age_region <- 1
-sigma2_nhsregion <- 1
-sigma2_age_nhsregion <- 1
+sigma2_lad <- 0.00295858
+sigma2_age_region <- 0.01388889
+sigma2_nhsregion <- 0.14285714
+sigma2_age_nhsregion <- 0.03571429
 saveAll <- TRUE
 snapshot <- TRUE
 writeExt <- TRUE
@@ -55,9 +55,9 @@ source("inputs/dataTools.R")
 
 ## set up parameter ranges for uniform ranges
 parRanges <- data.frame(
-    parameter = c("R0", "TE", "TP", "TI1", "TI2", "nuA", "beta_scale", "p_move"),
-    lower = c(2, 0.1, 1.2, 2.8, 0.0001, 0, 0, 0),
-    upper = c(4.5, 2, 3, 4.5, 0.5, 1, 1, 1),
+    parameter = c("R0", "TE", "TP", "TI1", "TI2", "nuA", "beta_scale", "p_move", "MD_scale", "MD_time"),
+    lower = c(2, 0.1, 1.2, 2.8, 0.0001, 0, 0, 0, 0.1, 0),
+    upper = c(4.5, 2, 3, 4.5, 0.5, 1, 1, 1, 1, 50),
     stringsAsFactors = FALSE
 ) 
 

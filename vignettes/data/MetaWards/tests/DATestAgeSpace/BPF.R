@@ -265,24 +265,25 @@ BPF <- function(pars, C1, C2, lockdown_day, cumDeath_lad, cumDeath_age_region,
                 "_",
                 rep(1:nages, times = 10)
             )),
-        "beta_scale", "p_move")
+        "beta_scale", "p_move", "MD_scale", "MD_time")
         stopifnot(identical(colnames(pars), cnames))
+        pars <- select(pars, !c(MD_scale, MD_time))
         
         ## set pars
         pars <- unlist(pars[k, ])
         
-        ## set up a_dis and b_dis matrices
-        if(!is.matrix(a_dis)) {
+        ## set up a_dis and b_dis arrays
+        if(!is.array(a_dis)) {
             stopifnot(is.numeric(a_dis) & length(a_dis) == 1)
-            a_dis <- matrix(rep(a_dis, nages * nlads), nages, nlads)
+            a_dis <- array(rep(a_dis, nages * nlads * (tstop - tstart + 1)), c(tstop - tstart + 1, nages, nlads))
         } else {
-            stopifnot(is.numeric(a_dis) & nrow(a_dis) == nages & ncol(a_dis) == nlads)
+            stopifnot(is.numeric(a_dis) & dim(a_dis)[1] == (tstop - tstart + 1) & dim(a_dis)[2] == nages & dim(a_dis)[3] == nlads)
         }
-        if(!is.matrix(b_dis)) {
+        if(!is.array(b_dis)) {
             stopifnot(is.numeric(b_dis) & length(b_dis) == 1)
-            b_dis <- matrix(rep(b_dis, nages * nlads), nages, nlads)
+            b_dis <- array(rep(b_dis, nages * nlads* (tstop - tstart + 1)), c(tstop - tstart + 1, nages, nlads))
         } else {
-            stopifnot(is.numeric(b_dis) & nrow(b_dis) == nages & ncol(b_dis) == nlads)
+            stopifnot(is.numeric(b_dis) & dim(b_dis)[1] == (tstop - tstart + 1) & dim(b_dis)[2] == nages & dim(b_dis)[3] == nlads)
         }
     
         ## do garbage collection (seems to solve allocation issue)

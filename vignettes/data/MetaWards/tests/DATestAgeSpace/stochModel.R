@@ -14,11 +14,38 @@ library(patchwork)
 set.seed(666)
 
 ## create output directory
+if(dir.exists("outputs")) {
+    stop("Can't overwrite existing directory")
+}
 dir.create("outputs")
 
 ## source simulation function
 sourceCpp("BPF.cpp")
 source("BPF.R")
+
+## read in fixed input data
+fixedInputs <- readLines("wave1/fixedInputs.txt")
+
+## set case specific values
+tstart <- as.numeric(fixedInputs[1])
+tstop <- as.numeric(fixedInputs[2])
+lockdown_day <- as.numeric(fixedInputs[3])
+npart <- as.numeric(fixedInputs[4])
+niter <- as.numeric(fixedInputs[5])
+a1 <- as.numeric(fixedInputs[6])
+a2 <- as.numeric(fixedInputs[7])
+b1 <- as.numeric(fixedInputs[8])
+b2 <- as.numeric(fixedInputs[9])
+a_dis <- as.numeric(fixedInputs[10])
+b_dis <- as.numeric(fixedInputs[11])
+b_dis_london <- as.numeric(fixedInputs[12])
+sigma2_lad <- as.numeric(fixedInputs[13])
+sigma2_age_region <- as.numeric(fixedInputs[14])
+sigma2_nhsregion <- as.numeric(fixedInputs[15])
+sigma2_age_nhsregion <- as.numeric(fixedInputs[16])
+saveAll <- as.logical(as.numeric(fixedInputs[17]))
+snapshot <- as.logical(as.numeric(fixedInputs[18]))
+writeExt <- as.logical(as.numeric(fixedInputs[19]))
 
 ## read in parameters, remove guff and reorder
 pars <- readRDS("wave1/disease.rds")
@@ -50,29 +77,38 @@ ageProbs <- read_csv("inputs/age_seeds.csv", col_names = FALSE)$X2
 
 ## read in commuter data
 EW19 <- read_delim("inputs/EW19.dat", delim = " ", col_names = FALSE)
+u1_moves <- as.matrix(EW19[, 1:2])
 
-## add seeding information
-EW19 <- mutate(EW19, X4 = 0)
-for(i in 1:10) {
-    val <- 0
-    while(val == 0) {
-        seed <- sample(which(EW19[, 1] == 317), 1)
-        if((EW19$X4[seed] + 1) <= EW19$X3[seed]) {
-            EW19$X4[seed] <- EW19$X4[seed] + 1
-            val <- 1
-        }
-    }
-}
+### add seeding information
+#EW19 <- mutate(EW19, X4 = 0)
+#for(i in 1:10) {
+#    val <- 0
+#    while(val == 0) {
+#        seed <- sample(which(EW19[, 1] == 317), 1)
+#        if((EW19$X4[seed] + 1) <= EW19$X3[seed]) {
+#            EW19$X4[seed] <- EW19$X4[seed] + 1
+#            val <- 1
+#        }
+#    }
+#}
+### expand to deal with age-classes
+#u1 <- apply(EW19, 1, function(x, ageProbs) {
+#        u <- matrix(0, 12, length(ageProbs))
+#        u[2, ] <- smart_round(ageProbs * x[4])
+#        u[1, ] <- smart_round(ageProbs * x[3]) - u[2, ]
+#        list(u)
+#    }, ageProbs = ageProbs) %>%
+#    map(1) %>%
+#    abind(along = 3)
+
 ## expand to deal with age-classes
 u1 <- apply(EW19, 1, function(x, ageProbs) {
         u <- matrix(0, 12, length(ageProbs))
-        u[2, ] <- smart_round(ageProbs * x[4])
-        u[1, ] <- smart_round(ageProbs * x[3]) - u[2, ]
+        u[1, ] <- smart_round(ageProbs * x[3])
         list(u)
     }, ageProbs = ageProbs) %>%
     map(1) %>%
     abind(along = 3)
-u1_moves <- as.matrix(EW19[, 1:2])
 
 ## read in player data
 PM19 <- read_delim("inputs/PlayMatrix19.dat", delim = " ", col_names = FALSE)
@@ -109,10 +145,23 @@ saveRDS(age_lookup, "outputs/age_lookup.rds")
 ## set up input object
 u <- list(u1_moves = u1_moves, u1 = u1, u2 = u2, u2_moves = as.matrix(PM19))
 
+## create model discrepancy matrices
+region_lookup <- readRDS("data/region_lookup.rds")
+london_FID <- lookup$FID[!is.na(lookup$FID_region) & lookup$FID_region == region_lookup$FID[region_lookup$RGN19NM == "London"]]
+a_dis <- a_dis * exp(-pars$MD_scale[1] * (pars$MD_time[1] - tstart:tstop) * ifelse(tstart:tstop < pars$MD_time[1], 1, 0))
+a_dis <- array(rep(a_dis, nrow(age_lookup) * nrow(lookup)), c(tstop - tstart + 1, nrow(age_lookup), nrow(lookup)))
+b_dis <- b_dis * exp(-pars$MD_scale[1] * (pars$MD_time[1] - tstart:tstop) * ifelse(tstart:tstop < pars$MD_time[1], 1, 0))
+b_dis <- array(rep(b_dis, nrow(age_lookup) * nrow(lookup)), c(tstop - tstart + 1, nrow(age_lookup), nrow(lookup)))
+b_dis_london <- b_dis_london * exp(-pars$MD_scale[1] * (pars$MD_time[1] - tstart:tstop) * ifelse(tstart:tstop < pars$MD_time[1], 1, 0))
+b_dis[, , london_FID] <- rep(b_dis_london, length(london_FID))
+
 ## simulate discrete-time model
-disSims_full <- BPF(pars, C1 = contact1, C2 = contact2, lockdown_day = 20, 
-    lookup = lookup, age_lookup = age_lookup, u = u, a1 = 0, a2 = 0,
-    b1 = 0.1, b2 = 0.1, a_dis = 0.05, b_dis = 0.01, tstart = 0, tstop = 100, npart = 8, PF = FALSE)
+disSims_full <- BPF(pars, C1 = contact1, C2 = contact2, lockdown_day = lockdown_day, 
+    lookup = lookup, age_lookup = age_lookup, u = u, a1 = a1, a2 = a2,
+    b1 = b1, b2 = b2, a_dis = a_dis, b_dis = b_dis, tstart = tstart, tstop = tstop,
+    sigma2_lad = sigma2_lad, sigma2_age_region = sigma2_age_region, 
+    sigma2_nhsregion = sigma2_nhsregion, sigma2_age_nhsregion = sigma2_age_nhsregion,
+    npart = 8, PF = FALSE)
     
 ###############################################
 #######        LAD-level truth          #######

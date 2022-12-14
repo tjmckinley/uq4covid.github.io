@@ -15,6 +15,30 @@ sourceCpp("../BPF.cpp")
 ## source function to run PF and return log-likelihood
 source("../BPF.R")
 
+## read in fixed input data
+fixedInputs <- readLines("../wave1/fixedInputs.txt")
+
+## set case specific values
+tstart <- as.numeric(fixedInputs[1])
+tstop <- as.numeric(fixedInputs[2])
+lockdown_day <- as.numeric(fixedInputs[3])
+npart <- as.numeric(fixedInputs[4])
+niter <- as.numeric(fixedInputs[5])
+a1 <- as.numeric(fixedInputs[6])
+a2 <- as.numeric(fixedInputs[7])
+b1 <- as.numeric(fixedInputs[8])
+b2 <- as.numeric(fixedInputs[9])
+a_dis <- as.numeric(fixedInputs[10])
+b_dis <- as.numeric(fixedInputs[11])
+b_dis_london <- as.numeric(fixedInputs[12])
+sigma2_lad <- as.numeric(fixedInputs[13])
+sigma2_age_region <- as.numeric(fixedInputs[14])
+sigma2_nhsregion <- as.numeric(fixedInputs[15])
+sigma2_age_nhsregion <- as.numeric(fixedInputs[16])
+saveAll <- as.logical(as.numeric(fixedInputs[17]))
+snapshot <- as.logical(as.numeric(fixedInputs[18]))
+writeExt <- as.logical(as.numeric(fixedInputs[19]))
+
 ## read in simulated data
 cumDeath_lad <- readRDS("../outputs/cumDeath_lad.rds")
 cumDeath_age_region <- readRDS("../outputs/cumDeath_age_region.rds")
@@ -22,7 +46,7 @@ hosp_nhsregion <- readRDS("../outputs/hosp_nhsregion.rds")
 cumHospAd_age_nhsregion <- readRDS("../outputs/cumHospAd_age_nhsregion.rds")
 
 ## read in parameters, remove guff and reorder
-pars <- readRDS("../wave1test/disease.rds") %>%
+pars <- readRDS("../wave1/disease.rds") %>%
     select(!output) %>%
     as.data.frame()
 
@@ -81,11 +105,24 @@ age_lookup <- readRDS("../outputs/age_lookup.rds")
 ## set seed for reproducibility
 set.seed(42)
 
+## extract sample point
+pars <- pars[100, ]
+
 ## set number of days to run for
 ## and number of particles
 tstart <- 0
-tstop <- 20
+tstop <- 40
 npart <- 8
+
+## create model discrepancy matrices
+region_lookup <- readRDS("../data/region_lookup.rds")
+london_FID <- lookup$FID[!is.na(lookup$FID_region) & lookup$FID_region == region_lookup$FID[region_lookup$RGN19NM == "London"]]
+a_dis <- a_dis * exp(-pars$MD_scale[1] * (pars$MD_time[1] - tstart:tstop) * ifelse(tstart:tstop < pars$MD_time[1], 1, 0))
+a_dis <- array(rep(a_dis, nrow(age_lookup) * nrow(lookup)), c(tstop - tstart + 1, nrow(age_lookup), nrow(lookup)))
+b_dis <- b_dis * exp(-pars$MD_scale[1] * (pars$MD_time[1] - tstart:tstop) * ifelse(tstart:tstop < pars$MD_time[1], 1, 0))
+b_dis <- array(rep(b_dis, nrow(age_lookup) * nrow(lookup)), c(tstop - tstart + 1, nrow(age_lookup), nrow(lookup)))
+b_dis_london <- b_dis_london * exp(-pars$MD_scale[1] * (pars$MD_time[1] - tstart:tstop) * ifelse(tstart:tstop < pars$MD_time[1], 1, 0))
+b_dis[, , london_FID] <- rep(b_dis_london, length(london_FID))
 
 ## set save folder
 folder <- "saveOut"
@@ -98,20 +135,21 @@ class_lookup <- data.frame(var = c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "
 u <- list(u1_moves = u1_moves, u1 = u1, u2_moves = as.matrix(PM19), u2 = u2)
     
 ## run model with model discrepancy
-runs_md <- BPF(pars[100, ], C1 = contact1, C2 = contact2, lockdown_day = 20,
+runs_md <- BPF(pars, C1 = contact1, C2 = contact2, lockdown_day = lockdown_day,
     cumDeath_lad = cumDeath_lad, cumDeath_age_region = cumDeath_age_region, 
     hosp_nhsregion = hosp_nhsregion, cumHospAd_age_nhsregion = cumHospAd_age_nhsregion, 
     lookup = lookup, age_lookup = age_lookup, u = u, tstart = tstart, tstop = tstop, npart = npart, 
-    a1 = 0, a2 = 0, b1 = 0.1, b2 = 0.1, a_dis = 0.05, b_dis = 0.01, niter = 10,
-    sigma2_lad = 1, sigma2_age_region = 1, sigma2_nhsregion = 1, sigma2_age_nhsregion = 1,
+    a1 = a1, a2 = a2, b1 = b1, b2 = b2, a_dis = a_dis, b_dis = b_dis, niter = niter,
+    sigma2_lad = sigma2_lad, sigma2_age_region = sigma2_age_region, 
+    sigma2_nhsregion = sigma2_nhsregion, sigma2_age_nhsregion = sigma2_age_nhsregion,
     saveAll = TRUE, writeExt = TRUE, snapshot = TRUE)
     
 ## run continuation if required
 cont <- TRUE
 if(cont) {
     ## continuation method if required
-    tstart <- 20
-    tstop <- 25
+    tstart <- 40
+    tstop <- 50
 
     ## set up inputs
     u1_moves <- read_csv(paste0(folder, "/snapshot_u1moves_t", tstart, ".csv.bz2"), col_names = FALSE) %>%
@@ -144,12 +182,24 @@ if(cont) {
     }
 
     u <- list(u1_moves = u1_moves, u1 = u1, u2 = u2, ncohorts1 = ncohorts1, ncohorts2 = ncohorts2, playprobs = playprobs)
+    
+    ## reset time-dependent discrepancies
+    a_dis <- as.numeric(fixedInputs[10])
+    b_dis <- as.numeric(fixedInputs[11])
+    b_dis_london <- as.numeric(fixedInputs[12])
+    a_dis <- a_dis * exp(-pars$MD_scale[1] * (pars$MD_time[1] - tstart:tstop) * ifelse(tstart:tstop < pars$MD_time[1], 1, 0))
+    a_dis <- array(rep(a_dis, nrow(age_lookup) * nrow(lookup)), c(tstop - tstart + 1, nrow(age_lookup), nrow(lookup)))
+    b_dis <- b_dis * exp(-pars$MD_scale[1] * (pars$MD_time[1] - tstart:tstop) * ifelse(tstart:tstop < pars$MD_time[1], 1, 0))
+    b_dis <- array(rep(b_dis, nrow(age_lookup) * nrow(lookup)), c(tstop - tstart + 1, nrow(age_lookup), nrow(lookup)))
+    b_dis_london <- b_dis_london * exp(-pars$MD_scale[1] * (pars$MD_time[1] - tstart:tstop) * ifelse(tstart:tstop < pars$MD_time[1], 1, 0))
+    b_dis[, , london_FID] <- rep(b_dis_london, length(london_FID))
         
     ## run model with model discrepancy
-    runs_md <- BPF(pars[100, ], C1 = contact1, C2 = contact2, lockdown_day = 20,
+    runs_md <- BPF(pars, C1 = contact1, C2 = contact2, lockdown_day = lockdown_day,
         lookup = lookup, age_lookup = age_lookup, u = u, tstart = tstart, tstop = tstop, 
-        npart = npart, a1 = 0, a2 = 0, b1 = 0.1, b2 = 0.1, a_dis = 0.05, b_dis = 0.01, 
-        sigma2_lad = 1, sigma2_age_region = 1, sigma2_nhsregion = 1, sigma2_age_nhsregion = 1,
+        npart = npart, a1 = a1, a2 = a2, b1 = b1, b2 = b2, a_dis = a_dis, b_dis = b_dis, 
+        sigma2_lad = sigma2_lad, sigma2_age_region = sigma2_age_region, 
+        sigma2_nhsregion = sigma2_nhsregion, sigma2_age_nhsregion = sigma2_age_nhsregion,
         saveAll = TRUE, writeExt = TRUE, PF = FALSE)   
 } 
     
