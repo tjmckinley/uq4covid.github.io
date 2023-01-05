@@ -110,7 +110,7 @@ runs <- map(jobs, function(i, wave) {
 ## save output
 saveRDS(runs, paste0("../wave", wave, "/sumEns_ageNhsregionHosp.rds"))
 
-if(file.exists("lads.txt")) {
+if(file.exists(paste0("../", outputs, "/lads_", outputs, ".txt"))) {
     ## load runs in and concatenate
     runs <- map(jobs, function(i, wave) {
             readRDS(paste0("../wave", wave, "/plotAgg_T", i, "_lads.rds"))

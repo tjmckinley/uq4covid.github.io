@@ -34,27 +34,27 @@ sims_md <- readRDS(paste0("../wave", wave, "/sumEns_natFull.rds"))
 if(is.na(tstop)) tstop <- max(sims_md$t)
 
 ## load in data
-data <- readRDS(paste0("../", outputs, "/disSims.rds")) %>%
-    filter(t <= tstop) %>%
-    pivot_longer(!t, names_to = "var", values_to = "n") %>%
-    mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
-    mutate(LAD = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
-    mutate(age = gsub('(.*)_[0-9]*', '\\1', age)) %>%
-    mutate(var = gsub('^(.*)_[0-9]*_.*', '\\1', var)) %>%
-    mutate(var = gsub("one", "1", var)) %>%
-    mutate(var = gsub("two", "2", var))
+#data <- readRDS(paste0("../", outputs, "/disSims.rds")) %>%
+#    filter(t <= tstop) %>%
+#    pivot_longer(!t, names_to = "var", values_to = "n") %>%
+#    mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
+#    mutate(LAD = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
+#    mutate(age = gsub('(.*)_[0-9]*', '\\1', age)) %>%
+#    mutate(var = gsub('^(.*)_[0-9]*_.*', '\\1', var)) %>%
+#    mutate(var = gsub("one", "1", var)) %>%
+#    mutate(var = gsub("two", "2", var))
     
 p1 <- list()     
 p1[[1]] <- ggplot(sims_md, aes(x = t)) +
     geom_ribbon(aes(ymin = LCI, ymax = UCI), alpha = 0.5) +
     geom_ribbon(aes(ymin = LQ, ymax = UQ), alpha = 0.5) +
     geom_line(aes(y = Median)) +
-    geom_line(
-        aes(y = n), 
-        data = group_by(data, t, var, age) %>%
-            summarise(n = sum(n), .groups = "drop"),
-        col = "red", linetype = "dashed"
-    ) +
+#    geom_line(
+#        aes(y = n), 
+#        data = group_by(data, t, var, age) %>%
+#            summarise(n = sum(n), .groups = "drop"),
+#        col = "red", linetype = "dashed"
+#    ) +
     facet_grid(var ~ age, scales = "free") +
     xlab("Days") + 
     ylab("Counts") +
@@ -211,13 +211,13 @@ ggsave(paste0("../wave", wave, "/simsBPFEns.pdf"), p1, width = 15, height = 15)
 #####          LAD-level plots            #####
 ###############################################
 
-if(file.exists(paste0("lads_", outputs, ".txt"))) {
+if(file.exists(paste0("../", outputs, "/lads_", outputs, ".txt"))) {
 
     ## read in lads
-    lads <- as.numeric(readLines(paste0("lads_", outputs, ".txt")))
+    lads <- as.numeric(readLines(paste0("../", outputs, "/lads_", outputs, ".txt")))
     
     ## load in data
-    data <- readRDS(paste0("../", outputs, "/disSims.rds")) %>%
+    data <- readRDS(paste0("../", outputs, "/cumDeath_lad.rds")) %>%
         filter(t <= tstop) %>%
         pivot_longer(!t, names_to = "var", values_to = "n") %>%
         mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
@@ -227,12 +227,15 @@ if(file.exists(paste0("lads_", outputs, ".txt"))) {
         mutate(var = gsub("one", "1", var)) %>%
         mutate(var = gsub("two", "2", var)) %>%
         mutate(age = as.numeric(age)) %>%
-        filter(lad %in% lads) 
+        filter(lad %in% lads) %>%
+	group_by(t, lad) %>%
+	summarise(n = sum(n), .groups = "drop")
 
     ## load in runs
-    sims_md <- readRDS(paste0("../wave", wave, "/sumEns_lads.rds"))
+    sims_md <- readRDS(paste0("../wave", wave, "/sumEns_lads.rds")) %>%
+        filter(lad %in% lads)
         
-    p1 <- ggplot(sims_md, aes(x = t, colour = lad, fill = lad)) +
+    p1 <- ggplot(sims_md, aes(x = t)) +
         geom_ribbon(aes(ymin = LCI, ymax = UCI), colour = NA, alpha = 0.5) +
         geom_ribbon(aes(ymin = LQ, ymax = UQ), colour = NA, alpha = 0.5) +
         geom_line(aes(y = Median)) +
@@ -241,10 +244,10 @@ if(file.exists(paste0("lads_", outputs, ".txt"))) {
             data = data,
             linetype = "dashed"
         ) +
-        facet_grid(var ~ age, scales = "free") +
+        facet_wrap(~ lad, scales = "free") +
         xlab("Days") + 
         ylab("Counts") +
-        ggtitle("Truth")
+        ggtitle(paste0("Observed deaths in top ", length(lads), " LADs"))
 
     if(cont) p1 <- p1 + geom_vline(xintercept = tstart, linetype = "dashed")
 
