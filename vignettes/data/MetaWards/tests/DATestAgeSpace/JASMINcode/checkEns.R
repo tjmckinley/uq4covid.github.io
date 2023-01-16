@@ -39,7 +39,7 @@ runs <- map_lgl(1:nrow(pars), function(i, wave) {
     run <- ifelse(file.exists(paste0("../wave", wave, "/plotSum_", i, "_nhsregionHosp.rds")), run, FALSE)
     run <- ifelse(file.exists(paste0("../wave", wave, "/plotSum_", i, "_ageNhsregionHosp.rds")), run, FALSE)
     ## produce lad-level plots if required
-    if(file.exists(paste0("lads_", outputs, ".txt"))) {
+    if(file.exists(paste0(outputs, "/lads_", outputs, ".txt"))) {
         run <- ifelse(file.exists(paste0("../wave", wave, "/plotSum_", i, "_lads.rds")), run, FALSE)
     }
     run

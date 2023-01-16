@@ -23,8 +23,8 @@ if(length(args) != 0) {
 
 ## read in LADs from file
 ## (lad = NA gives national plots, else give vector of lads)
-if(file.exists(paste0("JASMINcode/lads_", outputs, ".txt"))) {
-    lads <- as.numeric(readLines(paste0("JASMINcode/lads_", outputs, ".txt")))
+if(file.exists(paste0(outputs, "/lads_", outputs, ".txt"))) {
+    lads <- as.numeric(readLines(paste0(outputs, "/lads_", outputs, ".txt")))
 } else {
     lads <- NA
 }
@@ -212,34 +212,27 @@ if(!writeExt) {
         #####          LAD-level plots            #####
         ###############################################
 
-        ## extract file names
-        files <- list.files(folder)
-        files <- files[grep("p_[0-9]*.csv.bz2", files)]
-        files <- paste0(folder, "/", files)
-        ## extract file names
-        files1 <- list.files(paste0(folder, "_cont"))
-        files1 <- files1[grep("p_[0-9]*.csv.bz2", files1)]
-        if(length(files1) > 0) {
-            files1 <- paste0(folder, "_cont/", files1)
-            files <- c(files, files1)
-        }
+	## extract file names
+    	files <- list.files(folder)
+    	files <- files[grep("p_lads_[0-9]*.csv.bz2", files)]
+    	files <- paste0(folder, "/", files)
+    	## extract file names
+    	files1 <- list.files(paste0(folder, "_cont"))
+    	files1 <- files1[grep("p_lads_[0-9]*.csv.bz2", files1)]
+    	if(length(files1) > 0) {
+       	     files1 <- paste0(folder, "_cont/", files1)
+       	     files <- c(files, files1)
+    	}
 
-        ## load in runs and group at the national level
-        sims_md <- map(files, function(y, lads) {
-                read.csv(y, header = TRUE) %>%
-                    filter(lad %in% lads)
-            }, lads = lads)
-        names(sims_md) <- gsub("^.*_([0-9]*).csv.bz2", "\\1", files)
-        sims_md <- bind_rows(sims_md, .id = "particle") %>% 
-            inner_join(class_lookup, by = "class") %>%
-            select(!class) %>%
-            rename(t = time) %>%
-            pivot_longer(!c(particle, t, var, lad), names_to = "age", values_to = "n") %>%
-            mutate(age = as.numeric(gsub("age", "", age))) %>%
-            mutate(var = gsub("one", "1", var)) %>%
-            mutate(var = gsub("two", "2", var)) %>%
-            mutate(lad = as.character(lad))
-            
+    	## load in runs
+    	sims_md <- map(files, read.csv, header = TRUE)
+    	names(sims_md) <- gsub("^.*_([0-9]*).csv.bz2", "\\1", files)
+    	sims_md <- bind_rows(sims_md, .id = "particle") %>%
+	    arrange(particle, time, lad) %>%
+            group_by(particle, lad) %>%
+            mutate(deaths = cumsum(deaths)) %>%
+            rename(t = time, n = deaths)
+        
         ## save output
         saveRDS(sims_md, paste0("wave", wave, "/plotSum_", hash, "_lads.rds"))
     }

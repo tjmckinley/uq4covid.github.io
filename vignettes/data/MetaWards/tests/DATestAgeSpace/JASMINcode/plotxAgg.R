@@ -234,24 +234,43 @@ if(mint <= t) {
 saveRDS(runs, paste0("wave", wave, "/plotAgg_T", t, "_ageNhsregionHosp.rds"))
 
 ## produce lad-level plots if required
-if(file.exists(paste0("JASMINcode/lads_", outputs, ".txt"))) {
+if(file.exists(paste0(outputs, "/lads_", outputs, ".txt"))) {
+    data <- readRDS(paste0(outputs, "/cumDeath_lad.rds"))
+    data <- data[apply(select(data, !t), 1, function(x) any(!is.na(x))), ]
+    mint <- min(data$t)
+
     ## concatenate runs over ensemble
-    runs <- map(1:nrow(pars), function(i, time, wave) {
-            readRDS(paste0("wave", wave, "/plotSum_", i, "_lads.rds")) %>%
-                filter(t == time) %>%
-                select(!particle)
-        }, time = t, wave = wave) %>%
+    if(mint <= t) {
+        runs <- map(1:nrow(pars), function(i, time, wave, mint) {
+            if(mint == 0) {
+                runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_lads.rds")) %>%
+                    filter(t == time) %>%
+                    select(t, n, lad)
+            } else {
+                runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_lads.rds")) %>%
+                    filter(t <= time & t >= mint) %>%
+                    group_by(particle) %>%
+                    mutate(n = n - min(n)) %>%
+                    ungroup() %>%
+                    filter(t == time) %>%
+                    select(t, n, lad)
+            }
+	    runs
+        }, time = t, wave = wave, mint = mint) %>%
         bind_rows() %>%
-        group_by(t, lad, var, age) %>%
+        group_by(t, lad) %>%
         summarise(
-            LCI = quantile(n, probs = 0.025),
+	    LCI = quantile(n, probs = 0.025),
             LQ = quantile(n, probs = 0.25),
             Median = quantile(n, probs = 0.5),
             UQ = quantile(n, probs = 0.75),
             UCI = quantile(n, probs = 0.975),
             .groups = "drop"
         )
-    
+    } else {
+        runs <- tibble(t = t, LCI = NA, LQ = NA, Median = NA, UQ = NA, UCI = NA)
+    }
+
     ## save output
     saveRDS(runs, paste0("wave", wave, "/plotAgg_T", t, "_lads.rds"))
 }
