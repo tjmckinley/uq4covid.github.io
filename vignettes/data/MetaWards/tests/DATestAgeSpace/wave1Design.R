@@ -26,8 +26,8 @@ dir.create(paste0("wave", wave))
 
 ## set case specific values for simulations
 tstart <- 0
-tstop <- 50
-lockdown_day <- 20
+tstop <- 37
+lockdown_day <- 37
 npart <- 50
 niter <- 10
 a1 <- 0.001
@@ -57,7 +57,7 @@ source("inputs/dataTools.R")
 parRanges <- data.frame(
     parameter = c("R0", "TE", "TP", "TI1", "TI2", "nuA", "beta_scale", "p_move", "MD_scale", "MD_time"),
     lower = c(2, 0.1, 1.2, 2.8, 0.0001, 0, 0, 0, 0.1, 0),
-    upper = c(4.5, 2, 3, 4.5, 0.5, 1, 1, 1, 1, 50),
+    upper = c(4.5, 2, 3, 4.5, 0.5, 1, 1, 1, 1, 37),
     stringsAsFactors = FALSE
 ) 
 
