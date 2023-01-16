@@ -231,6 +231,7 @@ if(!writeExt) {
 	    arrange(particle, time, lad) %>%
             group_by(particle, lad) %>%
             mutate(deaths = cumsum(deaths)) %>%
+            ungroup() %>%
             rename(t = time, n = deaths)
         
         ## save output
