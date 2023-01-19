@@ -56,9 +56,9 @@ source("inputs/dataTools.R")
 ## set up parameter ranges for uniform ranges
 parRanges <- data.frame(
     parameter = c("R0", "TE", "TP", "TI1", "TI2", "nuA", "alphaEP", "alphaI1D",
-    "alphaHD", "alphaI1H", "eta", "etaI_scale", "etaH_scale", "beta_scale", "p_move", "MD_scale", "MD_time"),
-    lower = c(2, 0.1, 1.2, 2.8, 0.0001, 0, -20, -20, -20, -20, 0, 0.5, 0.5, 0, 0, 0.1, 0),
-    upper = c(4.5, 2, 3, 4.5, 0.5, 1, 0, 0, 0, 0, 0.05, 2, 2, 1, 1, 1, 37),
+    "alphaI1H", "alphaHD", "etaEP", "etaI1D", "etaI1H", "etaHD", "beta_scale", "p_move", "MD_scale", "MD_time"),
+    lower = c(2, 0.1, 1.2, 2.8, 0.0001, 0, -20, -20, -20, -20, 0, 0, 0, 0, 0, 0, 0.1, 0),
+    upper = c(4.5, 2, 3, 4.5, 0.5, 1, 0, 0, 0, 0, 0.1, 0.1, 0.1, 0.1, 1, 1, 1, 37),
     stringsAsFactors = FALSE
 )
 
@@ -70,31 +70,22 @@ pathwaysLimitFn <- function(x, ages) {
     ## check all parameters give valid probabilities
     ## in (0, 1)
     singleProbs <- apply(x, 1, function(x, ages) {
-        eta <- x[5]
-        alphas <- x[c(1, 4)]
-        y <- sapply(alphas, function(a, eta, ages) {
-            y <- exp(a + eta * ages)
+        etas <- x[5:8]
+        alphas <- x[1:4]
+        y <- map2_lgl(alphas, etas, function(a, e, ages) {
+            y <- exp(a + e * ages)
             all(y >= 0 & y <= 1)
-        }, eta = eta, ages = ages)
-        y <- all(y)
-        eta <- x[5] * x[6]
-        a <- x[2]
-        y1 <- exp(a + eta * ages)
-        y1 <- all(y1 >= 0 & y1 <= 1)
-        eta <- x[5] * x[7]
-        a <- x[3]
-        y2 <- exp(a + eta * ages)
-        y2 <- all(y2 >= 0 & y2 <= 1)
-        y & y1 & y2
+        }, ages = ages)
+        all(y)
     }, ages = ages)
     ## check multinomial probabilities sum to one
-    multiProbs <- apply(x[, -c(1, 2)], 1, function(x, ages) {
+    multiProbs <- apply(x[, c(2, 3, 6, 7)], 1, function(x, ages) {
         alphaI1D <- x[1]
         alphaI1H <- x[2]
-        eta <- x[3]
-        eta_scale <- x[4]
-        pI1D <- exp(alphaI1D + eta * eta_scale * ages)
-        pI1H <- exp(alphaI1H + eta * ages)
+        etaI1D <- x[3]
+        etaI1H <- x[4]
+        pI1D <- exp(alphaI1D + etaI1D * ages)
+        pI1H <- exp(alphaI1H + etaI1H * ages)
         p <- pI1D + pI1H
         all(p >= 0 & p <= 1)
     }, ages = ages)
@@ -102,8 +93,8 @@ pathwaysLimitFn <- function(x, ages) {
 }
 
 ## generate LHS design (200 + 50 validation)
-ndesign <- 200
-design <- randomLHS(ndesign * 2, nrow(parRanges))
+ndesign <- 225
+design <- randomLHS(ndesign * 3, nrow(parRanges))
 colnames(design) <- parRanges$parameter
 design <- as_tibble(design)
 
@@ -119,8 +110,8 @@ stopifnot(nrow(inputs) >= ndesign)
 inputs <- slice(inputs, 1:ndesign)
 
 ## generate LHS design (200 + 50 validation)
-nval <- 50
-design <- randomLHS(nval * 2, nrow(parRanges))
+nval <- 75
+design <- randomLHS(nval * 3, nrow(parRanges))
 colnames(design) <- parRanges$parameter
 design <- as_tibble(design)
 
@@ -199,8 +190,17 @@ S0 <- N - smart_round(read_csv("inputs/age_seeds.csv", col_names = FALSE)$X2 * 1
 ages <- c(2.5, 11, 23.5, 34.5, 44.5, 55.5, 65.5, 75.5)
 
 ## convert input to disease
-disease <- convertInputToDisease(inputs, C, N, S0, ages)
-stopifnot(nrow(disease) == ndesign + nval)
+disease <- convertInputToDisease(slice(inputs, 1:ndesign), C, N, S0, ages)
+disease_val <- convertInputToDisease(slice(inputs, -c(1:ndesign)), C, N, S0, ages)
+ndesign <- ndesign - 25
+nval <- nval - 25
+stopifnot(nrow(disease) >= ndesign & nrow(disease_val) >= nval)
+disease <- slice(disease, 1:ndesign)
+disease_val <- slice(disease_val, 1:nval)
+disease <- rbind(disease, disease_val)
+
+## match to inputs
+inputs <- semi_join(inputs, disease, by = "output")
 
 ## reorder samples
 inputs <- arrange(inputs, output)

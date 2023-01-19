@@ -15,7 +15,7 @@ convertDesignToInput <- function(design, parRanges, scale = c("zero_one", "negon
         dplyr::select(ind, parameter, value) %>%
         spread(parameter, value) %>%
         arrange(ind) %>%
-        dplyr::select(-ind)
+        dplyr::select(!!colnames(design))
     
     ## return inputs
     input
@@ -29,7 +29,7 @@ convertInputToDisease <- function(input, C, N, S0, ages) {
     require(magrittr)
   
     stopifnot(all(c("R0", "nuA", "TE", "TP", "TI1", "TI2", "alphaEP", 
-        "alphaI1H", "alphaI1D", "alphaHD", "eta", "etaI_scale", "etaH_scale", 
+        "alphaI1D", "alphaI1H", "alphaHD", "etaEP", "etaI1D", "etaI1H", "etaHD",
         "alphaTH", "etaTH", "output", "beta_scale", "p_move", "MD_scale", "MD_time") %in% colnames(input)))
     
     ## check unique ID
@@ -43,7 +43,7 @@ convertInputToDisease <- function(input, C, N, S0, ages) {
         disease <- mutate(disease, ".pE_{j}" := 1 - exp(-1 / input$TE))
     }
     disease <- mutate(disease, 
-        temp = map2(input$alphaEP, input$eta, function(alpha, eta, ages) {
+        temp = map2(input$alphaEP, input$etaEP, function(alpha, eta, ages) {
             exp(alpha + eta * ages) %>%
                 matrix(nrow = 1) %>%
                 set_colnames(paste0(".pEP_", 1:length(ages))) %>%
@@ -66,7 +66,7 @@ convertInputToDisease <- function(input, C, N, S0, ages) {
         disease <- mutate(disease, ".pI1_{j}" := 1 - exp(-1 / input$TI1))
     }
     disease <- mutate(disease, 
-        temp = map2(input$alphaI1H, input$eta, function(alpha, eta, ages) {
+        temp = map2(input$alphaI1H, input$etaI1H, function(alpha, eta, ages) {
             exp(alpha + eta * ages) %>%
                 matrix(nrow = 1) %>%
                 set_colnames(paste0(".pI1H_", 1:length(ages))) %>%
@@ -74,8 +74,8 @@ convertInputToDisease <- function(input, C, N, S0, ages) {
         }, ages = ages)) %>%
         unnest(cols = temp)
     disease <- mutate(disease, 
-        temp = pmap(list(input$alphaI1D, input$eta, input$etaI_scale), function(alpha, eta, eta_scale, ages) {
-            exp(alpha + eta * eta_scale * ages) %>%
+        temp = map2(input$alphaI1D, input$etaI1D, function(alpha, eta, ages) {
+            exp(alpha + eta * ages) %>%
                 matrix(nrow = 1) %>%
                 set_colnames(paste0(".pI1D_", 1:length(ages))) %>%
                 as_tibble()
@@ -110,8 +110,8 @@ convertInputToDisease <- function(input, C, N, S0, ages) {
         }, ages = ages)) %>%
         unnest(cols = temp)
     disease <- mutate(disease, 
-        temp = pmap(list(input$alphaHD, input$eta, input$etaH_scale), function(alpha, eta, eta_scale, ages) {
-            exp(alpha + eta * eta_scale * ages) %>%
+        temp = map2(input$alphaHD, input$etaHD, function(alpha, eta, ages) {
+            exp(alpha + eta * ages) %>%
                 matrix(nrow = 1) %>%
                 set_colnames(paste0(".pHD_", 1:length(ages))) %>%
                 as_tibble()
@@ -157,7 +157,8 @@ convertInputToDisease <- function(input, C, N, S0, ages) {
     disease <- inner_join(disease, select(temp, nu, output), by = "output")
     
     ## checks on nu
-#    stopifnot(all(disease$nu > 0 & disease$nu < 1))
+    disease <- filter(disease, nu > 0 & nu < 1)
+    stopifnot(all(disease$nu > 0 & disease$nu < 1))
     
     ## finalise data set
     disease <- mutate(disease, nuA = nuA * nu) %>%
