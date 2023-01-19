@@ -32,9 +32,10 @@ source("inputs/dataTools.R")
 
 ## set up parameter ranges for uniform ranges
 parRanges <- data.frame(
-    parameter = c("R0", "TE", "TP", "TI1", "TI2", "nuA", "beta_scale", "p_move"),
-    lower = c(2, 0.1, 1.2, 2.8, 0.0001, 0, 0, 0),
-    upper = c(4.5, 2, 3, 4.5, 0.5, 1, 1, 1),
+    parameter = c("R0", "TE", "TP", "TI1", "TI2", "nuA", "alphaEP", "alphaI1D",
+    "alphaI1H", "alphaHD", "etaEP", "etaI1D", "etaI1H", "etaHD", "beta_scale", "p_move", "MD_scale", "MD_time"),
+    lower = c(2, 0.1, 1.2, 2.8, 0.0001, 0, -20, -20, -20, -20, 0, 0, 0, 0, 0, 0, 0.1, 0),
+    upper = c(4.5, 2, 3, 4.5, 0.5, 1, 0, 0, 0, 0, 0.1, 0.1, 0.1, 0.1, 1, 1, 1, 37),
     stringsAsFactors = FALSE
 )
 
@@ -52,18 +53,34 @@ ndesign <- nrow(inputs)
     
 #### AT THIS POINT CHECK THAT inputs ARE IN THE CORRECT RANGES
 #### AS GIVEN IN parRanges e.g.
-inputs <- inputs[inputs$nuA >= parRanges$lower[parRanges$parameter == "nuA"] & 
-                  inputs$nuA <= parRanges$upper[parRanges$parameter == "nuA"], ]
 inputs <- inputs[inputs$R0 >= parRanges$lower[parRanges$parameter == "R0"] & 
                   inputs$R0 <= parRanges$upper[parRanges$parameter == "R0"], ]
 inputs <- inputs[inputs$TE >= parRanges$lower[parRanges$parameter == "TE"] & 
                   inputs$TE <= parRanges$upper[parRanges$parameter == "TE"], ]
+inputs <- inputs[inputs$TP >= parRanges$lower[parRanges$parameter == "TP"] & 
+                  inputs$TP <= parRanges$upper[parRanges$parameter == "TP"], ]
 inputs <- inputs[inputs$TI1 >= parRanges$lower[parRanges$parameter == "TI1"] & 
                   inputs$TI1 <= parRanges$upper[parRanges$parameter == "TI1"], ]
 inputs <- inputs[inputs$TI2 >= parRanges$lower[parRanges$parameter == "TI2"] & 
                   inputs$TI2 <= parRanges$upper[parRanges$parameter == "TI2"], ]
-inputs <- inputs[inputs$TP >= parRanges$lower[parRanges$parameter == "TP"] & 
-                  inputs$TP <= parRanges$upper[parRanges$parameter == "TP"], ]
+inputs <- inputs[inputs$nuA >= parRanges$lower[parRanges$parameter == "nuA"] & 
+                  inputs$nuA <= parRanges$upper[parRanges$parameter == "nuA"], ]
+inputs <- inputs[inputs$nuA >= parRanges$lower[parRanges$parameter == "alphaEP"] & 
+                  inputs$nuA <= parRanges$upper[parRanges$parameter == "alphaEP"], ]
+inputs <- inputs[inputs$nuA >= parRanges$lower[parRanges$parameter == "alphaI1D"] & 
+                  inputs$nuA <= parRanges$upper[parRanges$parameter == "alphaI1D"], ]
+inputs <- inputs[inputs$nuA >= parRanges$lower[parRanges$parameter == "alphaI1H"] & 
+                  inputs$nuA <= parRanges$upper[parRanges$parameter == "alphaI1H"], ]
+inputs <- inputs[inputs$nuA >= parRanges$lower[parRanges$parameter == "alphaHD"] & 
+                  inputs$nuA <= parRanges$upper[parRanges$parameter == "alphaHD"], ]
+inputs <- inputs[inputs$nuA >= parRanges$lower[parRanges$parameter == "etaEP"] & 
+                  inputs$nuA <= parRanges$upper[parRanges$parameter == "etaEP"], ]
+inputs <- inputs[inputs$nuA >= parRanges$lower[parRanges$parameter == "etaI1D"] & 
+                  inputs$nuA <= parRanges$upper[parRanges$parameter == "etaI1D"], ]
+inputs <- inputs[inputs$nuA >= parRanges$lower[parRanges$parameter == "etaI1H"] & 
+                  inputs$nuA <= parRanges$upper[parRanges$parameter == "etaI1H"], ]
+inputs <- inputs[inputs$nuA >= parRanges$lower[parRanges$parameter == "etaHD"] & 
+                  inputs$nuA <= parRanges$upper[parRanges$parameter == "etaHD"], ]
 inputs <- inputs[inputs$beta_scale >= parRanges$lower[parRanges$parameter == "beta_scale"] & 
                   inputs$beta_scale <= parRanges$upper[parRanges$parameter == "beta_scale"], ]
 inputs <- inputs[inputs$p_move >= parRanges$lower[parRanges$parameter == "p_move"] & 
@@ -93,57 +110,33 @@ pathwaysLimitFn <- function(x, ages) {
     ## check all parameters give valid probabilities
     ## in (0, 1)
     singleProbs <- apply(x, 1, function(x, ages) {
-        eta <- x[5]
-        alphas <- x[c(1, 4)]
-        y <- sapply(alphas, function(a, eta, ages) {
-            y <- exp(a + eta * ages)
+        etas <- x[5:8]
+        alphas <- x[1:4]
+        y <- map2_lgl(alphas, etas, function(a, e, ages) {
+            y <- exp(a + e * ages)
             all(y >= 0 & y <= 1)
-        }, eta = eta, ages = ages)
-        y <- all(y)
-        eta <- x[5] * x[6]
-        a <- x[2]
-        y1 <- exp(a + eta * ages)
-        y1 <- all(y1 >= 0 & y1 <= 1)
-        eta <- x[5] * x[7]
-        a <- x[3]
-        y2 <- exp(a + eta * ages)
-        y2 <- all(y2 >= 0 & y2 <= 1)
-        y & y1 & y2
+        }, ages = ages)
+        all(y)
     }, ages = ages)
     ## check multinomial probabilities sum to one
-    multiProbs <- apply(x[, -c(1, 3)], 1, function(x, ages) {
+    multiProbs <- apply(x[, c(2, 3, 6, 7)], 1, function(x, ages) {
         alphaI1D <- x[1]
         alphaI1H <- x[2]
-        eta <- x[3]
-        eta_scale <- x[4]
-        pI1D <- exp(alphaI1D + eta * eta_scale * ages)
-        pI1H <- exp(alphaI1H + eta * ages)
+        etaI1D <- x[3]
+        etaI1H <- x[4]
+        pI1D <- exp(alphaI1D + etaI1D * ages)
+        pI1H <- exp(alphaI1H + etaI1H * ages)
         p <- pI1D + pI1H
         all(p >= 0 & p <= 1)
     }, ages = ages)
     multiProbs & singleProbs
 }
 
-## check against prior density restrictions
-pathwaysMod <- readRDS("inputs/pathways.rds")
-pathThresh <- readRDS("inputs/pathThresh.rds")
-
-pathways <- select(inputs, alphaEP, alphaI1D, alphaHD, alphaI1H, eta, etaI_scale, etaH_scale)
-
-## check ranges
-pathways <- pathways[pathways$alphaEP > -20 & pathways$alphaEP < 0, ]
-pathways <- pathways[pathways$alphaI1D > -20 & pathways$alphaI1D < 0, ]
-pathways <- pathways[pathways$alphaHD > -20 & pathways$alphaHD < 0, ]
-pathways <- pathways[pathways$alphaI1H > -20 & pathways$alphaI1H < 0, ]
-pathways <- pathways[pathways$eta > 0 & pathways$eta < 1, ]
-pathways <- pathways[pathways$etaI_scale > 0.5 & pathways$etaI_scale < 2, ]
-pathways <- pathways[pathways$etaH_scale > 0.5 & pathways$etaH_scale < 2, ]
+## check pathways
+pathways <- select(inputs, alphaEP, alphaI1D, alphaI1H, alphaHD, etaEP, etaI1D, etaI1H, etaHD)
 
 ## check probabilities valid
 pathways <- pathways[pathwaysLimitFn(pathways, ages), ]
-
-## check against prior density region
-pathways <- pathways[dens(as.matrix(pathways)[, -c(6, 7)], pathwaysMod$modelName, pathwaysMod$parameters, logarithm = TRUE) > pathThresh, ]
 
 if(nrow(pathways) != ndesign) stop("Design fails pathways checks")
 
@@ -174,7 +167,9 @@ ages <- c(2.5, 11, 23.5, 34.5, 44.5, 55.5, 65.5, 75.5)
 
 ## convert input to disease
 disease <- convertInputToDisease(inputs, C, N, S0, ages)
-stopifnot(nrow(disease) == ndesign)
+
+## match to inputs
+inputs <- semi_join(inputs, disease, by = "output")
 
 ## reorder samples
 inputs <- arrange(inputs, output)
