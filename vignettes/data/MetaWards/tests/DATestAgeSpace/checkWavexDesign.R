@@ -10,7 +10,7 @@ if(length(args) != 0) {
     if(length(args) > 0) {
         stopifnot(length(args) == 3)
         wave <- args[1]
-	prevwave <- args[2]
+	    prevwave <- args[2]
         file <- args[3]
     } else {
         stop("No arguments")
@@ -65,22 +65,22 @@ inputs <- inputs[inputs$TI2 >= parRanges$lower[parRanges$parameter == "TI2"] &
                   inputs$TI2 <= parRanges$upper[parRanges$parameter == "TI2"], ]
 inputs <- inputs[inputs$nuA >= parRanges$lower[parRanges$parameter == "nuA"] & 
                   inputs$nuA <= parRanges$upper[parRanges$parameter == "nuA"], ]
-inputs <- inputs[inputs$nuA >= parRanges$lower[parRanges$parameter == "alphaEP"] & 
-                  inputs$nuA <= parRanges$upper[parRanges$parameter == "alphaEP"], ]
-inputs <- inputs[inputs$nuA >= parRanges$lower[parRanges$parameter == "alphaI1D"] & 
-                  inputs$nuA <= parRanges$upper[parRanges$parameter == "alphaI1D"], ]
-inputs <- inputs[inputs$nuA >= parRanges$lower[parRanges$parameter == "alphaI1H"] & 
-                  inputs$nuA <= parRanges$upper[parRanges$parameter == "alphaI1H"], ]
-inputs <- inputs[inputs$nuA >= parRanges$lower[parRanges$parameter == "alphaHD"] & 
-                  inputs$nuA <= parRanges$upper[parRanges$parameter == "alphaHD"], ]
-inputs <- inputs[inputs$nuA >= parRanges$lower[parRanges$parameter == "etaEP"] & 
-                  inputs$nuA <= parRanges$upper[parRanges$parameter == "etaEP"], ]
-inputs <- inputs[inputs$nuA >= parRanges$lower[parRanges$parameter == "etaI1D"] & 
-                  inputs$nuA <= parRanges$upper[parRanges$parameter == "etaI1D"], ]
-inputs <- inputs[inputs$nuA >= parRanges$lower[parRanges$parameter == "etaI1H"] & 
-                  inputs$nuA <= parRanges$upper[parRanges$parameter == "etaI1H"], ]
-inputs <- inputs[inputs$nuA >= parRanges$lower[parRanges$parameter == "etaHD"] & 
-                  inputs$nuA <= parRanges$upper[parRanges$parameter == "etaHD"], ]
+inputs <- inputs[inputs$alphaEP >= parRanges$lower[parRanges$parameter == "alphaEP"] & 
+                  inputs$alphaEP <= parRanges$upper[parRanges$parameter == "alphaEP"], ]
+inputs <- inputs[inputs$alphaI1D >= parRanges$lower[parRanges$parameter == "alphaI1D"] & 
+                  inputs$alphaI1D <= parRanges$upper[parRanges$parameter == "alphaI1D"], ]
+inputs <- inputs[inputs$alphaI1H >= parRanges$lower[parRanges$parameter == "alphaI1H"] & 
+                  inputs$alphaI1H <= parRanges$upper[parRanges$parameter == "alphaI1H"], ]
+inputs <- inputs[inputs$alphaHD >= parRanges$lower[parRanges$parameter == "alphaHD"] & 
+                  inputs$alphaHD <= parRanges$upper[parRanges$parameter == "alphaHD"], ]
+inputs <- inputs[inputs$etaEP >= parRanges$lower[parRanges$parameter == "etaEP"] & 
+                  inputs$etaEP <= parRanges$upper[parRanges$parameter == "etaEP"], ]
+inputs <- inputs[inputs$etaI1D >= parRanges$lower[parRanges$parameter == "etaI1D"] & 
+                  inputs$etaI1D <= parRanges$upper[parRanges$parameter == "etaI1D"], ]
+inputs <- inputs[inputs$etaI1H >= parRanges$lower[parRanges$parameter == "etaI1H"] & 
+                  inputs$etaI1H <= parRanges$upper[parRanges$parameter == "etaI1H"], ]
+inputs <- inputs[inputs$etaHD >= parRanges$lower[parRanges$parameter == "etaHD"] & 
+                  inputs$etaHD <= parRanges$upper[parRanges$parameter == "etaHD"], ]
 inputs <- inputs[inputs$beta_scale >= parRanges$lower[parRanges$parameter == "beta_scale"] & 
                   inputs$beta_scale <= parRanges$upper[parRanges$parameter == "beta_scale"], ]
 inputs <- inputs[inputs$p_move >= parRanges$lower[parRanges$parameter == "p_move"] & 
