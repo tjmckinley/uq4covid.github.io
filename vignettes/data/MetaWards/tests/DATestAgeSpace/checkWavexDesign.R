@@ -92,14 +92,10 @@ if(nrow(inputs) != ndesign) stop("Design fails range checks")
 hospStays <- readRDS("inputs/hospStays.rds")
 hospThresh <- readRDS("inputs/hospThresh.rds")
 
-hosp <- select(inputs, alphaTH, etaTH)
-
-## check ranges
-hosp <- hosp[hosp$etaTH > 0, ]
-
 ## check against prior density restrictions
+hosp <- select(inputs, alphaTH, etaTH)
+hosp <- hosp[hosp$etaTH > 0, ]
 hosp <- hosp[dens(as.matrix(hosp), hospStays$modelName, hospStays$parameters, logarithm = TRUE) > hospThresh, ]
-
 if(nrow(hosp) != ndesign) stop("Design fails hosp checks")
 
 ## load ages
@@ -140,11 +136,6 @@ pathways <- pathways[pathwaysLimitFn(pathways, ages), ]
 
 if(nrow(pathways) != ndesign) stop("Design fails pathways checks")
 
-#######################################################
-####   NOW YOU HAVE DESIGN THAT PASSES ALL TESTS   ####
-####   PROCEED TO BIND TOGETHER AND CONVERT        ####
-#######################################################
-
 ## add unique hash identifier
 ## (at the moment don't use "a0" type ensembleID, because MetaWards
 ## parses to dates)
@@ -169,7 +160,8 @@ ages <- c(2.5, 11, 23.5, 34.5, 44.5, 55.5, 65.5, 75.5)
 disease <- convertInputToDisease(inputs, C, N, S0, ages)
 
 ## match to inputs
-inputs <- semi_join(inputs, disease, by = "output")
+temp <- anti_join(inputs, disease, by = "output")
+if(nrow(temp) != 0) stop("Design fails nu checks")
 
 ## reorder samples
 inputs <- arrange(inputs, output)
