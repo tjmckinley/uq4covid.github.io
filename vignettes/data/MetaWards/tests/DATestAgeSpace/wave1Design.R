@@ -57,8 +57,8 @@ source("inputs/dataTools.R")
 parRanges <- data.frame(
     parameter = c("R0", "TE", "TP", "TI1", "TI2", "nuA", "alphaEP", "alphaI1D",
     "alphaI1H", "alphaHD", "etaEP", "etaI1D", "etaI1H", "etaHD", "beta_scale", "p_move", "MD_scale", "MD_time"),
-    lower = c(2, 0.1, 1.2, 2.8, 0.0001, 0, -20, -20, -20, -20, 0, 0, 0, 0, 0, 0, 0.1, 0),
-    upper = c(4.5, 2, 3, 4.5, 0.5, 1, 0, 0, 0, 0, 0.1, 0.1, 0.1, 0.1, 1, 1, 1, 37),
+    lower = c(2, 0.1, 1.2, 2.8, 0.0001, 0, -30, -30, -30, -30, 0, 0, 0, 0, 0, 0, 0.1, 0),
+    upper = c(4.5, 2, 3, 4.5, 0.5, 1, 0, 0, 0, 0, 0.5, 0.5, 0.5, 0.5, 1, 1, 1, 37),
     stringsAsFactors = FALSE
 )
 
@@ -94,7 +94,7 @@ pathwaysLimitFn <- function(x, ages) {
 
 ## generate LHS design (200 + 50 validation)
 ndesign <- 225
-design <- randomLHS(ndesign * 3, nrow(parRanges))
+design <- randomLHS(ndesign * 50, nrow(parRanges))
 colnames(design) <- parRanges$parameter
 design <- as_tibble(design)
 
@@ -111,7 +111,7 @@ inputs <- slice(inputs, 1:ndesign)
 
 ## generate LHS design (200 + 50 validation)
 nval <- 75
-design <- randomLHS(nval * 3, nrow(parRanges))
+design <- randomLHS(nval * 50, nrow(parRanges))
 colnames(design) <- parRanges$parameter
 design <- as_tibble(design)
 
