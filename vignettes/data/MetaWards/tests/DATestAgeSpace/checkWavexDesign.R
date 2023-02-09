@@ -32,9 +32,9 @@ source("inputs/dataTools.R")
 
 ## set up parameter ranges for uniform ranges
 parRanges <- data.frame(
-    parameter = c("R0", "TE", "TP", "TI1", "TI2", "nuA", "beta_scale", "p_move"),
-    lower = c(2, 0.1, 1.2, 2.8, 0.0001, 0, 0, 0),
-    upper = c(4.5, 2, 3, 4.5, 0.5, 1, 1, 1),
+    parameter = c("R0", "TE", "TP", "TI1", "TI2", "nuA", "beta_scale", "p_move", "MD_time"),
+    lower = c(2, 0.1, 1.2, 2.8, 0.0001, 0, 0, 0, 0),
+    upper = c(4.5, 2, 3, 4.5, 0.5, 1, 1, 1, 37),
     stringsAsFactors = FALSE
 )
 
@@ -68,6 +68,8 @@ inputs <- inputs[inputs$beta_scale >= parRanges$lower[parRanges$parameter == "be
                   inputs$beta_scale <= parRanges$upper[parRanges$parameter == "beta_scale"], ]
 inputs <- inputs[inputs$p_move >= parRanges$lower[parRanges$parameter == "p_move"] & 
                   inputs$p_move <= parRanges$upper[parRanges$parameter == "p_move"], ]
+inputs <- inputs[inputs$MD_time >= parRanges$lower[parRanges$parameter == "MD_time"] & 
+                  inputs$MD_time <= parRanges$upper[parRanges$parameter == "MD_time"], ]
                   
 if(nrow(inputs) != ndesign) stop("Design fails range checks")
 
@@ -94,29 +96,19 @@ pathwaysLimitFn <- function(x, ages) {
     ## in (0, 1)
     singleProbs <- apply(x, 1, function(x, ages) {
         eta <- x[5]
-        alphas <- x[c(1, 4)]
+        alphas <- x[-5]
         y <- sapply(alphas, function(a, eta, ages) {
             y <- exp(a + eta * ages)
             all(y >= 0 & y <= 1)
         }, eta = eta, ages = ages)
-        y <- all(y)
-        eta <- x[5] * x[6]
-        a <- x[2]
-        y1 <- exp(a + eta * ages)
-        y1 <- all(y1 >= 0 & y1 <= 1)
-        eta <- x[5] * x[7]
-        a <- x[3]
-        y2 <- exp(a + eta * ages)
-        y2 <- all(y2 >= 0 & y2 <= 1)
-        y & y1 & y2
+        all(y)
     }, ages = ages)
     ## check multinomial probabilities sum to one
     multiProbs <- apply(x[, -c(1, 3)], 1, function(x, ages) {
         alphaI1D <- x[1]
         alphaI1H <- x[2]
         eta <- x[3]
-        eta_scale <- x[4]
-        pI1D <- exp(alphaI1D + eta * eta_scale * ages)
+        pI1D <- exp(alphaI1D + eta * ages)
         pI1H <- exp(alphaI1H + eta * ages)
         p <- pI1D + pI1H
         all(p >= 0 & p <= 1)
@@ -128,16 +120,14 @@ pathwaysLimitFn <- function(x, ages) {
 pathwaysMod <- readRDS("inputs/pathways.rds")
 pathThresh <- readRDS("inputs/pathThresh.rds")
 
-pathways <- select(inputs, alphaEP, alphaI1D, alphaHD, alphaI1H, eta, etaI_scale, etaH_scale)
+pathways <- select(inputs, alphaEP, alphaI1D, alphaHD, alphaI1H, eta)
 
 ## check ranges
-pathways <- pathways[pathways$alphaEP > -20 & pathways$alphaEP < 0, ]
+pathways <- pathways[pathways$alphaEP > -5 & pathways$alphaEP < 0, ]
 pathways <- pathways[pathways$alphaI1D > -20 & pathways$alphaI1D < 0, ]
-pathways <- pathways[pathways$alphaHD > -20 & pathways$alphaHD < 0, ]
+pathways <- pathways[pathways$alphaHD > -5 & pathways$alphaHD < 0, ]
 pathways <- pathways[pathways$alphaI1H > -20 & pathways$alphaI1H < 0, ]
 pathways <- pathways[pathways$eta > 0 & pathways$eta < 1, ]
-pathways <- pathways[pathways$etaI_scale > 0.5 & pathways$etaI_scale < 2, ]
-pathways <- pathways[pathways$etaH_scale > 0.5 & pathways$etaH_scale < 2, ]
 
 ## check probabilities valid
 pathways <- pathways[pathwaysLimitFn(pathways, ages), ]

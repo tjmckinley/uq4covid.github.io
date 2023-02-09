@@ -119,11 +119,11 @@ age_lookup <- readRDS(paste0(outputs, "/age_lookup.rds"))
 u <- list(u1 = u1, u2 = u2, u1_moves = u1_moves, u2_moves = as.matrix(PM19))
 
 ## create model discrepancy matrices
-a_dis <- a_dis * exp(-pars$MD_scale[hash] * (pars$MD_time[hash] - tstart:tstop) * ifelse(tstart:tstop < pars$MD_time[hash], 1, 0))
+a_dis <- a_dis * exp(-(pars$MD_time[hash] - tstart:tstop) * ifelse(tstart:tstop < pars$MD_time[hash], 1, 0))
 a_dis <- array(rep(a_dis, nrow(age_lookup) * nrow(lookup)), c(tstop - tstart + 1, nrow(age_lookup), nrow(lookup)))
-b_dis <- b_dis * exp(-pars$MD_scale[hash] * (pars$MD_time[hash] - tstart:tstop) * ifelse(tstart:tstop < pars$MD_time[hash], 1, 0))
+b_dis <- b_dis * exp(-(pars$MD_time[hash] - tstart:tstop) * ifelse(tstart:tstop < pars$MD_time[hash], 1, 0))
 b_dis <- array(rep(b_dis, nrow(age_lookup) * nrow(lookup)), c(tstop - tstart + 1, nrow(age_lookup), nrow(lookup)))
-b_dis_age8 <- b_dis_age8 * exp(-pars$MD_scale[hash] * (pars$MD_time[hash] - tstart:tstop) * ifelse(tstart:tstop < pars$MD_time[hash], 1, 0))
+b_dis_age8 <- b_dis_age8 * exp(-(pars$MD_time[hash] - tstart:tstop) * ifelse(tstart:tstop < pars$MD_time[hash], 1, 0))
 b_dis[, 8, ] <- rep(b_dis_age8, dim(b_dis)[3])
 
 ## run PF with some model discrepancy

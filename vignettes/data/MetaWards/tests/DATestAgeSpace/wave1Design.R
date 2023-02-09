@@ -55,9 +55,9 @@ source("inputs/dataTools.R")
 
 ## set up parameter ranges for uniform ranges
 parRanges <- data.frame(
-    parameter = c("R0", "TE", "TP", "TI1", "TI2", "nuA", "beta_scale", "p_move", "MD_scale", "MD_time"),
-    lower = c(2, 0.1, 1.2, 2.8, 0.0001, 0, 0, 0, 0.1, 0),
-    upper = c(4.5, 2, 3, 4.5, 0.5, 1, 1, 1, 1, 37),
+    parameter = c("R0", "TE", "TP", "TI1", "TI2", "nuA", "beta_scale", "p_move", "MD_time"),
+    lower = c(2, 0.1, 1.2, 2.8, 0.0001, 0, 0, 0, 0),
+    upper = c(4.5, 2, 3, 4.5, 0.5, 1, 1, 1, 37),
     stringsAsFactors = FALSE
 ) 
 
@@ -122,29 +122,19 @@ pathwaysLimitFn <- function(x, ages) {
     ## in (0, 1)
     singleProbs <- apply(x, 1, function(x, ages) {
         eta <- x[5]
-        alphas <- x[c(1, 4)]
+        alphas <- x[-5]
         y <- sapply(alphas, function(a, eta, ages) {
             y <- exp(a + eta * ages)
             all(y >= 0 & y <= 1)
         }, eta = eta, ages = ages)
-        y <- all(y)
-        eta <- x[5] * x[6]
-        a <- x[2]
-        y1 <- exp(a + eta * ages)
-        y1 <- all(y1 >= 0 & y1 <= 1)
-        eta <- x[5] * x[7]
-        a <- x[3]
-        y2 <- exp(a + eta * ages)
-        y2 <- all(y2 >= 0 & y2 <= 1)
-        y & y1 & y2
+        all(y)
     }, ages = ages)
     ## check multinomial probabilities sum to one
     multiProbs <- apply(x[, -c(1, 3)], 1, function(x, ages) {
         alphaI1D <- x[1]
         alphaI1H <- x[2]
         eta <- x[3]
-        eta_scale <- x[4]
-        pI1D <- exp(alphaI1D + eta * eta_scale * ages)
+        pI1D <- exp(alphaI1D + eta * ages)
         pI1H <- exp(alphaI1H + eta * ages)
         p <- pI1D + pI1H
         all(p >= 0 & p <= 1)
@@ -156,18 +146,15 @@ pathwaysLimitFn <- function(x, ages) {
 pathwaysInput <- FMMmaximin(
     pathways, 
     ndesign + 20,
-    matrix(c(rep(c(-20, 0), times = 4), 0, 1), ncol = 2, byrow = TRUE),
+    matrix(c(-5, 0, -20, 0, -20, 0, -5, 0, 0, 0.05), ncol = 2, byrow = TRUE),
     pathwaysLimitFn,
-    eta_scale = c(0.5, 2),
     ages = c(2.5, 11, 23.5, 34.5, 44.5, 55.5, 65.5, 75.5)
 ) %>%
     as_tibble() %>%
-    rename(alphaEP = x1, alphaI1D = x2, alphaHD = x3, alphaI1H = x4, eta = x5, etaI_scale = x6, etaH_scale = x7)
+    rename(alphaEP = x1, alphaI1D = x2, alphaHD = x3, alphaI1H = x4, eta = x5)
     
 ## check against prior density restrictions
-pathwaysInput <- pathwaysInput[dens(as.matrix(pathwaysInput)[, -c(6, 7)], pathways$modelName, pathways$parameters, logarithm = TRUE) > pathThresh, ]
-pathwaysInput <- pathwaysInput[pathwaysInput[, 6] > 0.5 & pathwaysInput[, 6] < 2, ]
-pathwaysInput <- pathwaysInput[pathwaysInput[, 7] > 0.5 & pathwaysInput[, 7] < 2, ]
+pathwaysInput <- pathwaysInput[dens(as.matrix(pathwaysInput), pathways$modelName, pathways$parameters, logarithm = TRUE) > pathThresh, ]
 if(nrow(pathwaysInput) < ndesign) stop("Can't generate enough valid pathways points")
 pathwaysInput <- pathwaysInput[1:ndesign, ]
     
@@ -175,18 +162,15 @@ pathwaysInput <- pathwaysInput[1:ndesign, ]
 pathwaysVal <- FMMmaximin(
     pathways, 
     nval + 20,
-    matrix(c(rep(c(-20, 0), times = 4), 0, 1), ncol = 2, byrow = TRUE),
+    matrix(c(-5, 0, -20, 0, -20, 0, -5, 0, 0, 0.05), ncol = 2, byrow = TRUE),
     pathwaysLimitFn,
-    eta_scale = c(0.5, 2),
     ages = c(2.5, 11, 23.5, 34.5, 44.5, 55.5, 65.5, 75.5)
 ) %>%
     as_tibble() %>%
-    rename(alphaEP = x1, alphaI1D = x2, alphaHD = x3, alphaI1H = x4, eta = x5, etaI_scale = x6, etaH_scale = x7)
+    rename(alphaEP = x1, alphaI1D = x2, alphaHD = x3, alphaI1H = x4, eta = x5)
     
 ## check against prior density restrictions
-pathwaysVal <- pathwaysVal[dens(as.matrix(pathwaysVal)[, -c(6, 7)], pathways$modelName, pathways$parameters, logarithm = TRUE) > pathThresh, ]
-pathwaysVal <- pathwaysVal[pathwaysVal[, 6] > 0.5 & pathwaysVal[, 6] < 2, ]
-pathwaysVal <- pathwaysVal[pathwaysVal[, 7] > 0.5 & pathwaysVal[, 7] < 2, ]
+pathwaysVal <- pathwaysVal[dens(as.matrix(pathwaysVal), pathways$modelName, pathways$parameters, logarithm = TRUE) > pathThresh, ]
 if(nrow(pathwaysVal) < nval) stop("Can't generate enough valid pathways points")
 pathwaysVal <- pathwaysVal[1:nval, ]
 

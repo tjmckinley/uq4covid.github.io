@@ -29,14 +29,14 @@ convertInputToDisease <- function(input, C, N, S0, ages) {
     require(magrittr)
   
     stopifnot(all(c("R0", "nuA", "TE", "TP", "TI1", "TI2", "alphaEP", 
-        "alphaI1H", "alphaI1D", "alphaHD", "eta", "etaI_scale", "etaH_scale", 
-        "alphaTH", "etaTH", "output", "beta_scale", "p_move", "MD_scale", "MD_time") %in% colnames(input)))
+        "alphaI1H", "alphaI1D", "alphaHD", "eta",  
+        "alphaTH", "etaTH", "output", "beta_scale", "p_move", "MD_time") %in% colnames(input)))
     
     ## check unique ID
     stopifnot(length(unique(input$output)) == length(input$output))
     
     ## scaling for asymptomatics and lockdown
-    disease <- select(input, nuA, beta_scale, p_move, MD_scale, MD_time, output)
+    disease <- select(input, nuA, beta_scale, p_move, MD_time, output)
   
     ## progressions out of the E class
     for(j in 1:length(ages)) {
@@ -74,8 +74,8 @@ convertInputToDisease <- function(input, C, N, S0, ages) {
         }, ages = ages)) %>%
         unnest(cols = temp)
     disease <- mutate(disease, 
-        temp = pmap(list(input$alphaI1D, input$eta, input$etaI_scale), function(alpha, eta, eta_scale, ages) {
-            exp(alpha + eta * eta_scale * ages) %>%
+        temp = map2(input$alphaI1D, input$eta, function(alpha, eta, ages) {
+            exp(alpha + eta * ages) %>%
                 matrix(nrow = 1) %>%
                 set_colnames(paste0(".pI1D_", 1:length(ages))) %>%
                 as_tibble()
@@ -110,8 +110,8 @@ convertInputToDisease <- function(input, C, N, S0, ages) {
         }, ages = ages)) %>%
         unnest(cols = temp)
     disease <- mutate(disease, 
-        temp = pmap(list(input$alphaHD, input$eta, input$etaH_scale), function(alpha, eta, eta_scale, ages) {
-            exp(alpha + eta * eta_scale * ages) %>%
+        temp = map2(input$alphaHD, input$eta, function(alpha, eta, ages) {
+            exp(alpha + eta * ages) %>%
                 matrix(nrow = 1) %>%
                 set_colnames(paste0(".pHD_", 1:length(ages))) %>%
                 as_tibble()
@@ -164,7 +164,7 @@ convertInputToDisease <- function(input, C, N, S0, ages) {
         inner_join(select(input, output), by = "output")
         
     ## reorder
-    disease <- select(disease, nu, nuA, !c(nu, nuA, beta_scale, p_move, MD_scale, MD_time, output), beta_scale, p_move, MD_scale, MD_time, output)
+    disease <- select(disease, nu, nuA, !c(nu, nuA, beta_scale, p_move, MD_time, output), beta_scale, p_move, MD_time, output)
     
     print(paste0(nrow(input) - nrow(disease), " invalid inputs removed"))
     print(paste0(nrow(disease), " samples remaining"))
@@ -175,7 +175,7 @@ convertInputToDisease <- function(input, C, N, S0, ages) {
 
 ## @knitr maximin
 ## function to generate maximin samples given an arbitrary FMM
-FMMmaximin <- function(model, nsamp, limits, limitFn = NULL, nseed = 10000, eta_scale = NA, ...) {
+FMMmaximin <- function(model, nsamp, limits, limitFn = NULL, nseed = 10000, ...) {
     
     ## check inputs and dependencies
     require(mclust)
@@ -207,11 +207,6 @@ FMMmaximin <- function(model, nsamp, limits, limitFn = NULL, nseed = 10000, eta_
         for(i in 1:nrow(limits)) {
             sims1 <- sims1[sims1[, i] >= limits[i, 1], ]
             sims1 <- sims1[sims1[, i] <= limits[i, 2], ]
-        }
-        ## add eta_scales if needed
-        if(!is.na(eta_scale[1])) {
-            sims1 <- cbind(sims1, x6 = runif(nrow(sims1), eta_scale[1], eta_scale[2]))
-            sims1 <- cbind(sims1, x7 = runif(nrow(sims1), eta_scale[1], eta_scale[2]))
         }
         ## check against limitFn
         if(!is.null(limitFn)) {
