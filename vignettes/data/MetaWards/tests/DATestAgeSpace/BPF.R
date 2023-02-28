@@ -257,7 +257,7 @@ BPF <- function(pars, C1, C2, lockdown_day, cumDeath_lad, cumDeath_age_region,
         nclasses <- dim(u1[[1]])[1]
         nages <- dim(u1[[1]])[2]
         nlads <- max(u1_moves[, 1])
-        
+
         ## check parameters are in correct order
         cnames <- c("nu", "nuA", 
             paste0(".", paste0(
@@ -265,9 +265,9 @@ BPF <- function(pars, C1, C2, lockdown_day, cumDeath_lad, cumDeath_age_region,
                 "_",
                 rep(1:nages, times = 10)
             )),
-        "beta_scale", "p_move", "MD_scale", "MD_time_EM", "MD_time_EE", "MD_time_L", "MD_time_NE", "MD_time_NW", "MD_time_SE", "MD_time_SW", "MD_time_WM", "MD_time_YH")
+        "beta_scale", "p_move", "MD_scale", "MD_time_EE", "MD_time_EM", "MD_time_L", "MD_time_NE", "MD_time_NW", "MD_time_SE", "MD_time_SW", "MD_time_WM", "MD_time_YH")
         stopifnot(identical(colnames(pars), cnames))
-        pars <- select(pars, !c(MD_scale, MD_time))
+        pars <- select(pars, !c(MD_scale, starts_with("MD_time")))
         
         ## set pars
         pars <- unlist(pars[k, ])
