@@ -88,7 +88,7 @@ convertInputToDisease <- function(input, C, N, S0, ages) {
         gather(par, prob, -ind) %>%
         separate(par, c("par", "age"), sep = "_") %>%
         group_by(age, ind) %>% 
-        summarise(prob = sum(prob)) %>%
+        summarise(prob = sum(prob), .groups = "drop") %>%
         pluck("prob")
     if(any(temp < 0) | any(temp > 1)) {
         stop("Some multinomial pI1* probs invalid")
