@@ -265,7 +265,7 @@ BPF <- function(pars, C1, C2, lockdown_day, cumDeath_lad, cumDeath_age_region,
                 "_",
                 rep(1:nages, times = 10)
             )),
-        "beta_scale", "p_move", "MD_scale", "MD_time")
+        "beta_scale", "p_move", "MD_scale", "MD_time_EM", "MD_time_EE", "MD_time_L", "MD_time_NE", "MD_time_NW", "MD_time_SE", "MD_time_SW", "MD_time_WM", "MD_time_YH")
         stopifnot(identical(colnames(pars), cnames))
         pars <- select(pars, !c(MD_scale, MD_time))
         
