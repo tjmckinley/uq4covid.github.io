@@ -32,11 +32,11 @@ source("inputs/dataTools.R")
 
 ## set up parameter ranges for uniform ranges
 parRanges <- data.frame(
-    parameter = c("R0", "TE", "TP", "TI1", "TI2", "nuA", "beta_scale", "p_move"),
-    lower = c(2, 0.1, 1.2, 2.8, 0.0001, 0, 0, 0),
-    upper = c(4.5, 2, 3, 4.5, 0.5, 1, 1, 1),
+    parameter = c("R0", "TE", "TP", "TI1", "TI2", "nuA", "beta_scale", "p_move", "MD_scale", "MD_time_EM", "MD_time_EE", "MD_time_L", "MD_time_NE", "MD_time_NW", "MD_time_SE", "MD_time_SW", "MD_time_WM", "MD_time_YH"),
+    lower = c(2, 0.1, 1.2, 2.8, 0.0001, 0, 0, 0, 0.1, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+    upper = c(4.5, 2, 3, 4.5, 0.5, 1, 1, 1, 1, 37, 37, 37, 37, 37, 37, 37, 37, 37),
     stringsAsFactors = FALSE
-)
+) 
 
 ## read in contact matrix to use for NGM
 C <- as.matrix(read.csv("inputs/POLYMOD_matrix.csv", header = FALSE))
@@ -52,22 +52,10 @@ ndesign <- nrow(inputs)
     
 #### AT THIS POINT CHECK THAT inputs ARE IN THE CORRECT RANGES
 #### AS GIVEN IN parRanges e.g.
-inputs <- inputs[inputs$nuA >= parRanges$lower[parRanges$parameter == "nuA"] & 
-                  inputs$nuA <= parRanges$upper[parRanges$parameter == "nuA"], ]
-inputs <- inputs[inputs$R0 >= parRanges$lower[parRanges$parameter == "R0"] & 
-                  inputs$R0 <= parRanges$upper[parRanges$parameter == "R0"], ]
-inputs <- inputs[inputs$TE >= parRanges$lower[parRanges$parameter == "TE"] & 
-                  inputs$TE <= parRanges$upper[parRanges$parameter == "TE"], ]
-inputs <- inputs[inputs$TI1 >= parRanges$lower[parRanges$parameter == "TI1"] & 
-                  inputs$TI1 <= parRanges$upper[parRanges$parameter == "TI1"], ]
-inputs <- inputs[inputs$TI2 >= parRanges$lower[parRanges$parameter == "TI2"] & 
-                  inputs$TI2 <= parRanges$upper[parRanges$parameter == "TI2"], ]
-inputs <- inputs[inputs$TP >= parRanges$lower[parRanges$parameter == "TP"] & 
-                  inputs$TP <= parRanges$upper[parRanges$parameter == "TP"], ]
-inputs <- inputs[inputs$beta_scale >= parRanges$lower[parRanges$parameter == "beta_scale"] & 
-                  inputs$beta_scale <= parRanges$upper[parRanges$parameter == "beta_scale"], ]
-inputs <- inputs[inputs$p_move >= parRanges$lower[parRanges$parameter == "p_move"] & 
-                  inputs$p_move <= parRanges$upper[parRanges$parameter == "p_move"], ]
+for(par in parRanges$parameter) {
+    inputs <- filter(inputs, !!par >= parRanges$lower[parRanges$parameter == par] & 
+        !!par <= parRanges$upper[parRanges$parameter == par], ]
+}
                   
 if(nrow(inputs) != ndesign) stop("Design fails range checks")
 

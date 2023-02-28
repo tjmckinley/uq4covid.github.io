@@ -36,7 +36,6 @@ b1 <- 0.025
 b2 <- 0.025
 a_dis <- 0.05
 b_dis <- 0.01
-b_dis_london <- 0.5
 sigma2_lad <- 0.00295858
 sigma2_age_region <- 0.01388889
 sigma2_nhsregion <- 0.14285714
@@ -47,7 +46,7 @@ writeExt <- TRUE
 
 ## write to file
 writeLines(as.character(c(tstart, tstop, lockdown_day, npart, niter, a1, a2,
-    b1, b2, a_dis, b_dis, b_dis_london, sigma2_lad, sigma2_age_region, sigma2_nhsregion, 
+    b1, b2, a_dis, b_dis, sigma2_lad, sigma2_age_region, sigma2_nhsregion, 
     sigma2_age_nhsregion, saveAll, snapshot, writeExt)), paste0("wave", wave, "/fixedInputs.txt"))
 
 ## source dataTools
@@ -55,9 +54,9 @@ source("inputs/dataTools.R")
 
 ## set up parameter ranges for uniform ranges
 parRanges <- data.frame(
-    parameter = c("R0", "TE", "TP", "TI1", "TI2", "nuA", "beta_scale", "p_move", "MD_scale", "MD_time"),
-    lower = c(2, 0.1, 1.2, 2.8, 0.0001, 0, 0, 0, 0.1, 0),
-    upper = c(4.5, 2, 3, 4.5, 0.5, 1, 1, 1, 1, 37),
+    parameter = c("R0", "TE", "TP", "TI1", "TI2", "nuA", "beta_scale", "p_move", "MD_scale", "MD_time_EM", "MD_time_EE", "MD_time_L", "MD_time_NE", "MD_time_NW", "MD_time_SE", "MD_time_SW", "MD_time_WM", "MD_time_YH"),
+    lower = c(2, 0.1, 1.2, 2.8, 0.0001, 0, 0, 0, 0.1, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+    upper = c(4.5, 2, 3, 4.5, 0.5, 1, 1, 1, 1, 37, 37, 37, 37, 37, 37, 37, 37, 37),
     stringsAsFactors = FALSE
 ) 
 

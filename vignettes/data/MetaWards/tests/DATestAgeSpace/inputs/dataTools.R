@@ -30,13 +30,13 @@ convertInputToDisease <- function(input, C, N, S0, ages) {
   
     stopifnot(all(c("R0", "nuA", "TE", "TP", "TI1", "TI2", "alphaEP", 
         "alphaI1H", "alphaI1D", "alphaHD", "eta", "etaI_scale", "etaH_scale", 
-        "alphaTH", "etaTH", "output", "beta_scale", "p_move", "MD_scale", "MD_time") %in% colnames(input)))
+        "alphaTH", "etaTH", "output", "beta_scale", "p_move", "MD_scale", "MD_time_EM", "MD_time_EE", "MD_time_L", "MD_time_NE", "MD_time_NW", "MD_time_SE", "MD_time_SW", "MD_time_WM", "MD_time_YH") %in% colnames(input)))
     
     ## check unique ID
     stopifnot(length(unique(input$output)) == length(input$output))
     
     ## scaling for asymptomatics and lockdown
-    disease <- select(input, nuA, beta_scale, p_move, MD_scale, MD_time, output)
+    disease <- select(input, nuA, beta_scale, p_move, MD_scale, starts_with("MD_time"), output)
   
     ## progressions out of the E class
     for(j in 1:length(ages)) {
@@ -164,7 +164,7 @@ convertInputToDisease <- function(input, C, N, S0, ages) {
         inner_join(select(input, output), by = "output")
         
     ## reorder
-    disease <- select(disease, nu, nuA, !c(nu, nuA, beta_scale, p_move, MD_scale, MD_time, output), beta_scale, p_move, MD_scale, MD_time, output)
+    disease <- select(disease, nu, nuA, !c(nu, nuA, beta_scale, p_move, MD_scale, starts_with("MD_time"), output), beta_scale, p_move, MD_scale, starts_with("MD_time"), output)
     
     print(paste0(nrow(input) - nrow(disease), " invalid inputs removed"))
     print(paste0(nrow(disease), " samples remaining"))

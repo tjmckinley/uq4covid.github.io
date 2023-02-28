@@ -39,16 +39,15 @@ a1 <- as.numeric(fixedInputs[6])
 a2 <- as.numeric(fixedInputs[7])
 b1 <- as.numeric(fixedInputs[8])
 b2 <- as.numeric(fixedInputs[9])
-a_dis <- as.numeric(fixedInputs[10])
-b_dis <- as.numeric(fixedInputs[11])
-b_dis_london <- as.numeric(fixedInputs[12])
-sigma2_lad <- as.numeric(fixedInputs[13])
-sigma2_age_region <- as.numeric(fixedInputs[14])
-sigma2_nhsregion <- as.numeric(fixedInputs[15])
-sigma2_age_nhsregion <- as.numeric(fixedInputs[16])
-saveAll <- as.logical(as.numeric(fixedInputs[17]))
-snapshot <- as.logical(as.numeric(fixedInputs[18]))
-writeExt <- as.logical(as.numeric(fixedInputs[19]))
+a_dis_ini <- as.numeric(fixedInputs[10])
+b_dis_ini <- as.numeric(fixedInputs[11])
+sigma2_lad <- as.numeric(fixedInputs[12])
+sigma2_age_region <- as.numeric(fixedInputs[13])
+sigma2_nhsregion <- as.numeric(fixedInputs[14])
+sigma2_age_nhsregion <- as.numeric(fixedInputs[15])
+saveAll <- as.logical(as.numeric(fixedInputs[16]))
+snapshot <- as.logical(as.numeric(fixedInputs[17]))
+writeExt <- as.logical(as.numeric(fixedInputs[18]))
 
 ## source Rcpp PF code
 sourceCpp("BPF.cpp")
@@ -119,14 +118,33 @@ age_lookup <- readRDS(paste0(outputs, "/age_lookup.rds"))
 u <- list(u1 = u1, u2 = u2, u1_moves = u1_moves, u2_moves = as.matrix(PM19))
 
 ## create model discrepancy matrices
-region_lookup <- readRDS("data/region_lookup.rds")
-london_FID <- lookup$FID[!is.na(lookup$FID_region) & lookup$FID_region == region_lookup$FID[region_lookup$RGN19NM == "London"]]
-a_dis <- a_dis * exp(-pars$MD_scale[hash] * (pars$MD_time[hash] - tstart:tstop) * ifelse(tstart:tstop < pars$MD_time[hash], 1, 0))
+region_lookup <- readRDS("data/region_lookup.rds") %>%
+    mutate(initials = NA) %>%
+    mutate(initials = ifelse(RGN19NM == "North East", "NE", initials)) %>%
+    mutate(initials = ifelse(RGN19NM == "North West", "NW", initials)) %>%
+    mutate(initials = ifelse(RGN19NM == "Yorkshire and The Humber", "YH", initials)) %>%
+    mutate(initials = ifelse(RGN19NM == "East Midlands", "EM", initials)) %>%
+    mutate(initials = ifelse(RGN19NM == "West Midlands", "WM", initials)) %>%
+    mutate(initials = ifelse(RGN19NM == "East of England", "EE", initials)) %>%
+    mutate(initials = ifelse(RGN19NM == "London", "L", initials)) %>%
+    mutate(initials = ifelse(RGN19NM == "South East", "SE", initials)) %>%
+    mutate(initials = ifelse(RGN19NM == "South West", "SW", initials))
+
+## set some initial matrices
+a_dis <- a_dis_ini * exp(-pars$MD_scale[hash] * (pars$MD_time_L[hash] - tstart:tstop) * ifelse(tstart:tstop < pars$MD_time_L[hash], 1, 0))
 a_dis <- array(rep(a_dis, nrow(age_lookup) * nrow(lookup)), c(tstop - tstart + 1, nrow(age_lookup), nrow(lookup)))
-b_dis <- b_dis * exp(-pars$MD_scale[hash] * (pars$MD_time[hash] - tstart:tstop) * ifelse(tstart:tstop < pars$MD_time[hash], 1, 0))
+b_dis <- b_dis_ini * exp(-pars$MD_scale[hash] * (pars$MD_time_L[hash] - tstart:tstop) * ifelse(tstart:tstop < pars$MD_time_L[hash], 1, 0))
 b_dis <- array(rep(b_dis, nrow(age_lookup) * nrow(lookup)), c(tstop - tstart + 1, nrow(age_lookup), nrow(lookup)))
-b_dis_london <- b_dis_london * exp(-pars$MD_scale[hash] * (pars$MD_time[hash] - tstart:tstop) * ifelse(tstart:tstop < pars$MD_time[hash], 1, 0))
-b_dis[, , london_FID] <- rep(b_dis_london, length(london_FID))
+
+## use spatially-explicit matrices
+for(i in 1:nrow(region_lookup)) {
+    FID <- lookup$FID[!is.na(lookup$FID_region) & lookup$FID_region == region_lookup$FID[region_lookup$RGN19NM == region_lookup$RGN19NM[i]]]
+    MD_time <- pluck(pars, paste0("MD_time_", region_lookup$initials[i]))
+    a_dis_temp <- a_dis_ini * exp(-pars$MD_scale[hash] * (MD_time[hash] - tstart:tstop) * ifelse(tstart:tstop < MD_time[hash], 1, 0))
+    a_dis[, , FID] <- rep(a_dis_temp, length(FID))
+    b_dis_temp <- b_dis_ini * exp(-pars$MD_scale[hash] * (MD_time[hash] - tstart:tstop) * ifelse(tstart:tstop < MD_time[hash], 1, 0))
+    b_dis[, , FID] <- rep(b_dis_temp, length(FID))
+}
 
 ## run PF with some model discrepancy
 if(exists("hash")) {
