@@ -9,3 +9,5 @@ JASMINcode/*.txt
 JASMINcode/submit_job.sbatch
 JASMINcode/*.err
 JASMINcode/*.out
+
+wave*
