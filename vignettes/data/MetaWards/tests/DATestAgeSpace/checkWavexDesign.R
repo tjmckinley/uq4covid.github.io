@@ -53,8 +53,7 @@ ndesign <- nrow(inputs)
 #### AT THIS POINT CHECK THAT inputs ARE IN THE CORRECT RANGES
 #### AS GIVEN IN parRanges e.g.
 for(par in parRanges$parameter) {
-    inputs <- filter(inputs, !!par >= parRanges$lower[parRanges$parameter == par] & 
-        !!par <= parRanges$upper[parRanges$parameter == par], ]
+    inputs <- filter(inputs, between(!!sym(par), parRanges$lower[parRanges$parameter == par], parRanges$upper[parRanges$parameter == par]))
 }
                   
 if(nrow(inputs) != ndesign) stop("Design fails range checks")
