@@ -41,13 +41,14 @@ b1 <- as.numeric(fixedInputs[8])
 b2 <- as.numeric(fixedInputs[9])
 a_dis_ini <- as.numeric(fixedInputs[10])
 b_dis_ini <- as.numeric(fixedInputs[11])
-sigma2_lad <- as.numeric(fixedInputs[12])
-sigma2_age_region <- as.numeric(fixedInputs[13])
-sigma2_nhsregion <- as.numeric(fixedInputs[14])
-sigma2_age_nhsregion <- as.numeric(fixedInputs[15])
-saveAll <- as.logical(as.numeric(fixedInputs[16]))
-snapshot <- as.logical(as.numeric(fixedInputs[17]))
-writeExt <- as.logical(as.numeric(fixedInputs[18]))
+b_dis_8_ini <- as.numeric(fixedInputs[12])
+sigma2_lad <- as.numeric(fixedInputs[13])
+sigma2_age_region <- as.numeric(fixedInputs[14])
+sigma2_nhsregion <- as.numeric(fixedInputs[15])
+sigma2_age_nhsregion <- as.numeric(fixedInputs[16])
+saveAll <- as.logical(as.numeric(fixedInputs[17]))
+snapshot <- as.logical(as.numeric(fixedInputs[18]))
+writeExt <- as.logical(as.numeric(fixedInputs[19]))
 
 ## source Rcpp PF code
 sourceCpp("BPF.cpp")
@@ -144,6 +145,8 @@ for(i in 1:nrow(region_lookup)) {
     a_dis[, , FID] <- rep(a_dis_temp, length(FID))
     b_dis_temp <- b_dis_ini * exp(-pars$MD_scale[hash] * (MD_time[hash] - tstart:tstop) * ifelse(tstart:tstop < MD_time[hash], 1, 0))
     b_dis[, , FID] <- rep(b_dis_temp, length(FID))
+    b_dis_8 <- b_dis_8_ini * exp(-pars$MD_scale[hash] * (MD_time[hash] - tstart:tstop) * ifelse(tstart:tstop < MD_time[hash], 1, 0))
+    b_dis[, 8, FID] <- rep(b_dis_8, length(FID))
 }
 
 ## run PF with some model discrepancy
