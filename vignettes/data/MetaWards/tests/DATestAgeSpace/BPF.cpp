@@ -2142,7 +2142,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                     arma::ivec mu_night_nhsregion1(nnhsregions); mu_night_nhsregion1.zeros();
                     
                     // calculate latent mu terms
-                    mu_night_age_lad[i].zeros();
+//                    mu_night_age_lad[i].zeros();
                     mu_night_lad1.zeros();
                     mu_night_age_region1.zeros();
                     mu_night_age_nhsregion1.zeros();
