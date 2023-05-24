@@ -42,6 +42,7 @@ nhsregion_hosp <- readRDS("nhsregion_hosp.rds") %>%
 ## load lookup
 lookup <- readRDS("lookup.rds")
 lookup <- select(lookup, starts_with("FID"))
+
 ## save outputs
 system(paste0("rm -r outputs", outnm))
 dir.create(paste0("outputs", outnm))
@@ -60,6 +61,6 @@ pivot_longer(death_lad, !t, names_to = "lad") %>%
     arrange(desc(value)) %>%
     slice(1:10) %>%
     select(lad) %>%
-    write_csv(file = paste0("outputs", outnm, "/lads_outputs", outnm, ".csv"), col_names = FALSE)
+    write_delim(file = paste0("outputs", outnm, "/lads_outputs", outnm, ".txt"), col_names = FALSE)
     
 
