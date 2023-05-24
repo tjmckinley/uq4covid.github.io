@@ -52,6 +52,8 @@ saveRDS(nhsregion_cumadage, paste0("outputs", outnm, "/cumHospAd_age_nhsregion.r
 saveRDS(nhsregion_hosp, paste0("outputs", outnm, "/hosp_nhsregion.rds"))
 saveRDS(lookup, paste0("outputs", outnm, "/lookup.rds"))
 system(paste0("cp age_lookup.rds outputs", outnm))
+system(paste0("cp death_lookup.rds outputs", outnm))
+system(paste0("cp ../../../data/wardToLADConversion/Local_Authority_Districts_\\(December_2019\\)_Boundaries_UK_BUC.zip outputs", outnm))
 
 ## write out top LADs
 pivot_longer(death_lad, !t, names_to = "lad") %>%

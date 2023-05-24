@@ -1,6 +1,11 @@
 ## load libraries
 library(tidyverse)
 library(patchwork)
+library(sf)
+library(gganimate)
+
+## set theme
+theme_set(theme_minimal())
 
 ## check if being run in batch mode
 args <- commandArgs(TRUE)
@@ -211,6 +216,55 @@ p1 <- wrap_plots(p1, nrow = 2, heights = c(0.8, 0.5))
 ggsave(paste0("../wave", wave, "/simsBPFEns.pdf"), p1, width = 15, height = 15)
 
 ###############################################
+#####           spatial plots             #####
+###############################################
+
+## load in shapefile
+lad19 <- st_read(paste0("../", outputs, "/Local_Authority_Districts_(December_2019)_Boundaries_UK_BUC.shp"))
+
+## load in lookup
+death_lookup <- readRDS(paste0("../", outputs, "/death_lookup.rds"))
+
+## load in data
+data <- readRDS(paste0("../", outputs, "/cumDeath_lad.rds")) %>%
+    filter(t <= tstop) %>%
+    pivot_longer(!t, names_to = "lad", values_to = "n") %>%
+    mutate(lad = as.numeric(gsub("deaths_", "", lad))) %>%
+    inner_join(death_lookup, by = c("lad" = "FID")) %>%
+    rename(Data = n)
+
+## load in runs
+sims_md <- readRDS(paste0("../wave", wave, "/sumEns_lads.rds")) %>%
+    dplyr::select(t, lad, Median) %>%
+    rename(Prediction = Median)
+
+## join runs and data
+data <- inner_join(data, sims_md, by = c("lad", "t"))
+
+## join to shapefile
+lad19 <- inner_join(lad19, data, by = c("lad19cd" = "areaCode"))
+
+### animation
+#p <- pivot_longer(lad19, c(Data, Prediction), names_to = "type", values_to = "Count") %>%
+#    ggplot() +
+#        geom_sf(aes(fill = Count), colour = NA) +
+#        facet_wrap(~ type) +
+#        scale_fill_viridis_c() +
+#        transition_time(t) +
+#        ggtitle("Deaths at t = {frame_time}")
+#anim_save(paste0("../wave", wave, "/spanimation.gif"), p)
+
+## static plot
+p <- filter(lad19, t == max(t)) %>%
+    pivot_longer(c(Data, Prediction), names_to = "type", values_to = "Count") %>%
+    ggplot() +
+        geom_sf(aes(fill = Count), colour = NA) +
+        facet_wrap(~ type) +
+        scale_fill_viridis_c() +
+        ggtitle(paste0("Deaths at t = ", max(lad19$t)))
+ggsave(paste0("../wave", wave, "/spstatic.pdf"), p)
+
+###############################################
 #####          LAD-level plots            #####
 ###############################################
 
@@ -222,17 +276,9 @@ if(file.exists(paste0("../", outputs, "/lads_", outputs, ".txt"))) {
     ## load in data
     data <- readRDS(paste0("../", outputs, "/cumDeath_lad.rds")) %>%
         filter(t <= tstop) %>%
-        pivot_longer(!t, names_to = "var", values_to = "n") %>%
-        mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
-        mutate(lad = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
-        mutate(age = gsub('(.*)_[0-9]*', '\\1', age)) %>%
-        mutate(var = gsub('^(.*)_[0-9]*_.*', '\\1', var)) %>%
-        mutate(var = gsub("one", "1", var)) %>%
-        mutate(var = gsub("two", "2", var)) %>%
-        mutate(age = as.numeric(age)) %>%
-        filter(lad %in% lads) %>%
-	group_by(t, lad) %>%
-	summarise(n = sum(n), .groups = "drop")
+        pivot_longer(!t, names_to = "lad", values_to = "n") %>%
+        mutate(lad = gsub("deaths_", "", lad)) %>%
+        filter(lad %in% lads)
 
     ## load in runs
     sims_md <- readRDS(paste0("../wave", wave, "/sumEns_lads.rds")) %>%
