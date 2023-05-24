@@ -58,9 +58,9 @@ p1[[1]] <- ggplot(sims_md, aes(x = t)) +
     facet_grid(var ~ age, scales = "free") +
     xlab("Days") + 
     ylab("Counts") +
-    ggtitle("Truth")
+    ggtitle("Hidden states")
     
-if(cont) p1[[1]] <- p1[[1]] + geom_vline(xintercept = tstart, linetype = "dashed", colour = "blue")
+if(cont) p1[[1]] <- p1[[1]] + geom_vline(xintercept = tstart, linetype = "dashed")
         
 ###############################################
 #######     LAD-level observations      #######
@@ -201,6 +201,9 @@ if(cont) p1[[5]] <- p1[[5]] + geom_vline(xintercept = tstart, linetype = "dashed
 #####   combine plots and save outputs    #####
 ###############################################
 
+## save outputs
+saveRDS(p1, paste0("../wave", wave, "/plots.rds"))
+
 ## combine plots
 p1[[4]] <- p1[[4]] / p1[[2]]
 p1 <- p1[-2]
@@ -242,7 +245,8 @@ if(file.exists(paste0("../", outputs, "/lads_", outputs, ".txt"))) {
         geom_line(
             aes(y = n), 
             data = data,
-            linetype = "dashed"
+            linetype = "dashed",
+            col = "blue"
         ) +
         facet_wrap(~ lad, scales = "free") +
         xlab("Days") + 
