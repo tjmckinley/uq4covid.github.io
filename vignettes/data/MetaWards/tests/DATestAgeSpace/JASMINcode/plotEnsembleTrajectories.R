@@ -252,7 +252,7 @@ lad19 <- inner_join(lad19, data, by = c("lad19cd" = "areaCode"))
 #        scale_fill_viridis_c() +
 #        transition_time(t) +
 #        ggtitle("Deaths at t = {frame_time}")
-#anim_save(paste0("../wave", wave, "/spanimation.gif"), p)
+#anim_save(paste0("../wave", wave, "/simsspanimation.gif"), p)
 
 ## static plot
 p <- filter(lad19, t == max(t)) %>%
@@ -262,7 +262,7 @@ p <- filter(lad19, t == max(t)) %>%
         facet_wrap(~ type) +
         scale_fill_viridis_c() +
         ggtitle(paste0("Deaths at t = ", max(lad19$t)))
-ggsave(paste0("../wave", wave, "/spstatic.pdf"), p)
+ggsave(paste0("../wave", wave, "/simsspstatic.pdf"), p)
 
 ###############################################
 #####          LAD-level plots            #####
