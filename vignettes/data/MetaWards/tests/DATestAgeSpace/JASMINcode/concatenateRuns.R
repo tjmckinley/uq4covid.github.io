@@ -59,10 +59,21 @@ if(any(is.na(ll))) {
     stop("Stopped")
 }
 
-## cleanup
-map(1:nrow(pars), function(i, wave) {
-    system(paste0("rm ../wave", wave, "/wave", wave, "Runs_", i, ".Rout"))
+## extract runtimes
+times <- map_dbl(1:nrow(pars), function(i, wave) {
+    time <- readLines(paste0("../wave", wave, "/wave", wave, "Runs_", i, ".Rout"))
+    time <- time[length(time)]
+    time <- strsplit(time, " ")[[1]]
+    as.numeric(time[length(time)])
 }, wave = wave)
+times <- times / 60
+times <- times / 60
+saveRDS(times, paste0("../wave", wave, "/times.rds"))
+
+## cleanup
+#map(1:nrow(pars), function(i, wave) {
+#    system(paste0("rm ../wave", wave, "/wave", wave, "Runs_", i, ".Rout"))
+#}, wave = wave)
 
 ## save
 saveRDS(ll, paste0("../wave", wave, "/ll.rds"))
