@@ -30,6 +30,16 @@ if(length(args) != 0) {
 }
 cont <- ifelse(is.na(tstart), FALSE, TRUE)
 
+## set up facet labeller vector
+age_label <- as.character(1:8)
+age_label <- c("<5", "5-17", 
+    "18-29", "30-39", "40-49", "50-59", 
+    "60-69", "70+")
+names(age_label) <- as.character(1:8)
+age_nhs_label <- c("<5", "5-17",
+    "18-59", "60+")
+names(age_nhs_label) <- as.character(1:4)
+
 ###############################################
 #######        LAD-level truth          #######
 ###############################################
@@ -49,7 +59,7 @@ if(is.na(tstop)) tstop <- max(sims_md$t)
 #    mutate(var = gsub("one", "1", var)) %>%
 #    mutate(var = gsub("two", "2", var))
     
-p1 <- list()     
+p1 <- list()
 p1[[1]] <- ggplot(sims_md, aes(x = t)) +
     geom_ribbon(aes(ymin = LCI, ymax = UCI), alpha = 0.5) +
     geom_ribbon(aes(ymin = LQ, ymax = UQ), alpha = 0.5) +
@@ -60,7 +70,7 @@ p1[[1]] <- ggplot(sims_md, aes(x = t)) +
 #            summarise(n = sum(n), .groups = "drop"),
 #        col = "red", linetype = "dashed"
 #    ) +
-    facet_grid(var ~ age, scales = "free") +
+    facet_grid(var ~ age, scales = "free", labeller = labeller(age = age_label)) +
     xlab("Days") + 
     ylab("Counts") +
     ggtitle("Hidden states")
@@ -93,7 +103,7 @@ p1[[2]] <- ggplot(sims_md, aes(x = t)) +
     ) +
     xlab("Days") + 
     ylab("Counts") +
-    ggtitle("Observed cumulative deaths (aggregated over LADs)")
+    ggtitle("Observed cumulative deaths (aggregated over LTLAs)")
     
 if(cont) p1[[2]] <- p1[[2]] + geom_vline(xintercept = tstart, linetype = "dashed")
               
@@ -127,7 +137,8 @@ p1[[3]] <- ggplot(sims_md, aes(x = t)) +
         data = data,
         col = "blue", linetype = "dashed"
     ) +
-    facet_grid(RGN19NM ~ age, labeller = label_wrap_gen(width = 10)) +
+    facet_grid(RGN19NM ~ age,
+        labeller = labeller(RGN19NM = label_wrap_gen(width = 10), age = age_label)) +
     xlab("Days") + 
     ylab("Counts") +
     ggtitle("Observed cumulative deaths (age / region)")
@@ -195,7 +206,8 @@ p1[[5]] <- ggplot(sims_md, aes(x = t)) +
         data = data,
         col = "blue", linetype = "dashed"
     ) +
-    facet_grid(areaName ~ age, labeller = label_wrap_gen(width = 10)) +
+    facet_grid(areaName ~ age, 
+        labeller = labeller(areaName = label_wrap_gen(width = 10), age = age_nhs_label)) +
     xlab("Days") + 
     ylab("Counts") +
     ggtitle("Observed cumulative hospital incidence (NHS age / region)")
