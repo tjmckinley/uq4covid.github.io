@@ -11,13 +11,15 @@ library(viridis)
 library(patchwork)
 
 ## set seed
-set.seed(666)
+seed <- 456
+set.seed(seed)
 
 ## create output directory
-if(dir.exists("outputs")) {
+outputdir <- paste0("outputs", seed)
+if(dir.exists(outputdir)) {
     stop("Can't overwrite existing directory")
 }
-dir.create("outputs")
+dir.create(outputdir)
 
 ## source simulation function
 sourceCpp("BPF.cpp")
@@ -36,9 +38,9 @@ a1 <- as.numeric(fixedInputs[6])
 a2 <- as.numeric(fixedInputs[7])
 b1 <- as.numeric(fixedInputs[8])
 b2 <- as.numeric(fixedInputs[9])
-a_dis <- as.numeric(fixedInputs[10])
-b_dis <- as.numeric(fixedInputs[11])
-b_dis_london <- as.numeric(fixedInputs[12])
+a_dis_ini <- as.numeric(fixedInputs[10])
+b_dis_ini <- as.numeric(fixedInputs[11])
+b_dis_8_ini <- as.numeric(fixedInputs[12])
 sigma2_lad <- as.numeric(fixedInputs[13])
 sigma2_age_region <- as.numeric(fixedInputs[14])
 sigma2_nhsregion <- as.numeric(fixedInputs[15])
@@ -60,7 +62,7 @@ contact2 <- read_csv("inputs/coMix_matrix.csv", col_names = FALSE) %>%
 pars <- select(slice(pars, 100), !output)
 pars_save <- readRDS("wave1/inputs.rds") %>%
     slice(100)
-saveRDS(pars_save, "outputs/pars.rds")
+saveRDS(pars_save, paste0(outputdir, "/pars.rds"))
 
 ## solution to round numbers preserving sum
 ## adapted from:
@@ -78,28 +80,6 @@ ageProbs <- read_csv("inputs/age_seeds.csv", col_names = FALSE)$X2
 ## read in commuter data
 EW19 <- read_delim("inputs/EW19.dat", delim = " ", col_names = FALSE)
 u1_moves <- as.matrix(EW19[, 1:2])
-
-### add seeding information
-#EW19 <- mutate(EW19, X4 = 0)
-#for(i in 1:10) {
-#    val <- 0
-#    while(val == 0) {
-#        seed <- sample(which(EW19[, 1] == 317), 1)
-#        if((EW19$X4[seed] + 1) <= EW19$X3[seed]) {
-#            EW19$X4[seed] <- EW19$X4[seed] + 1
-#            val <- 1
-#        }
-#    }
-#}
-### expand to deal with age-classes
-#u1 <- apply(EW19, 1, function(x, ageProbs) {
-#        u <- matrix(0, 12, length(ageProbs))
-#        u[2, ] <- smart_round(ageProbs * x[4])
-#        u[1, ] <- smart_round(ageProbs * x[3]) - u[2, ]
-#        list(u)
-#    }, ageProbs = ageProbs) %>%
-#    map(1) %>%
-#    abind(along = 3)
 
 ## expand to deal with age-classes
 u1 <- apply(EW19, 1, function(x, ageProbs) {
@@ -124,10 +104,10 @@ u2 <- apply(PlaySize19, 1, function(x, ageProbs) {
     abind(along = 3)
 
 ## write inputs out
-saveRDS(u1, "outputs/u1.rds")
-saveRDS(u1_moves, "outputs/u1_moves.rds")
-saveRDS(u2, "outputs/u2.rds")
-saveRDS(as.matrix(PM19), "outputs/u2_moves.rds")
+saveRDS(u1, paste0(outputdir, "/u1.rds"))
+saveRDS(u1_moves, paste0(outputdir, "/u1_moves.rds"))
+saveRDS(u2, paste0(outputdir, "/u2.rds"))
+saveRDS(as.matrix(PM19), paste0(outputdir, "/u2_moves.rds"))
 
 ## set up stage names
 stageNms <- map(c("S", "E", "A", "RA", "P", "Ione", "DI", "Itwo", "RI", "H", "RH", "DH"), ~paste0(., "_", 1:8)) %>%
@@ -139,21 +119,44 @@ stageNms <- map(c("S", "E", "A", "RA", "P", "Ione", "DI", "Itwo", "RI", "H", "RH
 lookup <- readRDS("data/lookup.rds")
 lookup <- select(lookup, starts_with("FID"))
 age_lookup <- readRDS("data/age_lookup.rds")
-saveRDS(lookup, "outputs/lookup.rds")
-saveRDS(age_lookup, "outputs/age_lookup.rds")
+death_lookup <- readRDS("data/death_lookup.rds")
+saveRDS(lookup, paste0(outputdir, "/lookup.rds"))
+saveRDS(age_lookup, paste0(outputdir, "/age_lookup.rds"))
+saveRDS(death_lookup, paste0(outputdir, "/death_lookup.rds"))
 
 ## set up input object
 u <- list(u1_moves = u1_moves, u1 = u1, u2 = u2, u2_moves = as.matrix(PM19))
 
-## create model discrepancy matrices
-region_lookup <- readRDS("data/region_lookup.rds")
-london_FID <- lookup$FID[!is.na(lookup$FID_region) & lookup$FID_region == region_lookup$FID[region_lookup$RGN19NM == "London"]]
-a_dis <- a_dis * exp(-pars$MD_scale[1] * (pars$MD_time[1] - tstart:tstop) * ifelse(tstart:tstop < pars$MD_time[1], 1, 0))
+## create region lookup
+region_lookup <- readRDS("data/region_lookup.rds") %>%
+    mutate(initials = NA) %>%
+    mutate(initials = ifelse(RGN19NM == "North East", "NE", initials)) %>%
+    mutate(initials = ifelse(RGN19NM == "North West", "NW", initials)) %>%
+    mutate(initials = ifelse(RGN19NM == "Yorkshire and The Humber", "YH", initials)) %>%
+    mutate(initials = ifelse(RGN19NM == "East Midlands", "EM", initials)) %>%
+    mutate(initials = ifelse(RGN19NM == "West Midlands", "WM", initials)) %>%
+    mutate(initials = ifelse(RGN19NM == "East of England", "EE", initials)) %>%
+    mutate(initials = ifelse(RGN19NM == "London", "L", initials)) %>%
+    mutate(initials = ifelse(RGN19NM == "South East", "SE", initials)) %>%
+    mutate(initials = ifelse(RGN19NM == "South West", "SW", initials))
+
+## set some initial matrices
+a_dis <- a_dis_ini * exp(-pars$MD_scale[1] * (pars$MD_time_L[1] - tstart:tstop) * ifelse(tstart:tstop < pars$MD_time_L[1], 1, 0))
 a_dis <- array(rep(a_dis, nrow(age_lookup) * nrow(lookup)), c(tstop - tstart + 1, nrow(age_lookup), nrow(lookup)))
-b_dis <- b_dis * exp(-pars$MD_scale[1] * (pars$MD_time[1] - tstart:tstop) * ifelse(tstart:tstop < pars$MD_time[1], 1, 0))
+b_dis <- b_dis_ini * exp(-pars$MD_scale[1] * (pars$MD_time_L[1] - tstart:tstop) * ifelse(tstart:tstop < pars$MD_time_L[1], 1, 0))
 b_dis <- array(rep(b_dis, nrow(age_lookup) * nrow(lookup)), c(tstop - tstart + 1, nrow(age_lookup), nrow(lookup)))
-b_dis_london <- b_dis_london * exp(-pars$MD_scale[1] * (pars$MD_time[1] - tstart:tstop) * ifelse(tstart:tstop < pars$MD_time[1], 1, 0))
-b_dis[, , london_FID] <- rep(b_dis_london, length(london_FID))
+
+## use spatially-explicit matrices
+for(i in 1:nrow(region_lookup)) {
+    FID <- lookup$FID[!is.na(lookup$FID_region) & lookup$FID_region == region_lookup$FID[region_lookup$RGN19NM == region_lookup$RGN19NM[i]]]
+    MD_time <- pluck(pars, paste0("MD_time_", region_lookup$initials[i]))
+    a_dis_temp <- a_dis_ini * exp(-pars$MD_scale[1] * (MD_time[1] - tstart:tstop) * ifelse(tstart:tstop < MD_time[1], 1, 0))
+    a_dis[, , FID] <- rep(a_dis_temp, length(FID))
+    b_dis_temp <- b_dis_ini * exp(-pars$MD_scale[1] * (MD_time[1] - tstart:tstop) * ifelse(tstart:tstop < MD_time[1], 1, 0))
+    b_dis[, , FID] <- rep(b_dis_temp, length(FID))
+    b_dis_8 <- b_dis_8_ini * exp(-pars$MD_scale[1] * (MD_time[1] - tstart:tstop) * ifelse(tstart:tstop < MD_time[1], 1, 0))
+    b_dis[, 8, FID] <- rep(b_dis_8, length(FID))
+}
 
 ## simulate discrete-time model
 disSims_full <- BPF(pars, C1 = contact1, C2 = contact2, lockdown_day = lockdown_day, 
@@ -295,12 +298,12 @@ p1[[2]] <- ggplot(p, aes(x = t)) +
         data = pivot_longer(medRep, !t, names_to = "var", values_to = "n") %>%
             group_by(t) %>%
             summarise(n = sum(n), .groups = "drop"),
-        col = "red", linetype = "dashed"
+        col = "blue", linetype = "dashed"
     ) +
     xlab("Days") + 
     ylab("Counts") +
     ggtitle("Observed cumulative deaths (aggregated over LADs)")
-              
+       
 ###############################################
 #######  age/region-level observations  #######
 ###############################################
@@ -363,7 +366,7 @@ p1[[3]] <- ggplot(p, aes(x = t)) +
             separate(var, c("age", "region"), sep = "_") %>%
             mutate(across(c(age, region), as.numeric)) %>%
             inner_join(region_lookup, by = c("region" = "FID")),
-        col = "red", linetype = "dashed"
+        col = "blue", linetype = "dashed"
     ) +
     facet_grid(RGN19NM ~ age, labeller = label_wrap_gen(width = 10), scales = "free_y") +
     xlab("Days") + 
@@ -419,7 +422,7 @@ p1[[4]] <- ggplot(p, aes(x = t)) +
         data = pivot_longer(medRep, !t, names_to = "region", values_to = "n") %>%
             mutate(region = as.numeric(gsub("hosp_", "", region))) %>%
             inner_join(nhsregion_lookup, by = c("region" = "FID")),
-        col = "red", linetype = "dashed"
+        col = "blue", linetype = "dashed"
     ) +
     facet_wrap(~ areaName, nrow = 1, labeller = label_wrap_gen(width = 10), scales = "free_y") +
     xlab("Days") + 
@@ -485,7 +488,7 @@ p1[[5]] <- ggplot(p, aes(x = t)) +
             separate(var, c("age", "region"), sep = "_") %>%
             mutate(across(c(age, region), as.numeric)) %>%
             inner_join(nhsregion_lookup, by = c("region" = "FID")),
-        col = "red", linetype = "dashed"
+        col = "blue", linetype = "dashed"
     ) +
     facet_grid(areaName ~ age, labeller = label_wrap_gen(width = 10), scales = "free_y") +
     xlab("Days") + 
@@ -500,7 +503,7 @@ p1[[5]] <- ggplot(p, aes(x = t)) +
 p1[[4]] <- p1[[4]] / p1[[2]]
 p1 <- p1[-2]
 p1 <- wrap_plots(p1, nrow = 2, heights = c(0.8, 0.5))
-ggsave("outputs/simsNational.pdf", p1, width = 15, height = 15)
+ggsave(paste0(outputdir, "/simsNational.pdf"), p1, width = 15, height = 15)
 
 ## truth
 disSims <- map(1:length(disSims_full$particles[[1]]$full), function(i, x) {
@@ -525,7 +528,7 @@ medRep <- inner_join(medRepInd, disSims, by = "rep") %>%
     select(t, everything())
     
 ## save outputs
-saveRDS(medRep, "outputs/disSims.rds")
+saveRDS(medRep, paste0(outputdir, "/disSims.rds"))
 
 ## lad-level observed deaths
 disSims <- map(1:length(disSims_full$particles[[1]]$lads), function(i, x) {
@@ -553,7 +556,7 @@ medRep <- inner_join(medRepInd, disSims, by = "rep") %>%
     select(t, everything())
     
 ## save outputs
-saveRDS(medRep, "outputs/cumDeath_lad.rds")
+saveRDS(medRep, paste0(outputdir, "/cumDeath_lad.rds"))
 
 ## age / region observed deaths
 disSims <- map(1:length(disSims_full$particles[[1]]$age_region), function(i, x) {
@@ -585,7 +588,7 @@ medRep <- inner_join(medRepInd, disSims, by = "rep") %>%
     select(t, everything())
     
 ## save outputs
-saveRDS(medRep, "outputs/cumDeath_age_region.rds")
+saveRDS(medRep, paste0(outputdir, "/cumDeath_age_region.rds"))
 
 ## NHS region observed hospital cases
 disSims <- map(1:length(disSims_full$particles[[1]]$nhsregion), function(i, x) {
@@ -608,7 +611,7 @@ medRep <- inner_join(medRepInd, disSims, by = "rep") %>%
     select(t, everything())
     
 ## save outputs
-saveRDS(medRep, "outputs/hosp_nhsregion.rds")
+saveRDS(medRep, paste0(outputdir, "/hosp_nhsregion.rds"))
 
 ## NHS region and age observed hospital incidence
 disSims <- map(1:length(disSims_full$particles[[1]]$age_nhsregion), function(i, x) {
@@ -640,7 +643,7 @@ medRep <- inner_join(medRepInd, disSims, by = "rep") %>%
     select(t, everything())
     
 ## save outputs
-saveRDS(medRep, "outputs/cumHospAd_age_nhsregion.rds")
+saveRDS(medRep, paste0(outputdir, "/cumHospAd_age_nhsregion.rds"))
 
 ###############################################
 #####          LAD-level plots            #####
@@ -696,72 +699,138 @@ p1 <- ggplot(p, aes(x = t, y = n, colour = LAD)) +
     xlab("Days") + 
     ylab("Counts") +
     ggtitle("Truth")
-ggsave("outputs/simsTopLADs.pdf", p1, width = 10, height = 10)
+ggsave(paste0(outputdir, "/simsTopLADs.pdf"), p1, width = 10, height = 10)
 
-## spatial animation of simulation
+## spatial plot of simulation
 
 ## read in shapefile
 lad19 <- st_read("inputs/LAD19_shapefile/LAD19_shapefile.shp")
 
 ## extract cases over time in each age-group
-p <- select(medRep, t, starts_with("DH_")) %>%
+p <- select(medRep, t, starts_with("DH_") | starts_with("DI_") | starts_with("H_") | starts_with("Ione_")) %>%
     pivot_longer(!t, values_to = "counts", names_to = "var") %>%
     separate(var, c("var", "age", "lad"), sep = "_") %>%
-    select(!var) %>%
-    mutate(age = as.numeric(age), lad = as.numeric(lad)) %>%
-    group_by(lad) %>%
-    mutate(tot = sum(counts)) %>%
-    ungroup() %>%
-    filter(tot > 0) %>%
-    select(!tot) %>%
-    group_by(lad, age) %>%
-    mutate(tot = cumsum(counts)) %>%
-    group_by(lad, t) %>%
-    mutate(tot = sum(tot)) %>%
-    ungroup() %>%
-    mutate(counts = ifelse(tot == 0, NA, counts)) %>%
-    select(!tot)
-max_p <- max(p$counts, na.rm = TRUE)
-p <- inner_join(lad19, p, by = c("objectid" = "lad")) %>%
-    ggplot() +
-    geom_sf(aes(fill = counts), colour = NA) +
-    facet_wrap(~age) +
-    scale_fill_viridis_c(limits = c(0, max_p)) +
-    theme_bw()
+    mutate(age = as.numeric(age), lad = as.numeric(lad))
+days <- c(lockdown_day, tstop)
+pcomb <- list()
+for(i in 1:length(days)) {
+    p1 <- filter(p, var == "Ione" & t == days[i]) %>%
+        select(!var) %>%
+        {inner_join(lad19, ., by = c("objectid" = "lad"))} %>%
+        ggplot() +
+            geom_sf(aes(fill = counts), colour = NA) +
+            facet_wrap(~age) +
+            scale_fill_viridis_c() +
+            theme_bw() +
+            labs(fill = "I1")
+    p2 <- filter(p, var == "H" & t == days[i]) %>%
+        select(!var) %>%
+        {inner_join(lad19, ., by = c("objectid" = "lad"))} %>%
+        ggplot() +
+            geom_sf(aes(fill = counts), colour = NA) +
+            facet_wrap(~age) +
+            scale_fill_viridis_c(option = "C") +
+            theme_bw() +
+            labs(fill = "H")
+    p3 <- filter(p, var == "DH" & t == days[i]) %>%
+        select(!var) %>%
+        {inner_join(lad19, ., by = c("objectid" = "lad"))} %>%
+        ggplot() +
+            geom_sf(aes(fill = counts), colour = NA) +
+            facet_wrap(~age) +
+            scale_fill_viridis_c(option = "A") +
+            theme_bw() +
+            labs(fill = "DH")
+    p4 <- filter(p, var == "DI" & t == days[i]) %>%
+        select(!var) %>%
+        {inner_join(lad19, ., by = c("objectid" = "lad"))} %>%
+        ggplot() +
+            geom_sf(aes(fill = counts), colour = NA) +
+            facet_wrap(~age) +
+            scale_fill_viridis_c(option = "E") +
+            theme_bw() +
+            labs(fill = "DI")
+    pcomb[[i]] <- (p1 + p2) /(p3 + p4) & ggtitle(paste0("t = ", days[i]))
+}
+pcomb <- wrap_plots(pcomb)
+ggsave(paste0(outputdir, "/staticspatial.pdf"), pcomb, width = 20, height = 10)
 
-## add transitions
-p <- p + transition_time(t) + ggtitle("Day = {frame_time}")
-spatial_gif <- animate(p, nframes = 50, fps = 1, renderer = gifski_renderer())
-anim_save("outputs/simsSpatialDH.gif", spatial_gif)
+## copy shapefiles in
+system(paste0("cp ../../data/wardToLADConversion/Local_Authority_Districts_\\(December_2019\\)_Boundaries_UK_BUC.zip ", outputdir))
 
-## extract cases over time in each age-group
-p <- select(medRep, t, starts_with("E")) %>%
-    pivot_longer(!t, values_to = "counts", names_to = "var") %>%
-    separate(var, c("var", "age", "lad"), sep = "_") %>%
-    select(!var) %>%
-    mutate(age = as.numeric(age), lad = as.numeric(lad)) %>%
-    group_by(lad) %>%
-    mutate(tot = sum(counts)) %>%
-    ungroup() %>%
-    filter(tot > 0) %>%
-    select(!tot) %>%
-    group_by(lad, age) %>%
-    mutate(tot = cumsum(counts)) %>%
-    group_by(lad, t) %>%
-    mutate(tot = sum(tot)) %>%
-    ungroup() %>%
-    mutate(counts = ifelse(tot == 0, NA, counts)) %>%
-    select(!tot)
-max_p <- max(p$counts, na.rm = TRUE)
-p <- inner_join(lad19, p, by = c("objectid" = "lad")) %>%
-    ggplot() +
-    geom_sf(aes(fill = counts), colour = NA) +
-    facet_wrap(~age) +
-    scale_fill_viridis_c(limits = c(0, max_p)) +
-    theme_bw()
+## write out top LADs
+filter(death_lad, t == tstop) %>%
+    pivot_longer(!t, names_to = "lad") %>%
+    mutate(lad = as.numeric(gsub("deaths_", "", lad))) %>%
+    arrange(desc(value)) %>%
+    slice(1:10) %>%
+    select(lad) %>%
+    write_delim(file = paste0(outputdir, "/lads_outputs", seed, ".txt"), col_names = FALSE)
 
-## add transitions
-p <- p + transition_time(t) + ggtitle("Day = {frame_time}")
-spatial_gif <- animate(p, nframes = 50, fps = 1, renderer = gifski_renderer())
-anim_save("outputs/simsSpatialE.gif", spatial_gif)
+### spatial animation of simulation
+
+### read in shapefile
+#lad19 <- st_read("inputs/LAD19_shapefile/LAD19_shapefile.shp")
+
+### extract cases over time in each age-group
+#p <- select(medRep, t, starts_with("DH_")) %>%
+#    pivot_longer(!t, values_to = "counts", names_to = "var") %>%
+#    separate(var, c("var", "age", "lad"), sep = "_") %>%
+#    select(!var) %>%
+#    mutate(age = as.numeric(age), lad = as.numeric(lad)) %>%
+#    group_by(lad) %>%
+#    mutate(tot = sum(counts)) %>%
+#    ungroup() %>%
+#    filter(tot > 0) %>%
+#    select(!tot) %>%
+#    group_by(lad, age) %>%
+#    mutate(tot = cumsum(counts)) %>%
+#    group_by(lad, t) %>%
+#    mutate(tot = sum(tot)) %>%
+#    ungroup() %>%
+#    mutate(counts = ifelse(tot == 0, NA, counts)) %>%
+#    select(!tot)
+#max_p <- max(p$counts, na.rm = TRUE)
+#p <- inner_join(lad19, p, by = c("objectid" = "lad")) %>%
+#    ggplot() +
+#    geom_sf(aes(fill = counts), colour = NA) +
+#    facet_wrap(~age) +
+#    scale_fill_viridis_c(limits = c(0, max_p)) +
+#    theme_bw()
+
+### add transitions
+#p <- p + transition_time(t) + ggtitle("Day = {frame_time}")
+#spatial_gif <- animate(p, nframes = 50, fps = 1, renderer = gifski_renderer())
+#anim_save(paste0(outputdir, "/simsSpatialDH.gif"), spatial_gif)
+
+### extract cases over time in each age-group
+#p <- select(medRep, t, starts_with("E")) %>%
+#    pivot_longer(!t, values_to = "counts", names_to = "var") %>%
+#    separate(var, c("var", "age", "lad"), sep = "_") %>%
+#    select(!var) %>%
+#    mutate(age = as.numeric(age), lad = as.numeric(lad)) %>%
+#    group_by(lad) %>%
+#    mutate(tot = sum(counts)) %>%
+#    ungroup() %>%
+#    filter(tot > 0) %>%
+#    select(!tot) %>%
+#    group_by(lad, age) %>%
+#    mutate(tot = cumsum(counts)) %>%
+#    group_by(lad, t) %>%
+#    mutate(tot = sum(tot)) %>%
+#    ungroup() %>%
+#    mutate(counts = ifelse(tot == 0, NA, counts)) %>%
+#    select(!tot)
+#max_p <- max(p$counts, na.rm = TRUE)
+#p <- inner_join(lad19, p, by = c("objectid" = "lad")) %>%
+#    ggplot() +
+#    geom_sf(aes(fill = counts), colour = NA) +
+#    facet_wrap(~age) +
+#    scale_fill_viridis_c(limits = c(0, max_p)) +
+#    theme_bw()
+
+### add transitions
+#p <- p + transition_time(t) + ggtitle("Day = {frame_time}")
+#spatial_gif <- animate(p, nframes = 50, fps = 1, renderer = gifski_renderer())
+#anim_save(paste0(outputdir, "/simsSpatialE.gif"), spatial_gif)
 
