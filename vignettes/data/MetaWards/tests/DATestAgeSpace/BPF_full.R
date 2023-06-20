@@ -14,17 +14,12 @@ log_sum_exp <- function(x, mn = FALSE) {
 ## C1:    contact matrix for mixing between age-classes
 ## C2:    contact matrix for mixing between age-classes post lockdown
 ## lockdown_day: the day of first lockdown
-## cumDeath_lad: matrix of form D_1, D_2, ..., D_L along
-##               columns with cumulative deaths per lad
-## cumDeath_age_region: matrix of form D_a1_1, D_a1_2, ..., D_AR along
-##               columns with cumulative deaths per age and region
-## hosp_nhsregion: matrix of form H_1, H_2, ..., H_R along
-##               columns with hospital counts per nhsregion
-## cumHospAd_age_nhsregion: matrix of form H_a1_1, H_a1_2, ..., H_AR along
-##               columns with cumulative admissions per age and nhsregion
+## cumDeath_age_lad: matrix of form D_a1_l1, D_a2_l1, ..., D_a8_lL along
+##               columns with cumulative deaths per age/lad
+## cumHosp_age_lad: matrix of form H_a1_l1, H_a2_l1, ..., H_a8_lL along
+##               columns with cumulative hospitalisations per age/lad
 ## lookup: a lookup table mapping lads to different spatial hierarchies
 ##               of form: LAD, death ID, region ID, NHS region ID
-## age_lookup: a lookup table of form: death age, nhs age
 ## u: list with elements:
 ##      u1_moves: matrix of commuter data, with columns:
 ##              home LAD, work LAD
@@ -61,11 +56,9 @@ log_sum_exp <- function(x, mn = FALSE) {
 ## ncores:  the number of cores for OpenMP parallelisation (if NA then defaults to all available cores)
 ## parEnsemble: decides whether to parallelise across or within ensemble
 
-BPF <- function(pars, C1, C2, lockdown_day, cumDeath_lad, cumDeath_age_region, 
-        hosp_nhsregion, cumHospAd_age_nhsregion,
-        lookup, age_lookup, u, tstart, tstop, npart = 10, niter = 0, 
-        a1 = 0, a2 = 0, b1 = 0.1, b2 = 0.1, a_dis = 0.05, b_dis = 0.01, 
-        sigma2_lad = 1, sigma2_age_region = 1, sigma2_nhsregion = 1, sigma2_age_nhsregion = 1,
+BPF <- function(pars, C1, C2, lockdown_day, cumDeath_age_lad, cumHosp_age_lad,
+        lookup, u, tstart, tstop, npart = 10, niter = 0, 
+        a1 = 0, a2 = 0, b1 = 0.1, b2 = 0.1, a_dis = 0.05, b_dis = 0.01,
         saveAll = NA, writeExt = FALSE, snapshot = FALSE, outputName = "saveOut", PF = TRUE, 
         ncores = NA, parEnsemble = FALSE) {
                
@@ -89,20 +82,14 @@ BPF <- function(pars, C1, C2, lockdown_day, cumDeath_lad, cumDeath_age_region,
     
     ## set up dummy "data" if just simulation required
     if(!PF) {
-        cumDeath_lad <- matrix(NA, 1, 1)
-        cumDeath_age_region <- matrix(NA, 1, 1)
-        hosp_nhsregion <- matrix(NA, 1, 1)
-        cumHospAd_age_nhsregion <- matrix(NA, 1, 1)
+        cumDeath_age_lad <- matrix(NA, 1, 1)
+        cumHosp_age_lad <- matrix(NA, 1, 1)
     } else {
         ## extract relevant time points to filter against
-        cumDeath_lad <- filter(cumDeath_lad, t >= tstart & t <= tstop)
-        cumDeath_age_region <- filter(cumDeath_age_region, t >= tstart & t <= tstop)
-        hosp_nhsregion <- filter(hosp_nhsregion, t >= tstart & t <= tstop)
-        cumHospAd_age_nhsregion <- filter(cumHospAd_age_nhsregion, t >= tstart & t <= tstop)
-        stopifnot(all((cumDeath_lad$t - tstart:tstop) == 0))
-        stopifnot(all((cumDeath_age_region$t - tstart:tstop) == 0))
-        stopifnot(all((hosp_nhsregion$t - tstart:tstop) == 0))
-        stopifnot(all((cumHospAd_age_nhsregion$t - tstart:tstop) == 0))
+        cumDeath_age_lad <- filter(cumDeath_age_lad, t >= tstart & t <= tstop)
+        cumHosp_age_lad <- filter(cumHosp_age_lad, t >= tstart & t <= tstop)
+        stopifnot(all((cumDeath_age_lad$t - tstart:tstop) == 0))
+        stopifnot(all((cumHosp_age_lad$t - tstart:tstop) == 0))
     }
     
     if(!is.list(u)) stop("'u' is not a list")
@@ -216,41 +203,29 @@ BPF <- function(pars, C1, C2, lockdown_day, cumDeath_lad, cumDeath_age_region,
     }
     
     ## run particle filter for each set of inputs
-    runs <- mclapply(1:nrow(pars), function(k, pars, C1, C2, lockdown_day, u1_moves, ncohorts1, u1, u2, playprobs, ncohorts2, npart, niter, tstart, tstop, cumDeath_lad, cumDeath_age_region, hosp_nhsregion, cumHospAd_age_nhsregion, lookup, age_lookup, a1, a2, b1, b2, a_dis, b_dis, sigma2_lad, sigma2_age_region, sigma2_nhsregion, sigma2_age_nhsregion, saveAll, writeExt, snapshot, outputName, PF, ncores) {
+    runs <- mclapply(1:nrow(pars), function(k, pars, C1, C2, lockdown_day, u1_moves, ncohorts1, u1, u2, playprobs, ncohorts2, npart, niter, tstart, tstop, cumDeath_age_lad, cumHosp_age_lad, lookup, a1, a2, b1, b2, a_dis, b_dis, saveAll, writeExt, snapshot, outputName, PF, ncores) {
     
         ## set up lookups and numbers of regions
         lookup <- as.matrix(lookup)
-        age_lookup <- as.matrix(age_lookup)
         ndeathlads <- max(lookup[, 2], na.rm = TRUE)
-        nregions <- max(lookup[, 3], na.rm = TRUE)
-        nnhsages <- max(age_lookup[, 2], na.rm = TRUE)
-        nnhsregions <- max(lookup[, 4], na.rm = TRUE)
         lookup[is.na(lookup)] <- -1
         
         if(PF == 1) {
             ## reformat observations
-            deathInc_lad <- mutate(cumDeath_lad, across(!t, ~. - lag(., default = 0))) %>%
+            deathInc_age_lad <- mutate(cumDeath_age_lad, across(!t, ~. - lag(., default = 0))) %>%
                 select(!t) %>%
                 as.matrix()
-            deathInc_age_region <- mutate(cumDeath_age_region, across(!t, ~. - lag(., default = 0))) %>%
-                select(!t) %>%
-                as.matrix()
-            hosp_nhsregion <- as.matrix(hosp_nhsregion)[, -1]
-            hospInc_age_nhsregion <- mutate(cumHospAd_age_nhsregion, across(!t, ~. - lag(., default = 0))) %>%
+            hospInc_age_lad <- mutate(cumHosp_age_lad, across(!t, ~. - lag(., default = 0))) %>%
                 select(!t) %>%
                 as.matrix()
                 
             ## set missing values to be negative for Rcpp code
-            deathInc_lad[is.na(as.matrix(select(cumDeath_lad, !t)))] <- -1
-            deathInc_age_region[is.na(as.matrix(select(cumDeath_age_region, !t)))] <- -1
-            hosp_nhsregion[is.na(hosp_nhsregion)] <- -1
-            hospInc_age_nhsregion[is.na(as.matrix(select(cumHospAd_age_nhsregion, !t)))] <- -1
+            deathInc_age_lad[is.na(as.matrix(select(cumDeath_age_lad, !t)))] <- -1
+            hospInc_age_lad[is.na(as.matrix(select(cumHosp_age_lad, !t)))] <- -1
         } else {
             ## set dummies if required
-            deathInc_lad <- matrix(0, 1, 1)
-            deathInc_age_region <- matrix(0, 1, 1)
-            hosp_nhsregion <- matrix(0, 1, 1)
-            hospInc_age_nhsregion <- matrix(0, 1, 1)
+            deathInc_age_lad <- matrix(0, 1, 1)
+            hospInc_age_lad <- matrix(0, 1, 1)
         }
         
         ## extract number of stages, age classes and lads
@@ -295,81 +270,61 @@ BPF <- function(pars, C1, C2, lockdown_day, cumDeath_lad, cumDeath_age_region,
             if(saveAll == 0) stop("Must set 'saveAll' to something if not running a PF")
             
             ## run particle filter
-            particles <- BPF_cpp(pars, C1, C2, lockdown_day, deathInc_lad, deathInc_age_region, hosp_nhsregion, 
-                hospInc_age_nhsregion, lookup, age_lookup, nclasses, nages, nlads, ndeathlads, 
-                nregions, nnhsages, nnhsregions, u1_moves, ncohorts1, u1, u2, playprobs, 
-                ncohorts2, tstart, tstop, npart, niter, a1, a2, b1, b2, a_dis, b_dis, sigma2_lad, 
-                sigma2_age_region, sigma2_nhsregion, sigma2_age_nhsregion, saveAll, writeExt, 
-                snapshot, outputName, PF, ncores)
+            particles <- BPF_cpp(pars, C1, C2, lockdown_day, deathInc_age_lad, hospInc_age_lad, 
+                lookup, nclasses, nages, nlads, ndeathlads, 
+                u1_moves, ncohorts1, u1, u2, playprobs, 
+                ncohorts2, tstart, tstop, npart, niter, a1, a2, b1, b2, a_dis, b_dis,
+                saveAll, writeExt, snapshot, outputName, PF, ncores)
             return(particles)
         }
         
         ## run particle filter
-        particles <- BPF_cpp(pars, C1, C2, lockdown_day, deathInc_lad, deathInc_age_region, hosp_nhsregion, 
-                hospInc_age_nhsregion, lookup, age_lookup, nclasses, nages, nlads, ndeathlads, 
-                nregions, nnhsages, nnhsregions, u1_moves, ncohorts1, u1, u2, playprobs, 
-                ncohorts2, tstart, tstop, npart, niter, a1, a2, b1, b2, a_dis, b_dis, sigma2_lad, 
-                sigma2_age_region, sigma2_nhsregion, sigma2_age_nhsregion, saveAll, writeExt, 
-                snapshot, outputName, PF, ncores)
+        particles <- BPF_cpp(pars, C1, C2, lockdown_day, deathInc_age_lad, hospInc_age_lad, 
+            lookup, nclasses, nages, nlads, ndeathlads, 
+            u1_moves, ncohorts1, u1, u2, playprobs, 
+            ncohorts2, tstart, tstop, npart, niter, a1, a2, b1, b2, a_dis, b_dis,
+            saveAll, writeExt, snapshot, outputName, PF, ncores)
         
         if(saveAll != 0 & writeExt == 0) {
             return(list(ll = particles$ll, particles = particles$particles))
         } else {
             return(list(ll = particles$ll))
         }
-    }, pars = pars, C1 = C1, C2 = C2, lockdown_day = lockdown_day, u1_moves = u1_moves, ncohorts1 = ncohorts1, u1 = u1_list, u2 = u2_list, playprobs = playprobs, ncohorts2 = ncohorts2, npart = npart, niter = niter, tstart = tstart, tstop = tstop, cumDeath_lad = cumDeath_lad, cumDeath_age_region = cumDeath_age_region, hosp_nhsregion = hosp_nhsregion, cumHospAd_age_nhsregion = cumHospAd_age_nhsregion, lookup = lookup, age_lookup = age_lookup, a1 = a1, a2 = a2, b1 = b1, b2 = b2, a_dis = a_dis, b_dis = b_dis, sigma2_lad = sigma2_lad, sigma2_age_region = sigma2_age_region, sigma2_nhsregion = sigma2_nhsregion, sigma2_age_nhsregion = sigma2_age_nhsregion, saveAll = saveAllint, writeExt = writeExtint, snapshot = snapshotint, outputName = outputName, PF = PFint, ncores = ncores, mc.cores = ncoresEns)
+    }, pars = pars, C1 = C1, C2 = C2, lockdown_day = lockdown_day, u1_moves = u1_moves, ncohorts1 = ncohorts1, u1 = u1_list, u2 = u2_list, playprobs = playprobs, ncohorts2 = ncohorts2, npart = npart, niter = niter, tstart = tstart, tstop = tstop, cumDeath_age_lad = cumDeath_age_lad, cumHosp_age_lad = cumHosp_age_lad, lookup = lookup, a1 = a1, a2 = a2, b1 = b1, b2 = b2, a_dis = a_dis, b_dis = b_dis, saveAll = saveAllint, writeExt = writeExtint, snapshot = snapshotint, outputName = outputName, PF = PFint, ncores = ncores, mc.cores = ncoresEns)
     if(!is.na(saveAll)) {
         ndays <- tstop - tstart
         if(!writeExt) {
             if(PF) {
                 ll <- map(runs, "ll")
                 runs <- map(function(runs, ndays, npart) {
-                        lads <- map(runs, "lads")
-                        age_region <- map(runs, "age_region")
-                        nhsregion <- map(runs, "nhsregion")
-                        age_nhsregion <- map(runs, "age_nhsregion")
-                        xlads <- list()
-                        xage_region <- list()
-                        xnhsregion <- list()
-                        xage_nhsregion <- list()
+                        age_lads <- map(runs, "age_lads")
+                        xage_lads <- list()
                         for(i in 1:(ndays + 1)) {
-                            xlads[[i]] <- lads[(i - 1) * npart + 1:npart]
-                            xage_region[[i]] <- age_region[(i - 1) * npart + 1:npart]
-                            xnhsregion[[i]] <- nhsregion[(i - 1) * npart + 1:npart]
-                            xage_nhsregion[[i]] <- age_nhsregion[(i - 1) * npart + 1:npart]
+                            xage_lads[[i]] <- age_lads[(i - 1) * npart + 1:npart]
                         }
-                        list(lads = xlads, age_region = xage_region, nhsregion = xnhsregion, age_nhsregion = xage_nhsregion)
+                        list(age_lads = xage_lads)
                     }, ndays = ndays, npart = npart)
                 ll <- do.call("c", ll)
                 return(list(ll = ll, particles = runs))
             } else {
                 runs <- map(runs, "particles") %>%
                     map(function(runs, ndays, npart, saveAll) {
-                        lads <- map(runs, "lads")
-                        age_region <- map(runs, "age_region")
-                        nhsregion <- map(runs, "nhsregion")
-                        age_nhsregion <- map(runs, "age_nhsregion")
-                        xlads <- list()
-                        xage_region <- list()
-                        xnhsregion <- list()
-                        xage_nhsregion <- list()
+                        age_lads <- map(runs, "age_lads")
+                        xage_lads <- list()
                         if(saveAll) {
                             full <- map(runs, "full")
                             xfull <- list()
                         }
                         for(i in 1:(ndays + 1)) {
-                            xlads[[i]] <- lads[(i - 1) * npart + 1:npart]
-                            xage_region[[i]] <- age_region[(i - 1) * npart + 1:npart]
-                            xnhsregion[[i]] <- nhsregion[(i - 1) * npart + 1:npart]
-                            xage_nhsregion[[i]] <- age_nhsregion[(i - 1) * npart + 1:npart]
+                            xage_lads[[i]] <- age_lads[(i - 1) * npart + 1:npart]
                             if(saveAll) {
                                 xfull[[i]] <- full[(i - 1) * npart + 1:npart]
                             }
                         }
                         if(saveAll) {
-                            return(list(full = xfull, lads = xlads, age_region = xage_region, nhsregion = xnhsregion, age_nhsregion = xage_nhsregion))
+                            return(list(full = xfull, age_lads = xage_lads))
                         } else {
-                            return(list(lads = xlads, age_region = xage_region, nhsregion = xnhsregion, age_nhsregion = xage_nhsregion))
+                            return(list(lads = xage_lads))
                         }
                     }, ndays = ndays, npart = npart, saveAll = saveAll)
                 return(list(particles = runs))
