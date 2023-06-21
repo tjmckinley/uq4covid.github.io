@@ -51,16 +51,14 @@ snapshot <- as.logical(as.numeric(fixedInputs[18]))
 writeExt <- as.logical(as.numeric(fixedInputs[19]))
 
 ## source Rcpp PF code
-sourceCpp("BPF.cpp")
+sourceCpp("BPF_full.cpp")
 
 ## source function to run PF and return log-likelihood
-source("BPF.R")
+source("BPF_full.R")
 
 ## read in simulated data
-cumDeath_lad <- readRDS(paste0(outputs, "/cumDeath_lad.rds"))
-cumDeath_age_region <- readRDS(paste0(outputs, "/cumDeath_age_region.rds"))
-hosp_nhsregion <- readRDS(paste0(outputs, "/hosp_nhsregion.rds"))
-cumHospAd_age_nhsregion <- readRDS(paste0(outputs, "/cumHospAd_age_nhsregion.rds"))
+cumDeath_age_lad <- readRDS(paste0(outputs, "/cumDeath_age_lad.rds"))
+cumHosp_age_lad <- readRDS(paste0(outputs, "/cumHosp_age_lad.rds"))
 
 ## read in parameters, remove guff and reorder
 pars <- readRDS(paste0("wave", wave, "/disease.rds")) %>%
@@ -111,9 +109,8 @@ u2 <- apply(PlaySize19, 1, function(x, ageProbs) {
     map(1) %>%
     abind(along = 3)
     
-## load lookups
+## load lookup
 lookup <- readRDS(paste0(outputs, "/lookup.rds"))
-age_lookup <- readRDS(paste0(outputs, "/age_lookup.rds"))
 
 ## set up inputs
 u <- list(u1 = u1, u2 = u2, u1_moves = u1_moves, u2_moves = as.matrix(PM19))
@@ -152,13 +149,10 @@ for(i in 1:nrow(region_lookup)) {
 ## run PF with some model discrepancy
 if(exists("hash")) {
     runs_md <- BPF(pars[hash, ], C1 = contact1, C2 = contact2, lockdown_day = lockdown_day,
-        cumDeath_lad = cumDeath_lad, cumDeath_age_region = cumDeath_age_region,
-        hosp_nhsregion = hosp_nhsregion, cumHospAd_age_nhsregion = cumHospAd_age_nhsregion,
-        lookup = lookup, age_lookup = age_lookup, u = u,
+        cumDeath_age_lad = cumDeath_age_lad, cumHosp_age_lad = cumHosp_age_lad,
+        lookup = lookup, u = u,
         tstart = tstart, tstop = tstop, npart = npart, niter = niter,
         a1 = a1, a2 = a2, b1 = b1, b2 = b2, a_dis = a_dis, b_dis = b_dis,
-        sigma2_lad = sigma2_lad, sigma2_age_region = sigma2_age_region, 
-        sigma2_nhsregion = sigma2_nhsregion, sigma2_age_nhsregion = sigma2_age_nhsregion,
         saveAll = saveAll, snapshot = snapshot, writeExt = writeExt, 
         outputName = paste0("saveOut_wave", wave, "_", hash),
         ncores = 1)
@@ -166,14 +160,11 @@ if(exists("hash")) {
     saveRDS(runs_md, paste0("wave", wave, "/runs_md_", hash, ".rds"))
     if(writeExt) system(paste0("mv saveOut_wave", wave, "_", hash, " wave", wave))
 } else {
-    runs_md <- BPF(pars, C1 = contact1, C2 = contact2, lockdown_day = 20,
-        cumDeath_lad = cumDeath_lad, cumDeath_age_region = cumDeath_age_region, 
-        hosp_nhsregion = hosp_nhsregion, cumHospAd_age_nhsregion = cumHospAd_age_nhsregion, 
-        lookup = lookup, age_lookup = age_lookup, u = u,
+    runs_md <- BPF(pars, C1 = contact1, C2 = contact2, lockdown_day = lockdown_day,
+        cumDeath_age_lad = cumDeath_age_lad, cumHosp_age_lad = cumHosp_age_lad,
+        lookup = lookup, u = u,
         tstart = tstart, tstop = tstop, npart = npart, niter = niter,
         a1 = a1, a2 = a2, b1 = b1, b2 = b2, a_dis = a_dis, b_dis = b_dis,
-        sigma2_lad = sigma2_lad, sigma2_age_region = sigma2_age_region, 
-        sigma2_nhsregion = sigma2_nhsregion, sigma2_age_nhsregion = sigma2_age_nhsregion,
         saveAll = NA)
     ## save outputs
     saveRDS(runs_md, paste0("wave", wave, "/runs_md.rds"))
