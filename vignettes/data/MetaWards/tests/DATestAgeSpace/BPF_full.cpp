@@ -1757,7 +1757,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                             sigma2y = a1 + a2 + (b1 + b2) * u_night_age_lad[i](0, j, l);
                             weights(i) += ldtnorm_cpp(
                                 obsInc_age_lad(0, j, l),
-                                mu, 
+                                muy, 
                                 sqrt(sigma2y),
                                 0,
                                 std::numeric_limits<double>::infinity()
@@ -1769,7 +1769,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                             sigma2y = a1 + a2 + (b1 + b2) * u_night_age_lad[i](1, j, l);
                             weights(i) += ldtnorm_cpp(
                                 obsInc_age_lad(1, j, l),
-                                mu, 
+                                muy, 
                                 sqrt(sigma2y),
                                 0,
                                 std::numeric_limits<double>::infinity()
@@ -1906,7 +1906,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                                 sigma2y = a1 + a2 + (b1 + b2) * u_night_age_lad[i](0, j, l);
                                 acccurr += ldtnorm_cpp(
                                     obsInc_age_lad(0, j, l),
-                                    mu, 
+                                    muy, 
                                     sqrt(sigma2y),
                                     0,
                                     std::numeric_limits<double>::infinity()
@@ -1918,7 +1918,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                                 sigma2y = a1 + a2 + (b1 + b2) * u_night_age_lad[i](1, j, l);
                                 acccurr += ldtnorm_cpp(
                                     obsInc_age_lad(1, j, l),
-                                    mu, 
+                                    muy, 
                                     sqrt(sigma2y),
                                     0,
                                     std::numeric_limits<double>::infinity()
@@ -2038,7 +2038,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                                     sigma2y = a1 + a2 + (b1 + b2) * u_night_age_lad1[i](0, j, l);
                                     accprop += ldtnorm_cpp(
                                         obsInc_age_lad(0, j, l),
-                                        mu, 
+                                        muy, 
                                         sqrt(sigma2y),
                                         0,
                                         std::numeric_limits<double>::infinity()
@@ -2050,7 +2050,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                                     sigma2y = a1 + a2 + (b1 + b2) * u_night_age_lad1[i](1, j, l);
                                     accprop += ldtnorm_cpp(
                                         obsInc_age_lad(1, j, l),
-                                        mu, 
+                                        muy, 
                                         sqrt(sigma2y),
                                         0,
                                         std::numeric_limits<double>::infinity()
