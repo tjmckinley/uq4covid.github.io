@@ -210,28 +210,31 @@ BPF <- function(pars, C1, C2, lockdown_day, cumDeath_age_lad, cumHosp_age_lad,
         ndeathlads <- max(lookup[, 2], na.rm = TRUE)
         lookup[is.na(lookup)] <- -1
         
-        if(PF == 1) {
-            ## reformat observations
-            deathInc_age_lad <- mutate(cumDeath_age_lad, across(!t, ~. - lag(., default = 0))) %>%
-                select(!t) %>%
-                as.matrix()
-            hospInc_age_lad <- mutate(cumHosp_age_lad, across(!t, ~. - lag(., default = 0))) %>%
-                select(!t) %>%
-                as.matrix()
-                
-            ## set missing values to be negative for Rcpp code
-            deathInc_age_lad[is.na(as.matrix(select(cumDeath_age_lad, !t)))] <- -1
-            hospInc_age_lad[is.na(as.matrix(select(cumHosp_age_lad, !t)))] <- -1
-        } else {
-            ## set dummies if required
-            deathInc_age_lad <- matrix(0, 1, 1)
-            hospInc_age_lad <- matrix(0, 1, 1)
-        }
-        
         ## extract number of stages, age classes and lads
         nclasses <- dim(u1[[1]])[1]
         nages <- dim(u1[[1]])[2]
         nlads <- max(u1_moves[, 1])
+        
+        if(PF == 1) {
+            ## reformat observations
+            temp <- mutate(cumDeath_age_lad, across(!t, ~. - lag(., default = 0))) %>%
+                select(!t) %>%
+                as.matrix()
+            ## set missing values to be negative for Rcpp code
+            temp[is.na(as.matrix(select(cumDeath_age_lad, !t)))] <- -1
+            deathInc_age_lad <- aperm(array(temp, c(nrow(temp), ndeathlads, nages)), c(1, 3, 2))
+            temp <- mutate(cumHosp_age_lad, across(!t, ~. - lag(., default = 0))) %>%
+                select(!t) %>%
+                as.matrix()
+            ## set missing values to be negative for Rcpp code
+            temp[is.na(as.matrix(select(cumHosp_age_lad, !t)))] <- -1
+            hospInc_age_lad <- aperm(array(temp, c(nrow(temp), ndeathlads, nages)), c(1, 3, 2))
+            rm(temp)
+        } else {
+            ## set dummies if required
+            deathInc_age_lad <- array(0, c(1, 1, 1))
+            hospInc_age_lad <- array(0, c(1, 1, 1))
+        }
 
         ## check parameters are in correct order
         cnames <- c("nu", "nuA", 

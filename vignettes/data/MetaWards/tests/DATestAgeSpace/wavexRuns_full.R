@@ -130,9 +130,9 @@ region_lookup <- readRDS("data/region_lookup.rds") %>%
 
 ## set some initial matrices
 a_dis <- a_dis_ini * exp(-pars$MD_scale[hash] * (pars$MD_time_L[hash] - tstart:tstop) * ifelse(tstart:tstop < pars$MD_time_L[hash], 1, 0))
-a_dis <- array(rep(a_dis, nrow(age_lookup) * nrow(lookup)), c(tstop - tstart + 1, nrow(age_lookup), nrow(lookup)))
+a_dis <- array(rep(a_dis, dim(u1)[2] * nrow(lookup)), c(tstop - tstart + 1, dim(u1)[2], nrow(lookup)))
 b_dis <- b_dis_ini * exp(-pars$MD_scale[hash] * (pars$MD_time_L[hash] - tstart:tstop) * ifelse(tstart:tstop < pars$MD_time_L[hash], 1, 0))
-b_dis <- array(rep(b_dis, nrow(age_lookup) * nrow(lookup)), c(tstop - tstart + 1, nrow(age_lookup), nrow(lookup)))
+b_dis <- array(rep(b_dis, dim(u1)[2] * nrow(lookup)), c(tstop - tstart + 1, dim(u1)[2], nrow(lookup)))
 
 ## use spatially-explicit matrices
 for(i in 1:nrow(region_lookup)) {
