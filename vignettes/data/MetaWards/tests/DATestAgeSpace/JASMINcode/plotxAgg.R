@@ -249,7 +249,7 @@ if(file.exists(paste0(outputs, "/lads_", outputs, ".txt"))) {
             } else {
                 runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_lads.rds")) %>%
                     filter(t <= time & t >= mint) %>%
-                    group_by(particle) %>%
+                    group_by(particle, lad) %>%
                     mutate(n = n - min(n)) %>%
                     ungroup() %>%
                     filter(t == time) %>%
