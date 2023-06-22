@@ -309,7 +309,7 @@ if(file.exists(paste0("../", outputs, "/lads_", outputs, ".txt"))) {
         facet_wrap(~ lad, scales = "free") +
         xlab("Days") + 
         ylab("Counts") +
-        ggtitle(paste0("Observed deaths in top ", length(lads), " LADs"))
+        ggtitle(paste0("Observed deaths in top ", length(lads), " LTLAs"))
 
     if(cont) p1 <- p1 + geom_vline(xintercept = tstart, linetype = "dashed")
 
