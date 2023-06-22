@@ -37,7 +37,7 @@ code <- gsub("RUNCODE", runCode, code)
 code <- gsub("OUTPUTS", outputs, code)
 code <- gsub("TIME", time, code)
 
-if(runCode != "runPlotAgg") {
+if(runCode != "runPlotAgg_full") {
     
     ## update run code
     code <- gsub("RANGES", paste0("1-", nrow(pars)), code)
