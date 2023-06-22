@@ -34,13 +34,10 @@ pars <- readRDS(paste0("../wave", wave, "/disease.rds"))
 runs <- map_lgl(1:nrow(pars), function(i, wave) {
     run <- TRUE
     run <- ifelse(file.exists(paste0("../wave", wave, "/plotSum_", i, "_natFull.rds")), run, FALSE)
-    run <- ifelse(file.exists(paste0("../wave", wave, "/plotSum_", i, "_natDeaths.rds")), run, FALSE)
-    run <- ifelse(file.exists(paste0("../wave", wave, "/plotSum_", i, "_ageRegionDeaths.rds")), run, FALSE)
-    run <- ifelse(file.exists(paste0("../wave", wave, "/plotSum_", i, "_nhsregionHosp.rds")), run, FALSE)
-    run <- ifelse(file.exists(paste0("../wave", wave, "/plotSum_", i, "_ageNhsregionHosp.rds")), run, FALSE)
+    run <- ifelse(file.exists(paste0("../wave", wave, "/plotSum_", i, "_natAgeDeathsHosp.rds")), run, FALSE)
     ## produce lad-level plots if required
     if(file.exists(paste0(outputs, "/lads_", outputs, ".txt"))) {
-        run <- ifelse(file.exists(paste0("../wave", wave, "/plotSum_", i, "_lads.rds")), run, FALSE)
+        run <- ifelse(file.exists(paste0("../wave", wave, "/plotSum_", i, "_age_lads.rds")), run, FALSE)
     }
     run
 }, wave = wave)
@@ -54,7 +51,7 @@ if(!all(runs)) {
         code <- readLines("submit_job_template.sbatch")
         code <- gsub("RANGES", paste0("1-", sum(!runs)), code)
         code <- gsub("FILEDIR", wave, code)
-        code <- gsub("RUNCODE", "runPlotSum", code)
+        code <- gsub("RUNCODE", "runPlotSum_full", code)
         code <- gsub("OUTPUTS", outputs, code)
         code <- gsub("TIME", time, code)
         writeLines(code, paste0("submit_job_wave", wave, ".sbatch"))
