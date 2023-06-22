@@ -49,27 +49,27 @@ sims_md <- readRDS(paste0("../wave", wave, "/sumEns_natFull.rds"))
 if(is.na(tstop)) tstop <- max(sims_md$t)
 
 ## load in data
-#data <- readRDS(paste0("../", outputs, "/disSims.rds")) %>%
-#    filter(t <= tstop) %>%
-#    pivot_longer(!t, names_to = "var", values_to = "n") %>%
-#    mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
-#    mutate(LAD = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
-#    mutate(age = gsub('(.*)_[0-9]*', '\\1', age)) %>%
-#    mutate(var = gsub('^(.*)_[0-9]*_.*', '\\1', var)) %>%
-#    mutate(var = gsub("one", "1", var)) %>%
-#    mutate(var = gsub("two", "2", var))
+data <- readRDS(paste0("../", outputs, "/disSims.rds")) %>%
+    filter(t <= tstop) %>%
+    pivot_longer(!t, names_to = "var", values_to = "n") %>%
+    mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
+    mutate(LAD = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
+    mutate(age = gsub('(.*)_[0-9]*', '\\1', age)) %>%
+    mutate(var = gsub('^(.*)_[0-9]*_.*', '\\1', var)) %>%
+    mutate(var = gsub("one", "1", var)) %>%
+    mutate(var = gsub("two", "2", var))
     
 p1 <- list()
 p1[[1]] <- ggplot(sims_md, aes(x = t)) +
     geom_ribbon(aes(ymin = LCI, ymax = UCI), alpha = 0.5) +
     geom_ribbon(aes(ymin = LQ, ymax = UQ), alpha = 0.5) +
     geom_line(aes(y = Median)) +
-#    geom_line(
-#        aes(y = n), 
-#        data = group_by(data, t, var, age) %>%
-#            summarise(n = sum(n), .groups = "drop"),
-#        col = "red", linetype = "dashed"
-#    ) +
+    geom_line(
+        aes(y = n), 
+        data = group_by(data, t, var, age) %>%
+            summarise(n = sum(n), .groups = "drop"),
+        col = "red", linetype = "dashed"
+    ) +
     facet_grid(var ~ age, scales = "free", labeller = labeller(age = age_label)) +
     xlab("Days") + 
     ylab("Counts") +
@@ -82,138 +82,77 @@ if(cont) p1[[1]] <- p1[[1]] + geom_vline(xintercept = tstart, linetype = "dashed
 ###############################################
         
 ## collapse data for plotting
-data <- readRDS(paste0("../", outputs, "/cumDeath_lad.rds")) %>%
+deaths <- readRDS(paste0("../", outputs, "/cumDeath_age_lad.rds")) %>%
     filter(t <= tstop) %>%
-    pivot_longer(!t, names_to = "lad", values_to = "n") %>%
-    mutate(lad = as.numeric(gsub("deaths_", "", lad))) %>%
-    group_by(t) %>%
-    summarise(n = sum(n), .groups = "drop")
+    pivot_longer(!t, values_to = "n") %>%
+    mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', name)) %>%
+    mutate(lad = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
+    mutate(age = gsub('(.*)_[0-9]*', '\\1', age)) %>%
+    mutate(across(c(age, lad), as.numeric)) %>%
+    select(!name) %>%
+    group_by(age, lad) %>%
+    mutate(n = cumsum(n)) %>%
+    ungroup()
+hosp <- readRDS(paste0("../", outputs, "/cumHosp_age_lad.rds")) %>%
+    filter(t <= tstop) %>%
+    pivot_longer(!t, values_to = "n") %>%
+    mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', name)) %>%
+    mutate(lad = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
+    mutate(age = gsub('(.*)_[0-9]*', '\\1', age)) %>%
+    mutate(across(c(age, lad), as.numeric)) %>%
+    select(!name) %>%
+    group_by(age, lad) %>%
+    mutate(n = cumsum(n)) %>%
+    ungroup()
 
 ## load in runs
-sims_md <- readRDS(paste0("../wave", wave, "/sumEns_natDeaths.rds"))
-     
-p1[[2]] <- ggplot(sims_md, aes(x = t)) +
-    geom_ribbon(aes(ymin = LCI, ymax = UCI), alpha = 0.5) +
-    geom_ribbon(aes(ymin = LQ, ymax = UQ), alpha = 0.5) +
-    geom_line(aes(y = Median)) +
-    geom_line(
-        aes(y = n), 
-        data = data,
-        col = "blue", linetype = "dashed"
-    ) +
-    xlab("Days") + 
-    ylab("Counts") +
-    ggtitle("Observed cumulative deaths (aggregated over LTLAs)")
+sims_md <- readRDS(paste0("../wave", wave, "/sumEns_natAgeDeathsHosp.rds")) %>%
+    pivot_longer(!c(t, age)) %>%
+    mutate(var = gsub('^([^_]*)_(.*)', '\\1', name)) %>%
+    mutate(name = gsub('^(?:[^_]*_)(.*)', '\\1', name))
+
+## plot deaths
+p1[[2]] <- filter(sims_md, var == "deaths") %>%
+    select(!var) %>%
+    pivot_wider(names_from = name, values_from = value) %>%
+    ggplot(aes(x = t)) +
+        geom_ribbon(aes(ymin = LCI, ymax = UCI), alpha = 0.5) +
+        geom_ribbon(aes(ymin = LQ, ymax = UQ), alpha = 0.5) +
+        geom_line(aes(y = Median)) +
+        geom_line(
+            aes(y = n), 
+            data = group_by(deaths, t age) %>%
+                summarise(n = sum(n), .groups = "drop"),
+            col = "blue", linetype = "dashed"
+        ) +
+        facet_wrap(~age) +
+        xlab("Days") + 
+        ylab("Counts") +
+        ggtitle("Observed cumulative deaths (aggregated over LTLAs)")
     
 if(cont) p1[[2]] <- p1[[2]] + geom_vline(xintercept = tstart, linetype = "dashed")
-              
-###############################################
-#######  age/region-level observations  #######
-###############################################
 
-## load lookup for labels
-region_lookup <- readRDS("../data/region_lookup.rds")
-
-## collapse data for plotting
-data <- readRDS(paste0("../", outputs, "/cumDeath_age_region.rds")) %>%
-    filter(t <= tstop) %>%
-    pivot_longer(!t, names_to = "var", values_to = "n") %>%
-    mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
-    mutate(region = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
-    mutate(age = gsub('(.*)_[0-9]*', '\\1', age)) %>%
-    mutate(across(c(age, region), as.numeric)) %>%
-    inner_join(region_lookup, by = c("region" = "FID")) %>%
-    select(t, n, age, RGN19NM)
-    
-## load in runs
-sims_md <- readRDS(paste0("../wave", wave, "/sumEns_ageRegionDeaths.rds"))
-    
-p1[[3]] <- ggplot(sims_md, aes(x = t)) +
-    geom_ribbon(aes(ymin = LCI, ymax = UCI), alpha = 0.5) +
-    geom_ribbon(aes(ymin = LQ, ymax = UQ), alpha = 0.5) +
-    geom_line(aes(y = Median)) +
-    geom_line(
-        aes(y = n), 
-        data = data,
-        col = "blue", linetype = "dashed"
-    ) +
-    facet_grid(RGN19NM ~ age,
-        labeller = labeller(RGN19NM = label_wrap_gen(width = 10), age = age_label)) +
-    xlab("Days") + 
-    ylab("Counts") +
-    ggtitle("Observed cumulative deaths (age / region)")
+## plot hospitalisations
+p1[[3]] <- filter(sims_md, var == "hosp") %>%
+    select(!var) %>%
+    pivot_wider(names_from = name, values_from = value) %>%
+    ggplot(aes(x = t)) +
+        geom_ribbon(aes(ymin = LCI, ymax = UCI), alpha = 0.5) +
+        geom_ribbon(aes(ymin = LQ, ymax = UQ), alpha = 0.5) +
+        geom_line(aes(y = Median)) +
+        geom_line(
+            aes(y = n), 
+            data = group_by(hosp, t age) %>%
+                summarise(n = sum(n), .groups = "drop"),
+            col = "blue", linetype = "dashed"
+        ) +
+        facet_wrap(~age) +
+        xlab("Days") + 
+        ylab("Counts") +
+        ggtitle("Observed cumulative hospitalisations (aggregated over LTLAs)")
     
 if(cont) p1[[3]] <- p1[[3]] + geom_vline(xintercept = tstart, linetype = "dashed")
-        
-###############################################
-#######     NHS region observations     #######
-###############################################
-
-## load lookup for labels
-nhsregion_lookup <- readRDS("../data/nhsregion_lookup.rds")
-        
-## collapse data for plotting
-data <- readRDS(paste0("../", outputs, "/hosp_nhsregion.rds")) %>%
-    filter(t <= tstop) %>%
-    pivot_longer(!t, names_to = "region", values_to = "n") %>%
-    mutate(region = as.numeric(gsub("hosp_", "", region))) %>%
-    inner_join(nhsregion_lookup, by = c("region" = "FID")) %>%
-    select(t, n, areaName)
-    
-## load in runs
-sims_md <- readRDS(paste0("../wave", wave, "/sumEns_nhsregionHosp.rds"))
-     
-p1[[4]] <- ggplot(sims_md, aes(x = t)) +
-    geom_ribbon(aes(ymin = LCI, ymax = UCI), alpha = 0.5) +
-    geom_ribbon(aes(ymin = LQ, ymax = UQ), alpha = 0.5) +
-    geom_line(aes(y = Median)) +
-    geom_line(
-        aes(y = n), 
-        data = data,
-        col = "blue", linetype = "dashed"
-    ) +
-    facet_wrap(~ areaName, nrow = 1, labeller = label_wrap_gen(width = 10)) +
-    xlab("Days") + 
-    ylab("Counts") +
-    ggtitle("Observed hospital cases (NHS region)")
-    
-if(cont) p1[[4]] <- p1[[4]] + geom_vline(xintercept = tstart, linetype = "dashed")
-        
-###############################################
-#####  NHS age/region-level observations  #####
-###############################################
-
-## collapse data for plotting
-data <- readRDS(paste0("../", outputs, "/cumHospAd_age_nhsregion.rds")) %>%
-    filter(t <= tstop) %>%
-    pivot_longer(!t, names_to = "var", values_to = "n") %>%
-    mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
-    mutate(region = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
-    mutate(age = gsub('(.*)_[0-9]*', '\\1', age)) %>%
-    mutate(across(c(age, region), as.numeric)) %>%
-    inner_join(nhsregion_lookup, by = c("region" = "FID")) %>%
-    select(t, n, age, areaName)
-
-## load in runs
-sims_md <- readRDS(paste0("../wave", wave, "/sumEns_ageNhsregionHosp.rds"))
-     
-p1[[5]] <- ggplot(sims_md, aes(x = t)) +
-    geom_ribbon(aes(ymin = LCI, ymax = UCI), alpha = 0.5) +
-    geom_ribbon(aes(ymin = LQ, ymax = UQ), alpha = 0.5) +
-    geom_line(aes(y = Median)) +
-    geom_line(
-        aes(y = n), 
-        data = data,
-        col = "blue", linetype = "dashed"
-    ) +
-    facet_grid(areaName ~ age, 
-        labeller = labeller(areaName = label_wrap_gen(width = 10), age = age_nhs_label)) +
-    xlab("Days") + 
-    ylab("Counts") +
-    ggtitle("Observed cumulative hospital incidence (NHS age / region)")
-    
-if(cont) p1[[5]] <- p1[[5]] + geom_vline(xintercept = tstart, linetype = "dashed")
-        
+            
 ###############################################
 #####   combine plots and save outputs    #####
 ###############################################
@@ -222,9 +161,7 @@ if(cont) p1[[5]] <- p1[[5]] + geom_vline(xintercept = tstart, linetype = "dashed
 saveRDS(p1, paste0("../wave", wave, "/plots.rds"))
 
 ## combine plots
-p1[[4]] <- p1[[4]] / p1[[2]]
-p1 <- p1[-2]
-p1 <- wrap_plots(p1, nrow = 2, heights = c(0.8, 0.5))
+p1 <- p1[[1]] + plot_spacer() / (p1[[2]] + p1[[3]])
 ggsave(paste0("../wave", wave, "/simsBPFEns.pdf"), p1, width = 15, height = 15)
 
 ###############################################
@@ -238,17 +175,17 @@ lad19 <- st_read(paste0("../", outputs, "/Local_Authority_Districts_(December_20
 death_lookup <- readRDS(paste0("../", outputs, "/death_lookup.rds"))
 
 ## load in data
-data <- readRDS(paste0("../", outputs, "/cumDeath_lad.rds")) %>%
-    filter(t <= tstop) %>%
-    pivot_longer(!t, names_to = "lad", values_to = "n") %>%
-    mutate(lad = as.numeric(gsub("deaths_", "", lad))) %>%
-    inner_join(death_lookup, by = c("lad" = "FID")) %>%
+data <- inner_join(deaths, death_lookup, by = c("lad" = "FID")) %>%
+    group_by(t, lad) %>%
+    summarise(n = sum(n), .groups = "drop") %>%
     rename(Data = n)
 
 ## load in runs
-sims_md <- readRDS(paste0("../wave", wave, "/sumEns_lads.rds")) %>%
-    dplyr::select(t, lad, Median) %>%
-    rename(Prediction = Median)
+sims_md <- readRDS(paste0("../wave", wave, "/sumEns_age_lads.rds")) %>%
+    dplyr::select(t, lad, age, deaths_Median) %>%
+    rename(Prediction = deaths_Median) %>%
+    group_by(t, lad) %>%
+    summarise(Prediction = sum(Prediction), .groups = "drop")
 
 ## join runs and data
 data <- inner_join(data, sims_md, by = c("lad", "t"))
@@ -286,15 +223,14 @@ if(file.exists(paste0("../", outputs, "/lads_", outputs, ".txt"))) {
     lads <- as.numeric(readLines(paste0("../", outputs, "/lads_", outputs, ".txt")))
     
     ## load in data
-    data <- readRDS(paste0("../", outputs, "/cumDeath_lad.rds")) %>%
-        filter(t <= tstop) %>%
-        pivot_longer(!t, names_to = "lad", values_to = "n") %>%
-        mutate(lad = gsub("deaths_", "", lad)) %>%
-        filter(lad %in% lads)
+    data <- filter(deaths, lad %in% lads)
 
     ## load in runs
-    sims_md <- readRDS(paste0("../wave", wave, "/sumEns_lads.rds")) %>%
-        filter(lad %in% lads)
+    sims_md <- readRDS(paste0("../wave", wave, "/sumEns_age_lads.rds")) %>%
+        filter(lad %in% lads) %>%
+        pivot_longer(!c(t, age, lad)) %>%
+        mutate(var = gsub('^([^_]*)_(.*)', '\\1', name)) %>%
+        mutate(name = gsub('^(?:[^_]*_)(.*)', '\\1', name))
         
     p1 <- ggplot(sims_md, aes(x = t)) +
         geom_ribbon(aes(ymin = LCI, ymax = UCI), colour = NA, alpha = 0.5) +
@@ -306,7 +242,7 @@ if(file.exists(paste0("../", outputs, "/lads_", outputs, ".txt"))) {
             linetype = "dashed",
             col = "blue"
         ) +
-        facet_wrap(~ lad, scales = "free") +
+        facet_wrap(age ~ lad, scales = "free") +
         xlab("Days") + 
         ylab("Counts") +
         ggtitle(paste0("Observed deaths in top ", length(lads), " LADs"))
