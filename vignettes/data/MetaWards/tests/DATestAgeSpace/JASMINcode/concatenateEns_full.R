@@ -34,13 +34,10 @@ jobs <- as.numeric(readLines(paste0("job_lookup_wave", wave, ".txt")))
 runs <- map_lgl(jobs, function(i, wave) {
     run <- TRUE
     run <- ifelse(file.exists(paste0("../wave", wave, "/plotAgg_T", i, "_natFull.rds")), run, FALSE)
-    run <- ifelse(file.exists(paste0("../wave", wave, "/plotAgg_T", i, "_natDeaths.rds")), run, FALSE)
-    run <- ifelse(file.exists(paste0("../wave", wave, "/plotAgg_T", i, "_ageRegionDeaths.rds")), run, FALSE)
-    run <- ifelse(file.exists(paste0("../wave", wave, "/plotAgg_T", i, "_nhsregionHosp.rds")), run, FALSE)
-    run <- ifelse(file.exists(paste0("../wave", wave, "/plotAgg_T", i, "_ageNhsregionHosp.rds")), run, FALSE)
+    run <- ifelse(file.exists(paste0("../wave", wave, "/plotAgg_T", i, "_natAgeDeathsHosp.rds")), run, FALSE)
     ## produce lad-level plots if required
     if(file.exists(paste0("lads_", outputs, ".txt"))) {
-        run <- ifelse(file.exists(paste0("../wave", wave, "/plotAgg_T", i, "_lads.rds")), run, FALSE)
+        run <- ifelse(file.exists(paste0("../wave", wave, "/plotAgg_T", i, "_age_lads.rds")), run, FALSE)
     }
     run
 }, wave = wave)
@@ -54,7 +51,7 @@ if(!all(runs)) {
         code <- readLines("submit_job_template.sbatch")
         code <- gsub("RANGES", paste0("1-", sum(!runs)), code)
         code <- gsub("FILEDIR", wave, code)
-        code <- gsub("RUNCODE", "runPlotAgg", code)
+        code <- gsub("RUNCODE", "runPlotAgg_full", code)
         code <- gsub("OUTPUTS", outputs, code)
         code <- gsub("TIME", time, code)
         writeLines(code, paste0("submit_job_wave", wave, ".sbatch"))
@@ -76,49 +73,22 @@ saveRDS(runs, paste0("../wave", wave, "/sumEns_natFull.rds"))
 
 ## load runs in and concatenate
 runs <- map(jobs, function(i, wave) {
-        readRDS(paste0("../wave", wave, "/plotAgg_T", i, "_natDeaths.rds"))
+        readRDS(paste0("../wave", wave, "/plotAgg_T", i, "_natAgeDeathsHosp.rds"))
     }, wave = wave) %>%
     bind_rows()
     
 ## save output
-saveRDS(runs, paste0("../wave", wave, "/sumEns_natDeaths.rds"))
-
-## load runs in and concatenate
-runs <- map(jobs, function(i, wave) {
-        readRDS(paste0("../wave", wave, "/plotAgg_T", i, "_ageRegionDeaths.rds"))
-    }, wave = wave) %>%
-    bind_rows()
-    
-## save output
-saveRDS(runs, paste0("../wave", wave, "/sumEns_ageRegionDeaths.rds"))
-
-## load runs in and concatenate
-runs <- map(jobs, function(i, wave) {
-        readRDS(paste0("../wave", wave, "/plotAgg_T", i, "_nhsregionHosp.rds"))
-    }, wave = wave) %>%
-    bind_rows()
-    
-## save output
-saveRDS(runs, paste0("../wave", wave, "/sumEns_nhsregionHosp.rds"))
-
-## load runs in and concatenate
-runs <- map(jobs, function(i, wave) {
-        readRDS(paste0("../wave", wave, "/plotAgg_T", i, "_ageNhsregionHosp.rds"))
-    }, wave = wave) %>%
-    bind_rows()
-    
-## save output
-saveRDS(runs, paste0("../wave", wave, "/sumEns_ageNhsregionHosp.rds"))
+saveRDS(runs, paste0("../wave", wave, "/sumEns_natAgeDeathsHosp.rds"))
 
 if(file.exists(paste0("../", outputs, "/lads_", outputs, ".txt"))) {
     ## load runs in and concatenate
     runs <- map(jobs, function(i, wave) {
-            readRDS(paste0("../wave", wave, "/plotAgg_T", i, "_lads.rds"))
+            readRDS(paste0("../wave", wave, "/plotAgg_T", i, "_age_lads.rds"))
         }, wave = wave) %>%
         bind_rows()
         
     ## save output
-    saveRDS(runs, paste0("../wave", wave, "/sumEns_lads.rds"))
+    saveRDS(runs, paste0("../wave", wave, "/sumEns_age_lads.rds"))
 }
 
 ## cleanup
