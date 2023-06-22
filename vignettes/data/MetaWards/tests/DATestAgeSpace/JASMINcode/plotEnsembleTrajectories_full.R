@@ -175,10 +175,10 @@ lad19 <- st_read(paste0("../", outputs, "/Local_Authority_Districts_(December_20
 death_lookup <- readRDS(paste0("../", outputs, "/death_lookup.rds"))
 
 ## load in data
-data <- inner_join(deaths, death_lookup, by = c("lad" = "FID")) %>%
-    group_by(t, lad) %>%
+data <- group_by(deaths, t, lad) %>%
     summarise(n = sum(n), .groups = "drop") %>%
-    rename(Data = n)
+    rename(Data = n) %>%
+    inner_join(death_lookup, by = c("lad" = "FID"))
 
 ## load in runs
 sims_md <- readRDS(paste0("../wave", wave, "/sumEns_age_lads.rds")) %>%
@@ -223,32 +223,55 @@ if(file.exists(paste0("../", outputs, "/lads_", outputs, ".txt"))) {
     lads <- as.numeric(readLines(paste0("../", outputs, "/lads_", outputs, ".txt")))
     
     ## load in data
-    data <- filter(deaths, lad %in% lads)
+    deaths <- filter(deaths, lad %in% lads)
+    hosp <- filter(hosp, lad %in% lads)
 
     ## load in runs
     sims_md <- readRDS(paste0("../wave", wave, "/sumEns_age_lads.rds")) %>%
         filter(lad %in% lads) %>%
         pivot_longer(!c(t, age, lad)) %>%
         mutate(var = gsub('^([^_]*)_(.*)', '\\1', name)) %>%
-        mutate(name = gsub('^(?:[^_]*_)(.*)', '\\1', name))
+        mutate(name = gsub('^(?:[^_]*_)(.*)', '\\1', name)) %>%
+        pivot_wider(names_from = name, values_from = value)
         
-    p1 <- ggplot(sims_md, aes(x = t)) +
-        geom_ribbon(aes(ymin = LCI, ymax = UCI), colour = NA, alpha = 0.5) +
-        geom_ribbon(aes(ymin = LQ, ymax = UQ), colour = NA, alpha = 0.5) +
-        geom_line(aes(y = Median)) +
-        geom_line(
-            aes(y = n), 
-            data = data,
-            linetype = "dashed",
-            col = "blue"
-        ) +
-        facet_wrap(age ~ lad, scales = "free") +
-        xlab("Days") + 
-        ylab("Counts") +
-        ggtitle(paste0("Observed deaths in top ", length(lads), " LADs"))
+    p1 <- list()
+    p1[[1]] <- filter(sims_md, var == "deaths") %>%
+        ggplot(aes(x = t)) +
+            geom_ribbon(aes(ymin = LCI, ymax = UCI), colour = NA, alpha = 0.5) +
+            geom_ribbon(aes(ymin = LQ, ymax = UQ), colour = NA, alpha = 0.5) +
+            geom_line(aes(y = Median)) +
+            geom_line(
+                aes(y = n), 
+                data = deaths,
+                linetype = "dashed",
+                col = "blue"
+            ) +
+            facet_wrap(age ~ lad, scales = "free") +
+            xlab("Days") + 
+            ylab("Counts") +
+            ggtitle(paste0("Observed deaths in top ", length(lads), " LADs"))
+    p1[[2]] <- filter(sims_md, var == "hosp") %>%
+        ggplot(aes(x = t)) +
+            geom_ribbon(aes(ymin = LCI, ymax = UCI), colour = NA, alpha = 0.5) +
+            geom_ribbon(aes(ymin = LQ, ymax = UQ), colour = NA, alpha = 0.5) +
+            geom_line(aes(y = Median)) +
+            geom_line(
+                aes(y = n), 
+                data = hosp,
+                linetype = "dashed",
+                col = "blue"
+            ) +
+            facet_wrap(age ~ lad, scales = "free") +
+            xlab("Days") + 
+            ylab("Counts") +
+            ggtitle(paste0("Observed hospitalisations in top ", length(lads), " LADs"))
 
-    if(cont) p1 <- p1 + geom_vline(xintercept = tstart, linetype = "dashed")
+    if(cont) {
+        p1[[1]] <- p1[[1]] + geom_vline(xintercept = tstart, linetype = "dashed")
+        p1[[2]] <- p1[[2]] + geom_vline(xintercept = tstart, linetype = "dashed")
+    }
+    p1 <- p1[[1]] + p1[[2]]
 
-    ggsave(paste0("../wave", wave, "/simsTopLADsBPFEns.pdf"), p1, width = 10, height = 10)
+    ggsave(paste0("../wave", wave, "/simsTopLADsBPFEns.pdf"), p1, width = 15, height = 7)
 }
 
