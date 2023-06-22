@@ -161,7 +161,7 @@ if(cont) p1[[3]] <- p1[[3]] + geom_vline(xintercept = tstart, linetype = "dashed
 saveRDS(p1, paste0("../wave", wave, "/plots.rds"))
 
 ## combine plots
-p1 <- p1[[1]] + plot_spacer() / (p1[[2]] + p1[[3]])
+p1 <- (p1[[1]] + plot_spacer()) / (p1[[2]] + p1[[3]])
 ggsave(paste0("../wave", wave, "/simsBPFEns.pdf"), p1, width = 15, height = 15)
 
 ###############################################
