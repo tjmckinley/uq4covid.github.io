@@ -51,7 +51,7 @@ if(any(is.na(ll))) {
         code <- readLines("submit_job_template.sbatch")
         code <- gsub("RANGES", paste0("1-", sum(is.na(ll))), code)
         code <- gsub("FILEDIR", wave, code)
-        code <- gsub("RUNCODE", "runDesign", code)
+        code <- gsub("RUNCODE", "runDesign_full", code)
         code <- gsub("OUTPUTS", outputs, code)
         code <- gsub("TIME", time, code)
         writeLines(code, paste0("submit_job_wave", wave, ".sbatch"))
@@ -61,7 +61,7 @@ if(any(is.na(ll))) {
 
 ## extract runtimes
 times <- map_dbl(1:nrow(pars), function(i, wave) {
-    time <- readLines(paste0("../wave", wave, "/wave", wave, "Runs_", i, ".Rout"))
+    time <- readLines(paste0("../wave", wave, "/wave", wave, "Runs_full_", i, ".Rout"))
     time <- time[length(time)]
     time <- strsplit(time, " ")[[1]]
     as.numeric(time[length(time)])
