@@ -121,7 +121,7 @@ p1[[2]] <- filter(sims_md, var == "deaths") %>%
         geom_line(aes(y = Median)) +
         geom_line(
             aes(y = n), 
-            data = group_by(deaths, t age) %>%
+            data = group_by(deaths, t, age) %>%
                 summarise(n = sum(n), .groups = "drop"),
             col = "blue", linetype = "dashed"
         ) +
