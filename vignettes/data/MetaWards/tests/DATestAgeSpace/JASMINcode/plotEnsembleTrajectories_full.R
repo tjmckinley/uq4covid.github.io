@@ -142,7 +142,7 @@ p1[[3]] <- filter(sims_md, var == "hosp") %>%
         geom_line(aes(y = Median)) +
         geom_line(
             aes(y = n), 
-            data = group_by(hosp, t age) %>%
+            data = group_by(hosp, t, age) %>%
                 summarise(n = sum(n), .groups = "drop"),
             col = "blue", linetype = "dashed"
         ) +
