@@ -19,13 +19,13 @@ if(length(args) != 0) {
 } else {
     ## set name of directory to save outputs
     wave <- "1"
-    runCode <- "runDesign"
+    runCode <- "runDesign_full"
     outputs <- "outputs"
     time <- "00:35:00"
-    #runCode <- "runPlotSum"
-    #runCode <- "runPlotAgg"
+    #runCode <- "runPlotSum_full"
+    #runCode <- "runPlotAgg_full"
 }
-if(!runCode %in% c("runDesign", "runForecasts", "runPlotSum", "runPlotAgg")) stop("Incorrect 'runCode'")
+if(!runCode %in% c("runDesign_full", "runForecasts_full", "runPlotSum_full", "runPlotAgg_full")) stop("Incorrect 'runCode'")
 
 ## read in input file
 pars <- readRDS(paste0("../wave", wave, "/disease.rds"))
