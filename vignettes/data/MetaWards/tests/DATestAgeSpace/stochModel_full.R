@@ -83,7 +83,6 @@ saveRDS(hosp, paste0(newoutputdir, "/cumHosp_age_lad.rds"))
 files <- c(
     "death_lookup.rds",
     "disSims.rds",
-    paste0("lads_", outputdir, ".txt"),
     "Local_Authority_Districts_\\(December_2019\\)_Boundaries_UK_BUC.zip",
     "lookup.rds",
     "pars.rds",
@@ -91,6 +90,7 @@ files <- c(
     "*.pdf"
 )
 map(files, ~system(paste0("cp ", outputdir, "/", ., " ", newoutputdir, "/")))
+system(paste0("mv ", outputdir, "/lads_", outputdir, ".txt ", newoutputdir, "/lads_", newoutputdir, ".txt"))
 
 
 
