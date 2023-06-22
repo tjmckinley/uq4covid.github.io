@@ -12,9 +12,9 @@ echo $jobname
 
 ## run R script
 cd ..
-cmd="R CMD BATCH --no-restore --no-save --slave '--args $2 ${jobname} $3' wavexRuns.R wave$2Runs_${jobname}.Rout"
+cmd="R CMD BATCH --no-restore --no-save --slave '--args $2 ${jobname} $3' wavexRuns_full.R wave$2Runs_full_${jobname}.Rout"
 eval $cmd
 
-cmd="mv wave$2Runs_${jobname}.Rout wave$2"
+cmd="mv wave$2Runs_full_${jobname}.Rout wave$2"
 eval $cmd
 
