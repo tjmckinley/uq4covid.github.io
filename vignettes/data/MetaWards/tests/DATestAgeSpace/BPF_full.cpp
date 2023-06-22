@@ -2413,7 +2413,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                     std::sprintf(file_name, "%s/p_age_lads_%u.csv", std::string(outputName[0]).c_str(), i);
                     file.open(file_name, std::ios::app);
                     for(l = 0; l < ndeathlads; l++) {
-                        file << t << ", ";
+                        file << t + 1 << ", ";
                         for(j = 0; j < nages; j++) {
                             file << u_night_age_lad1[i](0, j, l) << ", ";
                         }
