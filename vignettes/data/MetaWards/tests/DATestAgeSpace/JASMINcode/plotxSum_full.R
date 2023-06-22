@@ -89,9 +89,16 @@ if(!writeExt) {
 
     ## load in runs and group at the national level
     sims_md <- map(files, read.csv, header = TRUE)
+    sims_md <- map(sims_md, ~{
+        group_by(., time, lad) %>%
+        mutate(ind = 1:n()) %>%
+        ungroup() %>%
+        mutate(time = ifelse(time == 0 & ind == 1, -1, time)) %>%
+        mutate(time = time + 1) %>%
+        select(!ind)
+    })
     names(sims_md) <- gsub("^.*_([0-9]*).csv.bz2", "\\1", files)
     sims_md <- bind_rows(sims_md, .id = "particle") %>%
-        as_tibble() %>%
         pivot_longer(!c(time, lad, particle)) %>%
         mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', name)) %>%
         mutate(name = gsub('^([^_]*)_.*', '\\1', name)) %>%
