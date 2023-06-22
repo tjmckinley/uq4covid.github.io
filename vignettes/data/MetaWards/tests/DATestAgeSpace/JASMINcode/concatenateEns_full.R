@@ -36,7 +36,7 @@ runs <- map_lgl(jobs, function(i, wave) {
     run <- ifelse(file.exists(paste0("../wave", wave, "/plotAgg_T", i, "_natFull.rds")), run, FALSE)
     run <- ifelse(file.exists(paste0("../wave", wave, "/plotAgg_T", i, "_natAgeDeathsHosp.rds")), run, FALSE)
     ## produce lad-level plots if required
-    if(file.exists(paste0("lads_", outputs, ".txt"))) {
+    if(file.exists(paste0("../", outputs, "/lads_", outputs, ".txt"))) {
         run <- ifelse(file.exists(paste0("../wave", wave, "/plotAgg_T", i, "_age_lads.rds")), run, FALSE)
     }
     run
