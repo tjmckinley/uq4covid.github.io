@@ -246,10 +246,10 @@ if(file.exists(paste0("../", outputs, "/lads_", outputs, ".txt"))) {
                 linetype = "dashed",
                 col = "blue"
             ) +
-            facet_wrap(age ~ lad, scales = "free") +
+            facet_grid(lad ~ age, scales = "free") +
             xlab("Days") + 
             ylab("Counts") +
-            ggtitle(paste0("Observed deaths in top ", length(lads), " LADs"))
+            ggtitle(paste0("Observed deaths in top ", length(lads), " LTLAs"))
     p1[[2]] <- filter(sims_md, var == "hosp") %>%
         ggplot(aes(x = t)) +
             geom_ribbon(aes(ymin = LCI, ymax = UCI), colour = NA, alpha = 0.5) +
@@ -261,10 +261,10 @@ if(file.exists(paste0("../", outputs, "/lads_", outputs, ".txt"))) {
                 linetype = "dashed",
                 col = "blue"
             ) +
-            facet_wrap(age ~ lad, scales = "free") +
+            facet_grid(lad ~ age, scales = "free") +
             xlab("Days") + 
             ylab("Counts") +
-            ggtitle(paste0("Observed hospitalisations in top ", length(lads), " LADs"))
+            ggtitle(paste0("Observed hospitalisations in top ", length(lads), " LTLAs"))
 
     if(cont) {
         p1[[1]] <- p1[[1]] + geom_vline(xintercept = tstart, linetype = "dashed")
@@ -272,6 +272,6 @@ if(file.exists(paste0("../", outputs, "/lads_", outputs, ".txt"))) {
     }
     p1 <- p1[[1]] + p1[[2]]
 
-    ggsave(paste0("../wave", wave, "/simsTopLADsBPFEns.pdf"), p1, width = 15, height = 7)
+    ggsave(paste0("../wave", wave, "/simsTopLADsBPFEns.pdf"), p1, width = 25, height = 12)
 }
 
