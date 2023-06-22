@@ -53,7 +53,7 @@ saveRDS(runs, paste0("wave", wave, "/plotAgg_T", t, "_natFull.rds"))
 ###############################################
 
 ## collapse data for plotting
-data <- readRDS(paste0(outputs, "/cumDeath_lad.rds"))
+data <- readRDS(paste0(outputs, "/cumDeath_age_lad.rds"))
 data <- data[apply(select(data, !t), 1, function(x) any(!is.na(x))), ]
 mint <- min(data$t)
 
@@ -61,217 +61,81 @@ mint <- min(data$t)
 if(mint <= t) {
     runs <- map(1:nrow(pars), function(i, time, wave, mint) {
         if(mint == 0) {
-            runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_natDeaths.rds")) %>%
-                filter(t == time) %>%
-                select(t, n)
+            runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_natAgeDeathsHosp.rds")) %>%
+                filter(t == time)
         } else {
-            runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_natDeaths.rds")) %>%
+            runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_natAgeDeathsHosp.rds")) %>%
                 filter(t <= time & t >= mint) %>%
-                group_by(particle) %>%
-                mutate(n = n - min(n)) %>%
+                group_by(particle, age) %>%
+                mutate(deaths = deaths - min(deaths)) %>%
+                mutate(hosp = hosp - min(hosp)) %>%
                 ungroup() %>%
-                filter(t == time) %>%
-                select(t, n)
+                filter(t == time)
         }
         runs
     }, time = t, wave = wave, mint = mint) %>%
     bind_rows() %>%
-    group_by(t) %>%
+    group_by(t, age) %>%
     summarise(
-        LCI = quantile(n, probs = 0.025),
-        LQ = quantile(n, probs = 0.25),
-        Median = quantile(n, probs = 0.5),
-        UQ = quantile(n, probs = 0.75),
-        UCI = quantile(n, probs = 0.975),
+        across(c(deaths, hosp), list(
+            LCI =~quantile(., probs = 0.025),
+            LQ = ~quantile(., probs = 0.25),
+            Median = ~quantile(., probs = 0.5),
+            UQ = ~quantile(., probs = 0.75),
+            UCI = ~quantile(., probs = 0.975)
+        )),
         .groups = "drop"
     )
 } else {
-    runs <- tibble(t = t, LCI = NA, LQ = NA, Median = NA, UQ = NA, UCI = NA)
+    runs <- matrix(NA, 1, 12)
+    colnames(runs) <- c("t", "age", paste0(rep(c("deaths", "hosp"), each = 5), "_", c("LCI", "LQ", "Median", "UQ", "UCI")))
+    runs <- as_tibble(runs)
 }
         
 ## save output
-saveRDS(runs, paste0("wave", wave, "/plotAgg_T", t, "_natDeaths.rds"))
-              
-###############################################
-#######  age/region-level observations  #######
-###############################################
-
-## collapse data for plotting
-data <- readRDS(paste0(outputs, "/cumDeath_age_region.rds"))  
-data <- data[apply(select(data, !t), 1, function(x) any(!is.na(x))), ]
-mint <- min(data$t)
-
-if(mint <= t) {
-    ## concatenate runs over ensemble
-    runs <- map(1:nrow(pars), function(i, time, wave, mint) {
-        if(mint == 0) {
-            runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_ageRegionDeaths.rds")) %>%
-                filter(t == time) %>%
-                select(!particle)
-        } else {
-            runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_ageRegionDeaths.rds")) %>%
-                filter(t <= time & t >= mint) %>%
-                group_by(particle, age, RGN19NM) %>%
-                mutate(n = n - min(n)) %>%
-                ungroup() %>%
-                filter(t == time) %>%
-                select(!particle)
-        }
-        runs
-    }, time = t, wave = wave, mint = mint) %>%
-    bind_rows() %>%
-    group_by(t, age, RGN19NM) %>%
-    summarise(
-        LCI = quantile(n, probs = 0.025),
-        LQ = quantile(n, probs = 0.25),
-        Median = quantile(n, probs = 0.5),
-        UQ = quantile(n, probs = 0.75),
-        UCI = quantile(n, probs = 0.975),
-        .groups = "drop"
-    )
-} else {
-    runs <- readRDS(paste0("wave", wave, "/plotSum_1_ageRegionDeaths.rds")) %>%
-        filter(t == 0) %>%
-        select(!c(particle, n)) %>%
-        distinct() %>%
-        arrange(age, RGN19NM) %>%
-        mutate(LCI = NA, LQ = NA, Median = NA, UQ = NA, UCI = NA) %>%
-        mutate(across(!c(t, age, RGN19NM), as.numeric))
-    runs$t <- t
-}
-        
-## save output
-saveRDS(runs, paste0("wave", wave, "/plotAgg_T", t, "_ageRegionDeaths.rds"))
-        
-###############################################
-#######     NHS region observations     #######
-###############################################
-
-## collapse data for plotting
-data <- readRDS(paste0(outputs, "/hosp_nhsregion.rds"))
-data <- data[apply(select(data, !t), 1, function(x) any(!is.na(x))), ]
-mint <- min(data$t)
- 
-if(mint <= t) {
-    ## concatenate runs over ensemble
-    runs <- map(1:nrow(pars), function(i, time, wave) {
-        readRDS(paste0("wave", wave, "/plotSum_", i, "_nhsregionHosp.rds")) %>%
-            filter(t == time) %>%
-            select(!particle)
-    }, time = t, wave = wave) %>%
-    bind_rows() %>%
-    group_by(t, areaName) %>%
-    summarise(
-        LCI = quantile(n, probs = 0.025),
-        LQ = quantile(n, probs = 0.25),
-        Median = quantile(n, probs = 0.5),
-        UQ = quantile(n, probs = 0.75),
-        UCI = quantile(n, probs = 0.975),
-        .groups = "drop"
-    )
-} else {
-    runs <- readRDS(paste0("wave", wave, "/plotSum_1_nhsregionHosp.rds")) %>%
-        filter(t == 0) %>%
-        select(!c(particle, n)) %>%
-        distinct() %>%
-        arrange(areaName) %>%
-        mutate(LCI = NA, LQ = NA, Median = NA, UQ = NA, UCI = NA) %>%
-        mutate(across(!c(t, areaName), as.numeric))
-    runs$t <- t
-}
-        
-## save output
-saveRDS(runs, paste0("wave", wave, "/plotAgg_T", t, "_nhsregionHosp.rds"))
-        
-###############################################
-#####  NHS age/region-level observations  #####
-###############################################
-
-## collapse data for plotting
-data <- readRDS(paste0(outputs, "/cumHospAd_age_nhsregion.rds"))
-data <- data[apply(select(data, !t), 1, function(x) any(!is.na(x))), ]
-mint <- min(data$t)
- 
-if(mint <= t) {
-    ## concatenate runs over ensemble
-    runs <- map(1:nrow(pars), function(i, time, wave, mint) {
-            if(mint == 0) {
-                runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_ageNhsregionHosp.rds")) %>%
-                    filter(t == time) %>%
-                    select(!particle)
-            } else  {
-                runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_ageNhsregionHosp.rds")) %>%
-                    filter(t <= time & t >= mint) %>%
-                    group_by(particle, age, areaName) %>%
-                    mutate(n = n - min(n)) %>%
-                    ungroup() %>%
-                    filter(t == time) %>%
-                    select(!particle)
-            } 
-        }, time = t, wave = wave, mint = mint) %>%
-        bind_rows() %>%
-        group_by(t, age, areaName) %>%
-        summarise(
-            LCI = quantile(n, probs = 0.025),
-            LQ = quantile(n, probs = 0.25),
-            Median = quantile(n, probs = 0.5),
-            UQ = quantile(n, probs = 0.75),
-            UCI = quantile(n, probs = 0.975),
-            .groups = "drop"
-        )
-} else {
-    runs <- readRDS(paste0("wave", wave, "/plotSum_1_ageNhsregionHosp.rds")) %>%
-        filter(t == 0) %>%
-        select(!c(particle, n)) %>%
-        distinct() %>%
-        arrange(age, areaName) %>%
-        mutate(LCI = NA, LQ = NA, Median = NA, UQ = NA, UCI = NA) %>%
-        mutate(across(!c(t, areaName), as.numeric))
-    runs$t <- t
-}
-        
-## save output
-saveRDS(runs, paste0("wave", wave, "/plotAgg_T", t, "_ageNhsregionHosp.rds"))
+saveRDS(runs, paste0("wave", wave, "/plotAgg_T", t, "_natAgeDeathsHosp.rds"))
 
 ## produce lad-level plots if required
 if(file.exists(paste0(outputs, "/lads_", outputs, ".txt"))) {
-    data <- readRDS(paste0(outputs, "/cumDeath_lad.rds"))
+    data <- readRDS(paste0(outputs, "/cumDeath_age_lad.rds"))
     data <- data[apply(select(data, !t), 1, function(x) any(!is.na(x))), ]
     mint <- min(data$t)
 
-    ## concatenate runs over ensemble
     if(mint <= t) {
         runs <- map(1:nrow(pars), function(i, time, wave, mint) {
             if(mint == 0) {
-                runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_lads.rds")) %>%
-                    filter(t == time) %>%
-                    select(t, n, lad)
+                runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_age_lads.rds")) %>%
+                    filter(t == time)
             } else {
-                runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_lads.rds")) %>%
+                runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_age_lads.rds")) %>%
                     filter(t <= time & t >= mint) %>%
-                    group_by(particle) %>%
-                    mutate(n = n - min(n)) %>%
+                    group_by(particle, age, lad) %>%
+                    mutate(deaths = deaths - min(deaths)) %>%
+                    mutate(hosp = hosp - min(hosp)) %>%
                     ungroup() %>%
-                    filter(t == time) %>%
-                    select(t, n, lad)
+                    filter(t == time)
             }
-	    runs
+            runs
         }, time = t, wave = wave, mint = mint) %>%
         bind_rows() %>%
-        group_by(t, lad) %>%
+        group_by(t, age, lad) %>%
         summarise(
-	    LCI = quantile(n, probs = 0.025),
-            LQ = quantile(n, probs = 0.25),
-            Median = quantile(n, probs = 0.5),
-            UQ = quantile(n, probs = 0.75),
-            UCI = quantile(n, probs = 0.975),
+            across(c(deaths, hosp), list(
+                LCI =~quantile(., probs = 0.025),
+                LQ = ~quantile(., probs = 0.25),
+                Median = ~quantile(., probs = 0.5),
+                UQ = ~quantile(., probs = 0.75),
+                UCI = ~quantile(., probs = 0.975)
+            )),
             .groups = "drop"
         )
     } else {
-        runs <- tibble(t = t, LCI = NA, LQ = NA, Median = NA, UQ = NA, UCI = NA)
+        runs <- matrix(NA, 1, 13)
+        colnames(runs) <- c("t", "age", "lad", paste0(rep(c("deaths", "hosp"), each = 5), "_", c("LCI", "LQ", "Median", "UQ", "UCI")))
+        runs <- as_tibble(runs)
     }
 
     ## save output
-    saveRDS(runs, paste0("wave", wave, "/plotAgg_T", t, "_lads.rds"))
+    saveRDS(runs, paste0("wave", wave, "/plotAgg_T", t, "_age_lads.rds"))
 }
 
