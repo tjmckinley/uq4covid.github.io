@@ -759,7 +759,8 @@ ggsave(paste0(outputdir, "/staticspatial.pdf"), pcomb, width = 20, height = 10)
 system(paste0("cp ../../data/wardToLADConversion/Local_Authority_Districts_\\(December_2019\\)_Boundaries_UK_BUC.zip ", outputdir))
 
 ## write out top LADs
-filter(death_lad, t == tstop) %>%
+readRDS(paste0(outputdir, "/cumDeath_lad.rds")) %>%
+    filter(t == tstop) %>%
     pivot_longer(!t, names_to = "lad") %>%
     mutate(lad = as.numeric(gsub("deaths_", "", lad))) %>%
     arrange(desc(value)) %>%
