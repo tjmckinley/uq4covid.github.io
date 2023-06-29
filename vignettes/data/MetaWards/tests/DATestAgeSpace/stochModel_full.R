@@ -4,7 +4,7 @@ library(truncnorm)
 
 ## set seed
 seed <- 456
-set.seed(seed)
+#set.seed(seed)
 
 ## create output directory
 outputdir <- paste0("outputs", seed)
@@ -27,8 +27,9 @@ a2 <- as.numeric(fixedInputs[7])
 b1 <- as.numeric(fixedInputs[8])
 b2 <- as.numeric(fixedInputs[9])
 
-## extract death_lookup
-death_lookup <- readRDS(paste0(outputdir, "/death_lookup.rds"))
+## extract lookup
+lookup <- readRDS(paste0(outputdir, "/lookup.rds")) %>%
+    filter(!is.na(FID_death))
 
 ## extract relevant counts and sample observation error
 disSims <- select(disSims, t, starts_with("D") | starts_with("H") | starts_with("RH")) %>%
@@ -39,6 +40,11 @@ disSims <- select(disSims, t, starts_with("D") | starts_with("H") | starts_with(
     mutate(name = gsub('_.*', '', name)) %>%
     mutate(across(c(age, lad), ~as.numeric(.))) %>%
     pivot_wider(names_from = name, values_from = value) %>%
+    inner_join(select(lookup, FID, FID_death), by = c("lad" = "FID")) %>%
+    select(!lad) %>%
+    rename(lad = FID_death) %>%
+    group_by(t, age, lad) %>%
+    summarise(across(everything(), ~sum(.)), .groups = "drop") %>%
     mutate(deaths = DI + DH) %>%
     group_by(age, lad) %>%
     mutate(deaths_inc = deaths - lag(deaths, default = 0)) %>%
@@ -62,8 +68,8 @@ disSims <- select(disSims, t, starts_with("D") | starts_with("H") | starts_with(
         mean = (a1 - a2) + (b1 - b2 + 1) * hosp,
         sd = sqrt((a1 + a2) + (b1 + b2) * hosp)
     )) %>%
-    mutate(across(c(deaths, hosp), ~floor(.))) %>%
-    inner_join(select(death_lookup, FID), by = c("lad" = "FID"))
+    mutate(across(c(deaths, hosp), ~round(.))) %>%
+    arrange(t, age, lad)
 
 ## extract deaths data in the correct format
 deaths <- mutate(disSims, name = paste0("deaths_", age, "_", lad)) %>%
@@ -90,7 +96,7 @@ files <- c(
     "*.pdf"
 )
 map(files, ~system(paste0("cp ", outputdir, "/", ., " ", newoutputdir, "/")))
-system(paste0("mv ", outputdir, "/lads_", outputdir, ".txt ", newoutputdir, "/lads_", newoutputdir, ".txt"))
+system(paste0("cp ", outputdir, "/lads_", outputdir, ".txt ", newoutputdir, "/lads_", newoutputdir, ".txt"))
 
 
 
