@@ -52,7 +52,7 @@ disSims <- select(disSims, t, starts_with("D") | starts_with("H") | starts_with(
     mutate(RH = RH - lag(RH, default = 0)) %>%
     mutate(H_inc = H - lag(H, default = 0) + DH + RH) %>%
     ungroup() %>%
-    select(t, age, lad, deaths_inc, H_inc) %>%
+    select(t, age, lad, deaths_inc, H_inc, H) %>%
     rename(hosp = H_inc, deaths = deaths_inc) %>%
     mutate(deaths = rtruncnorm(
         n(),
@@ -68,7 +68,14 @@ disSims <- select(disSims, t, starts_with("D") | starts_with("H") | starts_with(
         mean = (a1 - a2) + (b1 - b2 + 1) * hosp,
         sd = sqrt((a1 + a2) + (b1 + b2) * hosp)
     )) %>%
-    mutate(across(c(deaths, hosp), ~round(.))) %>%
+    mutate(H = rtruncnorm(
+        n(),
+        a = 0,
+        b = Inf,
+        mean = (a1 - a2) + (b1 - b2 + 1) * H,
+        sd = sqrt((a1 + a2) + (b1 + b2) * H)
+    )) %>%
+    mutate(across(c(deaths, hosp, H), ~round(.))) %>%
     arrange(t, age, lad)
 
 ## extract deaths data in the correct format
@@ -85,6 +92,12 @@ hosp <- mutate(disSims, name = paste0("hosp_", age, "_", lad)) %>%
     mutate(across(starts_with("hosp"), ~cumsum(.)))
 saveRDS(hosp, paste0(newoutputdir, "/cumHosp_age_lad.rds"))
 
+## extract hospital count data in correct format
+H <- mutate(disSims, name = paste0("H_", age, "_", lad)) %>%
+    select(t, H, name) %>%
+    pivot_wider(names_from = name, values_from = H)
+saveRDS(H, paste0(newoutputdir, "/H_age_lad.rds"))
+
 ## copy over other necessary files
 files <- c(
     "death_lookup.rds",
@@ -97,6 +110,4 @@ files <- c(
 )
 map(files, ~system(paste0("cp ", outputdir, "/", ., " ", newoutputdir, "/")))
 system(paste0("cp ", outputdir, "/lads_", outputdir, ".txt ", newoutputdir, "/lads_", newoutputdir, ".txt"))
-
-
 
