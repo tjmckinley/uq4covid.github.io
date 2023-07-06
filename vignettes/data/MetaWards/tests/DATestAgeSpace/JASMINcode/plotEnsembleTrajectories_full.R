@@ -318,6 +318,6 @@ if(file.exists(paste0("../", outputs, "/lads_", outputs, ".txt"))) {
     }
     p1 <- (p1[[1]] + p1[[2]]) / (p1[[3]] + plot_spacer())
 
-    ggsave(paste0("../wave", wave, "/simsTopLADsBPFEns.pdf"), p1, width = 25, height = 12)
+    ggsave(paste0("../wave", wave, "/simsTopLADsBPFEns.pdf"), p1, width = 25, height = 25)
 }
 
