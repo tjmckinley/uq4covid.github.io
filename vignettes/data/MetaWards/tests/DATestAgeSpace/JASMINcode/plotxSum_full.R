@@ -110,7 +110,7 @@ if(!writeExt) {
     
     ## now aggregate to national level 
     sims_md <- group_by(sims_md, particle, t, age) %>%
-        summarise(deaths = sum(deaths), hosp = sum(hosp), .groups = "drop")
+        summarise(deaths = sum(deaths), hosp = sum(hosp), H = sum(H), .groups = "drop")
         
     ## save output
     saveRDS(sims_md, paste0("wave", wave, "/plotSum_", hash, "_natAgeDeathsHosp.rds"))
