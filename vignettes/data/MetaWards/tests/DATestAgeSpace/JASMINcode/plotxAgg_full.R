@@ -77,7 +77,7 @@ if(mint <= t) {
     bind_rows() %>%
     group_by(t, age) %>%
     summarise(
-        across(c(deaths, hosp), list(
+        across(c(deaths, hosp, H), list(
             LCI =~quantile(., probs = 0.025),
             LQ = ~quantile(., probs = 0.25),
             Median = ~quantile(., probs = 0.5),
@@ -88,7 +88,7 @@ if(mint <= t) {
     )
 } else {
     runs <- matrix(NA, 1, 12)
-    colnames(runs) <- c("t", "age", paste0(rep(c("deaths", "hosp"), each = 5), "_", c("LCI", "LQ", "Median", "UQ", "UCI")))
+    colnames(runs) <- c("t", "age", paste0(rep(c("deaths", "hosp", "H"), each = 5), "_", c("LCI", "LQ", "Median", "UQ", "UCI")))
     runs <- as_tibble(runs)
 }
         
@@ -120,7 +120,7 @@ if(file.exists(paste0(outputs, "/lads_", outputs, ".txt"))) {
         bind_rows() %>%
         group_by(t, age, lad) %>%
         summarise(
-            across(c(deaths, hosp), list(
+            across(c(deaths, hosp, H), list(
                 LCI =~quantile(., probs = 0.025),
                 LQ = ~quantile(., probs = 0.25),
                 Median = ~quantile(., probs = 0.5),
@@ -131,7 +131,7 @@ if(file.exists(paste0(outputs, "/lads_", outputs, ".txt"))) {
         )
     } else {
         runs <- matrix(NA, 1, 13)
-        colnames(runs) <- c("t", "age", "lad", paste0(rep(c("deaths", "hosp"), each = 5), "_", c("LCI", "LQ", "Median", "UQ", "UCI")))
+        colnames(runs) <- c("t", "age", "lad", paste0(rep(c("deaths", "hosp", "H"), each = 5), "_", c("LCI", "LQ", "Median", "UQ", "UCI")))
         runs <- as_tibble(runs)
     }
 
