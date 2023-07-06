@@ -1274,6 +1274,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                 file << "time, ";
                 for(j = 0; j < nages; j++) file << "deaths_age" << j + 1 << ", ";
                 for(j = 0; j < nages; j++) file << "hosp_age" << j + 1 << ", ";
+                for(j = 0; j < nages; j++) file << "H_age" << j + 1 << ", ";
                 file << "lad\n";
                 if(tstart == 0) {
                     for(l = 0; l < ndeathlads; l++) {
