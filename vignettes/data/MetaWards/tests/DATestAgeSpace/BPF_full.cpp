@@ -1789,7 +1789,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                             muy = -(a1 - a2) + (b1 - b2 + 1) * u_night_age_lad[i](2, j, l);
                             sigma2y = 3.0 * (a1 + a2) + (b1 + b2) * u_night_age_lad[i](2, j, l);
                             weights(i) += ldtnorm_cpp(
-                                obsInc_age_lad(k, j, l),
+                                obsInc_age_lad(2, j, l),
                                 u_night_age_lad[i](3, j, l) + muy, 
                                 sqrt(sigma2y),
                                 0,
@@ -1938,7 +1938,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                                 muy = -(a1 - a2) + (b1 - b2 + 1) * u_night_age_lad[i](2, j, l);
                                 sigma2y = 3.0 * (a1 + a2) + (b1 + b2) * u_night_age_lad[i](2, j, l);
                                 acccurr += ldtnorm_cpp(
-                                    obsInc_age_lad(k, j, l),
+                                    obsInc_age_lad(2, j, l),
                                     u_night_age_lad[i](3, j, l) + muy, 
                                     sqrt(sigma2y),
                                     0,
@@ -2073,7 +2073,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                                     muy = -(a1 - a2) + (b1 - b2 + 1) * u_night_age_lad1[i](2, j, l);
                                     sigma2y = 3.0 * (a1 + a2) + (b1 + b2) * u_night_age_lad1[i](2, j, l);
                                     accprop += ldtnorm_cpp(
-                                        obsInc_age_lad(k, j, l),
+                                        obsInc_age_lad(2, j, l),
                                         u_night_age_lad1[i](3, j, l) + muy, 
                                         sqrt(sigma2y),
                                         0,
