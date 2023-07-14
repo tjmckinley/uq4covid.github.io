@@ -32,7 +32,7 @@ lookup <- readRDS(paste0(outputdir, "/lookup.rds")) %>%
     filter(!is.na(FID_death))
 
 ## extract relevant counts and sample observation error
-disSims <- select(disSims, t, starts_with("D") | starts_with("H") | starts_with("RH")) %>%
+disSims <- select(disSims, t, starts_with("D") | starts_with("H")) %>%
     pivot_longer(!t) %>%
     mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', name)) %>%
     mutate(lad = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
@@ -45,54 +45,42 @@ disSims <- select(disSims, t, starts_with("D") | starts_with("H") | starts_with(
     rename(lad = FID_death) %>%
     group_by(t, age, lad) %>%
     summarise(across(everything(), ~sum(.)), .groups = "drop") %>%
-    mutate(deaths = DI + DH) %>%
     group_by(age, lad) %>%
-    mutate(deaths_inc = deaths - lag(deaths, default = 0)) %>%
     mutate(DH = DH - lag(DH, default = 0)) %>%
-    mutate(RH = RH - lag(RH, default = 0)) %>%
-    mutate(H_inc = H - lag(H, default = 0) + DH + RH) %>%
+    mutate(DI = DI - lag(DI, default = 0)) %>%
     ungroup() %>%
-    select(t, age, lad, deaths_inc, H_inc, H) %>%
-    rename(hosp = H_inc, deaths = deaths_inc) %>%
-    mutate(deaths = rtruncnorm(
+    mutate(across(c(DI, DH), ~rtruncnorm(
         n(),
         a = 0,
         b = Inf,
-        mean = (a1 - a2) + (b1 - b2 + 1) * deaths,
-        sd = sqrt((a1 + a2) + (b1 + b2) * deaths)
-    )) %>%
-    mutate(hosp = rtruncnorm(
-        n(),
-        a = 0,
-        b = Inf,
-        mean = (a1 - a2) + (b1 - b2 + 1) * hosp,
-        sd = sqrt((a1 + a2) + (b1 + b2) * hosp)
-    )) %>%
+        mean = (a1 - a2) + (b1 - b2 + 1) * .,
+        sd = sqrt((a1 + a2) + (b1 + b2) * .)
+    ))) %>%
     mutate(H = rtruncnorm(
         n(),
         a = 0,
         b = Inf,
-        mean = (a1 - a2) + (b1 - b2 + 1) * H,
-        sd = sqrt((a1 + a2) + (b1 + b2) * H)
+        mean = -(a1 - a2) + (b1 - b2 + 1) * H,
+        sd = sqrt(3 * (a1 + a2) + (b1 + b2) * H)
     )) %>%
-    mutate(across(c(deaths, hosp, H), ~round(.))) %>%
+    mutate(across(c(DI, DH, H), ~round(.))) %>%
     arrange(t, age, lad)
 
 ## extract deaths data in the correct format
-deaths <- mutate(disSims, name = paste0("deaths_", age, "_", lad)) %>%
-    select(t, deaths, name) %>%
-    pivot_wider(names_from = name, values_from = deaths) %>%
-    mutate(across(starts_with("deaths"), ~cumsum(.)))
-saveRDS(deaths, paste0(newoutputdir, "/cumDeath_age_lad.rds"))
+DI <- mutate(disSims, name = paste0("DI_", age, "_", lad)) %>%
+    select(t, DI, name) %>%
+    pivot_wider(names_from = name, values_from = DI) %>%
+    mutate(across(starts_with("DI"), ~cumsum(.)))
+saveRDS(DI, paste0(newoutputdir, "/cumDI_age_lad.rds"))
+
+## extract deaths data in the correct format
+DH <- mutate(disSims, name = paste0("DH_", age, "_", lad)) %>%
+    select(t, DH, name) %>%
+    pivot_wider(names_from = name, values_from = DH) %>%
+    mutate(across(starts_with("DH"), ~cumsum(.)))
+saveRDS(DH, paste0(newoutputdir, "/cumDH_age_lad.rds"))
 
 ## extract hospitalisation data in the correct format
-hosp <- mutate(disSims, name = paste0("hosp_", age, "_", lad)) %>%
-    select(t, hosp, name) %>%
-    pivot_wider(names_from = name, values_from = hosp) %>%
-    mutate(across(starts_with("hosp"), ~cumsum(.)))
-saveRDS(hosp, paste0(newoutputdir, "/cumHosp_age_lad.rds"))
-
-## extract hospital count data in correct format
 H <- mutate(disSims, name = paste0("H_", age, "_", lad)) %>%
     select(t, H, name) %>%
     pivot_wider(names_from = name, values_from = H)
