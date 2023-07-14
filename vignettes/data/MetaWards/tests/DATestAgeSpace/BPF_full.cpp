@@ -1201,7 +1201,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                             u_night_age_lad[i](2, j, lookup(l, 1) - 1) += (u2[i](9, j, l) - u2[i](10, j, l) - u2[i](11, j, l));
                             
                             // hospital cases
-                            u_night_age_lad[i](3, j, lookup(k, 1) - 1) += u2[i](9, j, l);
+                            u_night_age_lad[i](3, j, lookup(l, 1) - 1) += u2[i](9, j, l);
                         }
                     }
                 }
