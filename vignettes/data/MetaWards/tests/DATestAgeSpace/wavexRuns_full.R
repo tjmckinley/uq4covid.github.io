@@ -57,8 +57,9 @@ sourceCpp("BPF_full.cpp")
 source("BPF_full.R")
 
 ## read in simulated data
-cumDeath_age_lad <- readRDS(paste0(outputs, "/cumDeath_age_lad.rds"))
-cumHosp_age_lad <- readRDS(paste0(outputs, "/cumHosp_age_lad.rds"))
+cumDI_age_lad <- readRDS(paste0(outputs, "/cumDI_age_lad.rds"))
+cumDH_age_lad <- readRDS(paste0(outputs, "/cumDH_age_lad.rds"))
+H_age_lad <- readRDS(paste0(outputs, "/H_age_lad.rds"))
 
 ## read in parameters, remove guff and reorder
 pars <- readRDS(paste0("wave", wave, "/disease.rds")) %>%
@@ -149,7 +150,7 @@ for(i in 1:nrow(region_lookup)) {
 ## run PF with some model discrepancy
 if(exists("hash")) {
     runs_md <- BPF(pars[hash, ], C1 = contact1, C2 = contact2, lockdown_day = lockdown_day,
-        cumDeath_age_lad = cumDeath_age_lad, cumHosp_age_lad = cumHosp_age_lad,
+        cumDI_age_lad = cumDI_age_lad, cumDH_age_lad = cumDH_age_lad, H_age_lad = H_age_lad,
         lookup = lookup, u = u,
         tstart = tstart, tstop = tstop, npart = npart, niter = niter,
         a1 = a1, a2 = a2, b1 = b1, b2 = b2, a_dis = a_dis, b_dis = b_dis,
@@ -161,7 +162,7 @@ if(exists("hash")) {
     if(writeExt) system(paste0("mv saveOut_wave", wave, "_", hash, " wave", wave))
 } else {
     runs_md <- BPF(pars, C1 = contact1, C2 = contact2, lockdown_day = lockdown_day,
-        cumDeath_age_lad = cumDeath_age_lad, cumHosp_age_lad = cumHosp_age_lad,
+        cumDI_age_lad = cumDI_age_lad, cumDH_age_lad = cumDH_age_lad, H_age_lad = H_age_lad,
         lookup = lookup, u = u,
         tstart = tstart, tstop = tstop, npart = npart, niter = niter,
         a1 = a1, a2 = a2, b1 = b1, b2 = b2, a_dis = a_dis, b_dis = b_dis,
