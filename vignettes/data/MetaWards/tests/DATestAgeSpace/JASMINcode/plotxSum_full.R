@@ -98,7 +98,7 @@ if(!writeExt) {
         pivot_wider(names_from = name, values_from = value) %>%
         arrange(particle, time, age, lad) %>%
         group_by(particle, age, lad) %>%
-        mutate(deaths = cumsum(deaths), hosp = cumsum(hosp)) %>%
+        mutate(DH = cumsum(DH), DI = cumsum(DI)) %>%
         ungroup() %>%
         rename(t = time)
         
@@ -110,7 +110,7 @@ if(!writeExt) {
     
     ## now aggregate to national level 
     sims_md <- group_by(sims_md, particle, t, age) %>%
-        summarise(deaths = sum(deaths), hosp = sum(hosp), H = sum(H), .groups = "drop")
+        summarise(DI = sum(DI), DH = sum(DH), H = sum(H), .groups = "drop")
         
     ## save output
     saveRDS(sims_md, paste0("wave", wave, "/plotSum_", hash, "_natAgeDeathsHosp.rds"))
