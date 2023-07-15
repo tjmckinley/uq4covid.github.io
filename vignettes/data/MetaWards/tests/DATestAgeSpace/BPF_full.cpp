@@ -257,7 +257,10 @@ double ldtnorm_cpp(int x, double mu, double sigma, double LB, double UB) {
         temp2 = R::pnorm(x + 0.5, mu, sigma, 0, 1);
         ldens = temp1 + log(1.0 - exp(temp2 - temp1));
     }
-    if(!arma::is_finite(ldens)) stop("Something wrong in TN\n");
+    if(!arma::is_finite(ldens)) {
+        Rprintf("x = %d mu = %f sigma = %f LB = %f UB = %f\n", x, mu, sigma, LB, UB);
+        stop("Something wrong in TN\n");
+    }
     if(std::isinf(UB)) {
         // normalising constant
         temp1 = R::pnorm(LB - 0.5, mu, sigma, 0, 1);
