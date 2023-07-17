@@ -222,17 +222,20 @@ BPF <- function(pars, C1, C2, lockdown_day, cumDI_age_lad, cumDH_age_lad, H_age_
                 select(!t) %>%
                 as.matrix()
             DIinc_age_lad[is.na(as.matrix(select(cumDI_age_lad, !t)))] <- -1
+            DIinc_age_lad <- array(DIinc_age_lad, c(nrow(DIinc_age_lad), nages, ndeathlads))
             DHinc_age_lad <- mutate(cumDH_age_lad, across(!t, ~. - lag(., default = 0))) %>%
                 select(!t) %>%
                 as.matrix()
+            DHinc_age_lad <- array(DHinc_age_lad, c(nrow(DHinc_age_lad), nages, ndeathlads))
             DHinc_age_lad[is.na(as.matrix(select(cumDH_age_lad, !t)))] <- -1
             H_age_lad <- as.matrix(select(H_age_lad, !t))
             H_age_lad[is.na(H_age_lad)] <- -1
+            H_age_lad <- array(H_age_lad, c(nrow(H_age_lad), nages, ndeathlads))
         } else {
             ## set dummies if required
-            DIinc_age_lad <- matrix(0, 1, 1)
-            DHinc_age_lad <- matrix(0, 1, 1)
-            H_age_lad <- matrix(0, 1, 1)
+            DIinc_age_lad <- array(0, c(1, 1, 1))
+            DHinc_age_lad <- array(1, c(1, 1, 1))
+            H_age_lad <- array(1, c(1, 1, 1))
         }
         
         ## extract number of stages, age classes and lads

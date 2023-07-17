@@ -1107,7 +1107,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
 
 // [[Rcpp::export]]
 List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
-    arma::imat DIinc_age_lad, arma::imat DHinc_age_lad, arma::imat H_age_lad,
+    arma::icube DIinc_age_lad, arma::icube DHinc_age_lad, arma::icube H_age_lad,
     arma::imat lookup, 
     arma::uword nclasses, arma::uword nages, arma::uword nlads, arma::uword ndeathlads, 
     arma::imat u1_moves, arma::ivec ncohorts1, List u1_comb, 
