@@ -42,13 +42,10 @@ b2 <- as.numeric(fixedInputs[9])
 a_dis_ini <- as.numeric(fixedInputs[10])
 b_dis_ini <- as.numeric(fixedInputs[11])
 b_dis_8_ini <- as.numeric(fixedInputs[12])
-sigma2_lad <- as.numeric(fixedInputs[13])
-sigma2_age_region <- as.numeric(fixedInputs[14])
-sigma2_nhsregion <- as.numeric(fixedInputs[15])
-sigma2_age_nhsregion <- as.numeric(fixedInputs[16])
-saveAll <- as.logical(as.numeric(fixedInputs[17]))
-snapshot <- as.logical(as.numeric(fixedInputs[18]))
-writeExt <- as.logical(as.numeric(fixedInputs[19]))
+sigma2_age_lad <- as.numeric(fixedInputs[13])
+saveAll <- as.logical(as.numeric(fixedInputs[14]))
+snapshot <- as.logical(as.numeric(fixedInputs[15]))
+writeExt <- as.logical(as.numeric(fixedInputs[16]))
 
 ## source Rcpp PF code
 sourceCpp("BPF_full.cpp")
@@ -153,7 +150,7 @@ if(exists("hash")) {
         cumDI_age_lad = cumDI_age_lad, cumDH_age_lad = cumDH_age_lad, H_age_lad = H_age_lad,
         lookup = lookup, u = u,
         tstart = tstart, tstop = tstop, npart = npart, niter = niter,
-        a1 = a1, a2 = a2, b1 = b1, b2 = b2, a_dis = a_dis, b_dis = b_dis,
+        a1 = a1, a2 = a2, b1 = b1, b2 = b2, a_dis = a_dis, b_dis = b_dis, sigma2_age_lad,
         saveAll = saveAll, snapshot = snapshot, writeExt = writeExt, 
         outputName = paste0("saveOut_wave", wave, "_", hash),
         ncores = 1)
@@ -165,7 +162,7 @@ if(exists("hash")) {
         cumDI_age_lad = cumDI_age_lad, cumDH_age_lad = cumDH_age_lad, H_age_lad = H_age_lad,
         lookup = lookup, u = u,
         tstart = tstart, tstop = tstop, npart = npart, niter = niter,
-        a1 = a1, a2 = a2, b1 = b1, b2 = b2, a_dis = a_dis, b_dis = b_dis,
+        a1 = a1, a2 = a2, b1 = b1, b2 = b2, a_dis = a_dis, b_dis = b_dis, sigma2_age_lad,
         saveAll = NA)
     ## save outputs
     saveRDS(runs_md, paste0("wave", wave, "/runs_md.rds"))
