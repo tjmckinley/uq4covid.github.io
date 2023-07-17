@@ -2563,7 +2563,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                         file << t + 1 << ", ";
                         for(k = 0; k < 3; k++) {
                             for(j = 0; j < nages; j++) {
-                                file << u_night_age_region(k, j, l) << ", ";
+                                file << u_night_age_lad(k, j, l) << ", ";
                             }
                         }
                         file << l + 1 << "\n";
@@ -2660,7 +2660,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                         }
                     }
                     file.close();
-                // zip up outputs
+                    // zip up outputs
                     std::sprintf(file_name, "bzip2 -z %s/snapshot_u2_t%u_%u.csv", std::string(outputName[0]).c_str(), tstop, i);
                     j = std::system(file_name);
                 }
