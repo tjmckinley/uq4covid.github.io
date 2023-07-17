@@ -1138,22 +1138,22 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
     // set up output objects
     arma::icube u_night_full(nclasses, nages, nlads); u_night_full.zeros();
     
-    arma::icube u_night_age_lad(4, nages, ndeathlads); u_night_age_lad.zeros();
+    arma::icube u_night_age_lad(5, nages, ndeathlads); u_night_age_lad.zeros();
     arma::ivec u_night_lad(ndeathlads); u_night_lad.zeros();
     arma::imat u_night_age_region(nages, nregions); u_night_age_region.zeros();
     arma::imat u_night_age_nhsregion(nnhsages, nnhsregions); u_night_age_nhsregion.zeros();
     arma::ivec u_night_nhsregion(nnhsregions); u_night_nhsregion.zeros();
     
-    arma::ivec mu_night_lad(ndeathlads); mu_night_lad.zeros();
-    arma::imat mu_night_age_region(nages, nregions); mu_night_age_region.zeros();
-    arma::imat mu_night_age_nhsregion(nnhsages, nnhsregions); mu_night_age_nhsregion.zeros();
-    arma::ivec mu_night_nhsregion(nnhsregions); mu_night_nhsregion.zeros();
+    arma::vec mu_night_lad(ndeathlads); mu_night_lad.zeros();
+    arma::mat mu_night_age_region(nages, nregions); mu_night_age_region.zeros();
+    arma::mat mu_night_age_nhsregion(nnhsages, nnhsregions); mu_night_age_nhsregion.zeros();
+    arma::vec mu_night_nhsregion(nnhsregions); mu_night_nhsregion.zeros();
     
-    std::vector<arma::icube> mu_night_age_lad(npart);
-    std::vector<arma::icube> mu_night_age_lad1(npart);
+    std::vector<arma::cube> mu_night_age_lad(npart);
+    std::vector<arma::cube> mu_night_age_lad1(npart);
     for(i = 0; i < npart; i++) {
-        mu_night_age_lad[i] = arma::icube(4, nages, ndeathlads); mu_night_age_lad[i].zeros();
-        mu_night_age_lad1[i] = arma::icube(4, nages, ndeathlads); mu_night_age_lad1[i].zeros();
+        mu_night_age_lad[i] = arma::cube(4, nages, ndeathlads); mu_night_age_lad[i].zeros();
+        mu_night_age_lad1[i] = arma::cube(4, nages, ndeathlads); mu_night_age_lad1[i].zeros();
     }
         
     // set up weight vector
@@ -1204,6 +1204,9 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                             
                             // hospital removal incidence in lads
                             u_night_age_lad(3, j, lookup(k, 1) - 1) += u1[i](10, j, l);
+                            
+                            // hospital cases in lads
+                            u_night_age_lad(4, j, lookup(k, 1) - 1) += u1[i](9, j, l);
                         }
                     }
                 }
@@ -1219,6 +1222,9 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                             
                             // hospital removal incidence in lads
                             u_night_age_lad(3, j, lookup(l, 1) - 1) += u2[i](10, j, l);
+                            
+                            // hospital cases in lads
+                            u_night_age_lad(4, j, lookup(l, 1) - 1) += u2[i](9, j, l);
                         }
                     }
                 }
@@ -1237,13 +1243,13 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                             for(int s = 0; s < 4; s++) {
                                 muy = (a1 - a2) + (b1 - b2 + 1) * u_night_age_lad(s, j, k);
                                 sigma2y = a1 + a2 + (b1 + b2) * u_night_age_lad(s, j, k);
-                                mu_night_age_lad[i](s, j, k) = rdtnorm_cpp(
-                                    muy, 
-                                    sqrt(sigma2y),
-                                    0,
+                                mu_night_age_lad[i](s, j, k) = rtnorm_one(
+                                    -std::numeric_limits<double>::infinity(),
                                     std::numeric_limits<double>::infinity(),
                                     engSerial
                                 );
+                                mu_night_age_lad[i](s, j, k) *= sqrt(sigma2y);
+                                mu_night_age_lad[i](s, j, k) += muy;
                             }
                             
                             // aggregate death incidence by lad
@@ -1266,6 +1272,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                                 mu_night_age_nhsregion(age_lookup(j, 1) - 1, r) += mu_night_age_lad[i](2, j, k);
                                 
                                 // and hospital count by NHS region
+                                mu_night_nhsregion(r) += (double) u_night_age_lad[i](4, j, k);
                                 mu_night_nhsregion(r) += mu_night_age_lad[i](2, j, k);
                                 mu_night_nhsregion(r) -= mu_night_age_lad[i](1, j, k);
                                 mu_night_nhsregion(r) -= mu_night_age_lad[i](3, j, k);
@@ -1274,7 +1281,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                     }
                 }
                 
-                // apply observation error
+                // apply aggregation error
                 u_night_lad.zeros();
                 u_night_age_region.zeros();
                 u_night_age_nhsregion.zeros();
@@ -1868,7 +1875,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
             if(PF == 1) {
             
                 // set up objects for calculating OE
-                arma::icube u_night_age_lad1(4, nages, ndeathlads); u_night_age_lad1.zeros();
+                arma::icube u_night_age_lad1(5, nages, ndeathlads); u_night_age_lad1.zeros();
                 arma::ivec u_night_nhsregion1(nnhsregions); u_night_nhsregion1.zeros();     
                            
                 arma::ivec mu_night_lad1(ndeathlads); mu_night_lad1.zeros();
@@ -1891,9 +1898,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                             u_night_age_lad1(3, j, lookup(l, 1) - 1) += RHinc(j, l);
                             
                             // hospital count at previous time point
-                            if(lookup(l, 3) >= 0) {
-                                u_night_nhsregion1(lookup(l, 3) - 1) += u1_night(9, j, l);
-                            }
+                            u_night_age_lad1(4, j, lookup(l, 1) - 1) += u1_night(9, j, l);
                         }
                     }
                 }
@@ -1912,13 +1917,13 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                             for(int s = 0; s < 4; s++) {
                                 muy = (a1 - a2) + (b1 - b2 + 1) * u_night_age_lad1(s, j, k);
                                 sigma2y = a1 + a2 + (b1 + b2) * u_night_age_lad1(s, j, k);
-                                mu_night_age_lad[i](s, j, k) = rdtnorm_cpp(
-                                    muy, 
-                                    sqrt(sigma2y),
-                                    0,
+                                mu_night_age_lad[i](s, j, k) = rtnorm_one(
+                                    -std::numeric_limits<double>::infinity(),
                                     std::numeric_limits<double>::infinity(),
                                     eng
                                 );
+                                mu_night_age_lad[i](s, j, k) *= sqrt(sigma2y);
+                                mu_night_age_lad[i](s, j, k) += muy;
                             }
                             
                             // aggregate death incidence by lad
@@ -1941,6 +1946,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                                 mu_night_age_nhsregion1(age_lookup(j, 1) - 1, r) += mu_night_age_lad[i](2, j, k);
                                 
                                 // and hospital count by NHS region
+                                mu_night_nhsregion1(r) += (double) u_night_age_lad[i](4, j, k);
                                 mu_night_nhsregion1(r) += mu_night_age_lad[i](2, j, k);
                                 mu_night_nhsregion1(r) -= mu_night_age_lad[i](1, j, k);
                                 mu_night_nhsregion1(r) -= mu_night_age_lad[i](3, j, k);
@@ -1981,7 +1987,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                     if(obs_nhsregion(l) >= 0) {
                         weights(i) += ldtnorm_cpp(
                             obs_nhsregion(l),
-                            u_night_nhsregion1(l) + mu_night_nhsregion1(l), 
+                            mu_night_nhsregion1(l), 
                             sqrt(sigma2_age_region),
                             0,
                             std::numeric_limits<double>::infinity()
@@ -2121,20 +2127,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                     acccurr = 0.0;
                     
                     // set up objects for calculating OE
-                    arma::icube u_night_age_lad1(4, nages, ndeathlads); u_night_age_lad1.zeros();
-                    arma::ivec u_night_nhsregion1(nnhsregions); u_night_nhsregion1.zeros();     
-                    
-                    // extract just counts for DI and DH
-                    for(l = 0; l < nlads; l++) {
-                        if(lookup(l, 1) >= 0) {
-                            for(j = 0; j < nages; j++) {   
-                                // hospital count at previous time point
-                                if(lookup(l, 3) >= 0) {
-                                    u_night_nhsregion1(lookup(l, 3) - 1) += u1_night(9, j, l);
-                                }
-                            }
-                        }
-                    }
+                    arma::icube u_night_age_lad1(5, nages, ndeathlads); u_night_age_lad1.zeros();
                                
                     arma::ivec mu_night_lad1(ndeathlads); mu_night_lad1.zeros();
                     arma::imat mu_night_age_region1(nages, nregions); mu_night_age_region1.zeros();
@@ -2172,6 +2165,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                                     mu_night_age_nhsregion1(age_lookup(j, 1) - 1, r) += mu_night_age_lad[i](2, j, k);
                                     
                                     // and hospital count by NHS region
+                                    mu_night_nhsregion1(r) += (double) u1_night(9, j, l);
                                     mu_night_nhsregion1(r) += mu_night_age_lad[i](2, j, k);
                                     mu_night_nhsregion1(r) -= mu_night_age_lad[i](1, j, k);
                                     mu_night_nhsregion1(r) -= mu_night_age_lad[i](3, j, k);
@@ -2212,7 +2206,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                         if(obs_nhsregion(l) >= 0) {
                             acccurr += ldtnorm_cpp(
                                 obs_nhsregion(l),
-                                u_night_nhsregion1(l) + mu_night_nhsregion1(l), 
+                                mu_night_nhsregion1(l), 
                                 sqrt(sigma2_age_region),
                                 0,
                                 std::numeric_limits<double>::infinity()
@@ -2335,10 +2329,8 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                                     // hospital removal incidence in lads
                                     u_night_age_lad1(3, j, lookup(l, 1) - 1) += RHinc(j, l);
                                     
-//                                    // hospital count at previous time point
-//                                    if(lookup(l, 3) >= 0) {
-//                                        u_night_nhsregion1(lookup(l, 3) - 1) += u1_night(9, j, l);
-//                                    }
+                                    // count at current time point
+                                    u_night_age_lad1(4, j, lookup(l, 1) - 1) += u1_night(9, j, l);
                                 }
                             }
                         }
@@ -2357,13 +2349,13 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                                     for(int s = 0; s < 4; s++) {
                                         muy = (a1 - a2) + (b1 - b2 + 1) * u_night_age_lad1(s, j, k);
                                         sigma2y = a1 + a2 + (b1 + b2) * u_night_age_lad1(s, j, k);
-                                        mu_night_age_lad1[i](s, j, k) = rdtnorm_cpp(
-                                            muy, 
-                                            sqrt(sigma2y),
-                                            0,
+                                        mu_night_age_lad1[i](s, j, k) = rtnorm_one(
+                                            -std::numeric_limits<double>::infinity(),
                                             std::numeric_limits<double>::infinity(),
                                             eng
                                         );
+                                        mu_night_age_lad1[i](s, j, k) *= sqrt(sigma2y);
+                                        mu_night_age_lad1[i](s, j, k) += muy;
                                     }
                                     
                                     // aggregate death incidence by lad
@@ -2386,6 +2378,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                                         mu_night_age_nhsregion1(age_lookup(j, 1) - 1, r) += mu_night_age_lad1[i](2, j, k);
                                         
                                         // and hospital count by NHS region
+                                        mu_night_nhsregion1(r) += (double) u_night_age_lad1(4, j, k);
                                         mu_night_nhsregion1(r) += mu_night_age_lad1[i](2, j, k);
                                         mu_night_nhsregion1(r) -= mu_night_age_lad1[i](1, j, k);
                                         mu_night_nhsregion1(r) -= mu_night_age_lad1[i](3, j, k);
@@ -2426,7 +2419,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                             if(obs_nhsregion(l) >= 0) {
                                 accprop += ldtnorm_cpp(
                                     obs_nhsregion(l),
-                                    u_night_nhsregion1(l) + mu_night_nhsregion1(l), 
+                                    mu_night_nhsregion1(l), 
                                     sqrt(sigma2_age_region),
                                     0,
                                     std::numeric_limits<double>::infinity()
@@ -2731,7 +2724,6 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                 
                 // extract just counts for DI and DH
                 u_night_age_lad.zeros();
-                u_night_nhsregion.zeros();
                 for(l = 0; l < u1_moves.n_rows; l++) {
                     k = (arma::uword) u1_moves(l, 0) - 1;
                     if(lookup(k, 1) >= 0) {
@@ -2748,9 +2740,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                             u_night_age_lad(3, j, lookup(k, 1) - 1) += (u1_new[i](10, j, l) - u1[i](10, j, l));
                                     
                             // hospital count at previous time point
-                            if(lookup(k, 3) >= 0) {
-                                u_night_nhsregion(lookup(k, 3) - 1) += u1[i](9, j, l);
-                            }
+                            u_night_age_lad(4, j, lookup(k, 1) - 1) += u1[i](9, j, l);
                         }
                     }
                 }
@@ -2769,13 +2759,13 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                             for(int s = 0; s < 4; s++) {
                                 muy = (a1 - a2) + (b1 - b2 + 1) * u_night_age_lad(s, j, k);
                                 sigma2y = a1 + a2 + (b1 + b2) * u_night_age_lad(s, j, k);
-                                mu_night_age_lad1[i](s, j, k) = rdtnorm_cpp(
-                                    muy, 
-                                    sqrt(sigma2y),
-                                    0,
+                                mu_night_age_lad1[i](s, j, k) = rtnorm_one(
+                                    -std::numeric_limits<double>::infinity(),
                                     std::numeric_limits<double>::infinity(),
                                     engSerial
                                 );
+                                mu_night_age_lad1[i](s, j, k) *= sqrt(sigma2y);
+                                mu_night_age_lad1[i](s, j, k) += muy;
                             }
                             
                             // aggregate death incidence by lad
@@ -2798,6 +2788,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                                 mu_night_age_nhsregion(age_lookup(j, 1) - 1, r) += mu_night_age_lad1[i](2, j, k);
                                 
                                 // and hospital count by NHS region
+                                mu_night_nhsregion(r) += (double) u_night_age_lad(4, j, k);
                                 mu_night_nhsregion(r) += mu_night_age_lad1[i](2, j, k);
                                 mu_night_nhsregion(r) -= mu_night_age_lad1[i](1, j, k);
                                 mu_night_nhsregion(r) -= mu_night_age_lad1[i](3, j, k);
@@ -2835,7 +2826,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                 for(l = 0; l < nnhsregions; l++) {
                     // and hospital count by NHS region
                     u_night_nhsregion(l) = rdtnorm_cpp(
-                        u_night_nhsregion(l) + mu_night_nhsregion(l), 
+                        mu_night_nhsregion(l), 
                         sqrt(sigma2_age_region),
                         0,
                         std::numeric_limits<double>::infinity(),
