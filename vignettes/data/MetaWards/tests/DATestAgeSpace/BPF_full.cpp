@@ -1835,21 +1835,21 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                     for(j = 0; j < nages; j++) {
                         // sample observations
                         weights(i) += ldtnorm_cpp(
-                            obsInc(0, j, l),
+                            obsInc_age_lad(0, j, l),
                             mu_night_age_lad[i](0, j, l), 
                             sqrt(sigma2_age_lad),
                             0,
                             std::numeric_limits<double>::infinity()
                         );
                         weights(i) += ldtnorm_cpp(
-                            obsInc(1, j, l),
+                            obsInc_age_lad(1, j, l),
                             mu_night_age_lad[i](1, j, l), 
                             sqrt(sigma2_age_lad),
                             0,
                             std::numeric_limits<double>::infinity()
                         );
                         weights(i) += ldtnorm_cpp(
-                            obsInc(2, j, l),
+                            obsInc_age_lad(2, j, l),
                             mu_night_age_lad[i](4, j, l), 
                             sqrt(sigma2_age_lad),
                             0,
@@ -1982,21 +1982,21 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                         for(j = 0; j < nages; j++) {
                             // sample observations
                             acccurr += ldtnorm_cpp(
-                                obsInc(0, j, l),
+                                obsInc_age_lad(0, j, l),
                                 mu_night_age_lad[i](0, j, l), 
                                 sqrt(sigma2_age_lad),
                                 0,
                                 std::numeric_limits<double>::infinity()
                             );
                             acccurr += ldtnorm_cpp(
-                                obsInc(1, j, l),
+                                obsInc_age_lad(1, j, l),
                                 mu_night_age_lad[i](1, j, l), 
                                 sqrt(sigma2_age_lad),
                                 0,
                                 std::numeric_limits<double>::infinity()
                             );
                             acccurr += ldtnorm_cpp(
-                                obsInc(2, j, l),
+                                obsInc_age_lad(2, j, l),
                                 mu_night_age_lad[i](4, j, l), 
                                 sqrt(sigma2_age_lad),
                                 0,
@@ -2143,21 +2143,21 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                             for(j = 0; j < nages; j++) {
                                 // sample observations
                                 accprop += ldtnorm_cpp(
-                                    obsInc(0, j, l),
+                                    obsInc_age_lad(0, j, l),
                                     mu_night_age_lad1[i](0, j, l), 
                                     sqrt(sigma2_age_lad),
                                     0,
                                     std::numeric_limits<double>::infinity()
                                 );
                                 accprop += ldtnorm_cpp(
-                                    obsInc(1, j, l),
+                                    obsInc_age_lad(1, j, l),
                                     mu_night_age_lad1[i](1, j, l), 
                                     sqrt(sigma2_age_lad),
                                     0,
                                     std::numeric_limits<double>::infinity()
                                 );
                                 accprop += ldtnorm_cpp(
-                                    obsInc(2, j, l),
+                                    obsInc_age_lad(2, j, l),
                                     mu_night_age_lad1[i](4, j, l), 
                                     sqrt(sigma2_age_lad),
                                     0,
@@ -2559,7 +2559,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                     
                     std::sprintf(file_name, "%s/p_age_lads_%u.csv", std::string(outputName[0]).c_str(), i);
                     file.open(file_name, std::ios::app);
-                    for(l = 0; l < nregions; l++) {
+                    for(l = 0; l < ndeathlads; l++) {
                         file << t + 1 << ", ";
                         for(k = 0; k < 3; k++) {
                             for(j = 0; j < nages; j++) {
