@@ -216,6 +216,11 @@ BPF <- function(pars, C1, C2, lockdown_day, cumDI_age_lad, cumDH_age_lad, H_age_
         ndeathlads <- max(lookup[, 2], na.rm = TRUE)
         lookup[is.na(lookup)] <- -1
         
+        ## extract number of stages, age classes and lads
+        nclasses <- dim(u1[[1]])[1]
+        nages <- dim(u1[[1]])[2]
+        nlads <- max(u1_moves[, 1])
+        
         if(PF == 1) {
             ## reformat observations
             DIinc_age_lad <- mutate(cumDI_age_lad, across(!t, ~. - lag(., default = 0))) %>%
@@ -237,11 +242,6 @@ BPF <- function(pars, C1, C2, lockdown_day, cumDI_age_lad, cumDH_age_lad, H_age_
             DHinc_age_lad <- array(1, c(1, 1, 1))
             H_age_lad <- array(1, c(1, 1, 1))
         }
-        
-        ## extract number of stages, age classes and lads
-        nclasses <- dim(u1[[1]])[1]
-        nages <- dim(u1[[1]])[2]
-        nlads <- max(u1_moves[, 1])
 
         ## check parameters are in correct order
         cnames <- c("nu", "nuA", 
