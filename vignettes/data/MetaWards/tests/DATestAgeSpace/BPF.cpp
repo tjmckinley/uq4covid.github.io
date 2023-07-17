@@ -1272,7 +1272,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                                 mu_night_age_nhsregion(age_lookup(j, 1) - 1, r) += mu_night_age_lad[i](2, j, k);
                                 
                                 // and hospital count by NHS region
-                                mu_night_nhsregion(r) += (double) u_night_age_lad[i](4, j, k);
+                                mu_night_nhsregion(r) += (double) u_night_age_lad(4, j, k);
                                 mu_night_nhsregion(r) += mu_night_age_lad[i](2, j, k);
                                 mu_night_nhsregion(r) -= mu_night_age_lad[i](1, j, k);
                                 mu_night_nhsregion(r) -= mu_night_age_lad[i](3, j, k);
@@ -1946,7 +1946,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                                 mu_night_age_nhsregion1(age_lookup(j, 1) - 1, r) += mu_night_age_lad[i](2, j, k);
                                 
                                 // and hospital count by NHS region
-                                mu_night_nhsregion1(r) += (double) u_night_age_lad[i](4, j, k);
+                                mu_night_nhsregion1(r) += (double) u_night_age_lad1(4, j, k);
                                 mu_night_nhsregion1(r) += mu_night_age_lad[i](2, j, k);
                                 mu_night_nhsregion1(r) -= mu_night_age_lad[i](1, j, k);
                                 mu_night_nhsregion1(r) -= mu_night_age_lad[i](3, j, k);
