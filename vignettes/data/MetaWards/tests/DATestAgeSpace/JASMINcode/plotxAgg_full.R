@@ -55,10 +55,7 @@ saveRDS(runs, paste0("wave", wave, "/plotAgg_T", t, "_natFull.rds"))
 ## collapse data for plotting
 data <- readRDS(paste0(outputs, "/cumDI_age_lad.rds"))
 data <- data[apply(select(data, !t), 1, function(x) any(!is.na(x))), ]
-minDHt <- min(data$t)
-data <- readRDS(paste0(outputs, "/cumDH_age_lad.rds"))
-data <- data[apply(select(data, !t), 1, function(x) any(!is.na(x))), ]
-minDIt <- min(data$t)
+mint <- min(data$t)
 
 ## concatenate runs over ensemble
 runs <- map(1:nrow(pars), function(i, time, wave, mint) {
@@ -69,8 +66,8 @@ runs <- map(1:nrow(pars), function(i, time, wave, mint) {
             runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_natAgeDeathsHosp.rds")) %>%
                 filter(t <= time & t >= mint) %>%
                 group_by(particle, age) %>%
-                mutate(DI = DI - minDIt) %>%
-                mutate(DH = DH - minDHt) %>%
+                mutate(DI = DI - min(DI)) %>%
+                mutate(DH = DH - min(DH)) %>%
                 ungroup() %>%
                 filter(t == time)
         }
@@ -103,8 +100,8 @@ if(file.exists(paste0(outputs, "/lads_", outputs, ".txt"))) {
             runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_age_lads.rds")) %>%
                 filter(t <= time & t >= mint) %>%
                 group_by(particle, age, lad) %>%
-                mutate(DI = DI - minDIt) %>%
-                mutate(DH = DH - minDHt) %>%
+                mutate(DI = DI - min(DI)) %>%
+                mutate(DH = DH - min(DH)) %>%
                 ungroup() %>%
                 filter(t == time)
         }
