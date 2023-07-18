@@ -82,7 +82,7 @@ if(cont) p1[[1]] <- p1[[1]] + geom_vline(xintercept = tstart, linetype = "dashed
 ###############################################
         
 ## collapse data for plotting
-deaths <- readRDS(paste0("../", outputs, "/cumDeath_age_lad.rds")) %>%
+DI <- readRDS(paste0("../", outputs, "/cumDI_age_lad.rds")) %>%
     filter(t <= tstop) %>%
     pivot_longer(!t, values_to = "n") %>%
     mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', name)) %>%
@@ -93,7 +93,7 @@ deaths <- readRDS(paste0("../", outputs, "/cumDeath_age_lad.rds")) %>%
     group_by(age, lad) %>%
     mutate(n = cumsum(n)) %>%
     ungroup()
-hosp <- readRDS(paste0("../", outputs, "/cumHosp_age_lad.rds")) %>%
+DH <- readRDS(paste0("../", outputs, "/cumDH_age_lad.rds")) %>%
     filter(t <= tstop) %>%
     pivot_longer(!t, values_to = "n") %>%
     mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', name)) %>%
@@ -120,7 +120,7 @@ sims_md <- readRDS(paste0("../wave", wave, "/sumEns_natAgeDeathsHosp.rds")) %>%
     mutate(name = gsub('^(?:[^_]*_)(.*)', '\\1', name))
 
 ## plot deaths
-p1[[2]] <- filter(sims_md, var == "deaths") %>%
+p1[[2]] <- filter(sims_md, var == "DI") %>%
     select(!var) %>%
     pivot_wider(names_from = name, values_from = value) %>%
     ggplot(aes(x = t)) +
@@ -136,12 +136,12 @@ p1[[2]] <- filter(sims_md, var == "deaths") %>%
         facet_wrap(~age) +
         xlab("Days") + 
         ylab("Counts") +
-        ggtitle("Observed cumulative deaths (aggregated over LTLAs)")
+        ggtitle("Observed cumulative community deaths (aggregated over LTLAs)")
     
 if(cont) p1[[2]] <- p1[[2]] + geom_vline(xintercept = tstart, linetype = "dashed")
 
 ## plot hospitalisations
-p1[[3]] <- filter(sims_md, var == "hosp") %>%
+p1[[3]] <- filter(sims_md, var == "DH") %>%
     select(!var) %>%
     pivot_wider(names_from = name, values_from = value) %>%
     ggplot(aes(x = t)) +
@@ -157,7 +157,7 @@ p1[[3]] <- filter(sims_md, var == "hosp") %>%
         facet_wrap(~age) +
         xlab("Days") + 
         ylab("Counts") +
-        ggtitle("Observed cumulative hospitalisations (aggregated over LTLAs)")
+        ggtitle("Observed cumulative hospital deaths (aggregated over LTLAs)")
     
 if(cont) p1[[3]] <- p1[[3]] + geom_vline(xintercept = tstart, linetype = "dashed")
 
