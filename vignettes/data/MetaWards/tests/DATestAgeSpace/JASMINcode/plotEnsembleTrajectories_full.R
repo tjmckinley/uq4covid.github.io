@@ -129,7 +129,7 @@ p1[[2]] <- filter(sims_md, var == "DI") %>%
         geom_line(aes(y = Median)) +
         geom_line(
             aes(y = n), 
-            data = group_by(deaths, t, age) %>%
+            data = group_by(DI, t, age) %>%
                 summarise(n = sum(n), .groups = "drop"),
             col = "blue", linetype = "dashed"
         ) +
@@ -150,7 +150,7 @@ p1[[3]] <- filter(sims_md, var == "DH") %>%
         geom_line(aes(y = Median)) +
         geom_line(
             aes(y = n), 
-            data = group_by(hosp, t, age) %>%
+            data = group_by(DH, t, age) %>%
                 summarise(n = sum(n), .groups = "drop"),
             col = "blue", linetype = "dashed"
         ) +
@@ -204,15 +204,15 @@ lad19 <- st_read(paste0("../", outputs, "/Local_Authority_Districts_(December_20
 death_lookup <- readRDS(paste0("../", outputs, "/death_lookup.rds"))
 
 ## load in data
-data <- group_by(deaths, t, lad) %>%
+data <- group_by(DH, t, lad) %>%
     summarise(n = sum(n), .groups = "drop") %>%
     rename(Data = n) %>%
     inner_join(death_lookup, by = c("lad" = "FID"))
 
 ## load in runs
 sims_md <- readRDS(paste0("../wave", wave, "/sumEns_age_lads.rds")) %>%
-    dplyr::select(t, lad, age, deaths_Median) %>%
-    rename(Prediction = deaths_Median) %>%
+    dplyr::select(t, lad, age, DH_Median) %>%
+    rename(Prediction = DH_Median) %>%
     group_by(t, lad) %>%
     summarise(Prediction = sum(Prediction), .groups = "drop")
 
@@ -239,7 +239,7 @@ p <- filter(lad19, t == max(t)) %>%
         geom_sf(aes(fill = Count), colour = NA) +
         facet_wrap(~ type) +
         scale_fill_viridis_c() +
-        ggtitle(paste0("Deaths at t = ", max(lad19$t)))
+        ggtitle(paste0("Hospital deaths at t = ", max(lad19$t)))
 ggsave(paste0("../wave", wave, "/simsspstatic.pdf"), p)
 
 ###############################################
@@ -252,8 +252,8 @@ if(file.exists(paste0("../", outputs, "/lads_", outputs, ".txt"))) {
     lads <- as.numeric(readLines(paste0("../", outputs, "/lads_", outputs, ".txt")))
     
     ## load in data
-    deaths <- filter(deaths, lad %in% lads)
-    hosp <- filter(hosp, lad %in% lads)
+    DI <- filter(DI, lad %in% lads)
+    DH <- filter(DH, lad %in% lads)
     H <- filter(H, lad %in% lads)
 
     ## load in runs
@@ -265,36 +265,36 @@ if(file.exists(paste0("../", outputs, "/lads_", outputs, ".txt"))) {
         pivot_wider(names_from = name, values_from = value)
         
     p1 <- list()
-    p1[[1]] <- filter(sims_md, var == "deaths") %>%
+    p1[[1]] <- filter(sims_md, var == "DI") %>%
         ggplot(aes(x = t)) +
             geom_ribbon(aes(ymin = LCI, ymax = UCI), colour = NA, alpha = 0.5) +
             geom_ribbon(aes(ymin = LQ, ymax = UQ), colour = NA, alpha = 0.5) +
             geom_line(aes(y = Median)) +
             geom_line(
                 aes(y = n), 
-                data = deaths,
+                data = DI,
                 linetype = "dashed",
                 col = "blue"
             ) +
             facet_grid(lad ~ age, scales = "free") +
             xlab("Days") + 
             ylab("Counts") +
-            ggtitle(paste0("Observed deaths in top ", length(lads), " LTLAs"))
-    p1[[2]] <- filter(sims_md, var == "hosp") %>%
+            ggtitle(paste0("Observed community deaths in top ", length(lads), " LTLAs"))
+    p1[[2]] <- filter(sims_md, var == "DH") %>%
         ggplot(aes(x = t)) +
             geom_ribbon(aes(ymin = LCI, ymax = UCI), colour = NA, alpha = 0.5) +
             geom_ribbon(aes(ymin = LQ, ymax = UQ), colour = NA, alpha = 0.5) +
             geom_line(aes(y = Median)) +
             geom_line(
                 aes(y = n), 
-                data = hosp,
+                data = DH,
                 linetype = "dashed",
                 col = "blue"
             ) +
             facet_grid(lad ~ age, scales = "free") +
             xlab("Days") + 
             ylab("Counts") +
-            ggtitle(paste0("Observed hospitalisations in top ", length(lads), " LTLAs"))
+            ggtitle(paste0("Observed hospital deaths in top ", length(lads), " LTLAs"))
     p1[[3]] <- filter(sims_md, var == "H") %>%
         ggplot(aes(x = t)) +
             geom_ribbon(aes(ymin = LCI, ymax = UCI), colour = NA, alpha = 0.5) +
