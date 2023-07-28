@@ -1,6 +1,7 @@
 ## load libraries
 library(tidyverse)
 library(truncnorm)
+library(patchwork)
 
 ## set seed
 seed <- 456
@@ -97,6 +98,64 @@ disSims <- select(disSims, t, starts_with("D") | starts_with("H") | starts_with(
     mutate(across(c(DI, DH, H), ~round(.))) %>%
     select(t, age, lad, DI, DH, H) %>%
     arrange(t, age, lad)
+    
+## plot data at aggregated levels
+p <- list()
+deaths <- readRDS(paste0(outputdir, "/cumDeath_lad.rds")) %>%
+    pivot_longer(!t) %>%
+    separate(name, c("name", "lad"), sep = "_") %>%
+    select(!name) %>%
+    mutate(lad = as.numeric(lad)) %>%
+    group_by(t) %>%
+    summarise(deaths = sum(value), .groups = "drop")
+temp <- mutate(disSims, deaths = DI + DH) %>%
+    group_by(t, lad) %>%
+    summarise(deaths = sum(deaths), .groups = "drop") %>%
+    group_by(lad) %>%
+    mutate(deaths = cumsum(deaths)) %>%
+    group_by(t) %>%
+    summarise(deaths = sum(deaths), .groups = "drop")
+p[[1]] <- ggplot(deaths, aes(x = t, y = deaths)) +
+    geom_line(colour = "blue") +
+    geom_line(data = temp)
+    
+deaths <- readRDS(paste0(outputdir, "/cumDeath_age_region.rds")) %>%
+    pivot_longer(!t) %>%
+    separate(name, c("name", "age", "region"), sep = "_") %>%
+    select(!name) %>%
+    mutate(across(c(age, region), as.numeric)) %>%
+    rename(deaths = value)
+temp <- mutate(disSims, deaths = DI + DH) %>%
+    group_by(t, age, lad) %>%
+    summarise(deaths = sum(deaths), .groups = "drop") %>%
+    group_by(age, lad) %>%
+    mutate(deaths = cumsum(deaths)) %>%
+    inner_join(select(lookup, !c(FID, FID_nhsregion)) %>% distinct(), by = c("lad" = "FID_death")) %>%
+    group_by(t, FID_region, age) %>%
+    summarise(deaths = sum(deaths), .groups = "drop") %>%
+    rename(region = FID_region)
+p[[2]] <- ggplot(deaths, aes(x = t, y = deaths)) +
+    geom_line(colour = "blue") +
+    geom_line(data = temp) +
+    facet_grid(region ~ age, scales = "free")
+    
+hosp <- readRDS(paste0(outputdir, "/hosp_nhsregion.rds")) %>%
+    pivot_longer(!t) %>%
+    separate(name, c("name", "region"), sep = "_") %>%
+    select(!name) %>%
+    mutate(region = as.numeric(region)) %>%
+    rename(H = value)
+temp <- inner_join(disSims, select(lookup, !c(FID, FID_region)) %>% distinct(), by = c("lad" = "FID_death")) %>%
+    group_by(t, FID_nhsregion) %>%
+    summarise(H = sum(H), .groups = "drop") %>%
+    rename(region = FID_nhsregion)
+p[[3]] <- ggplot(hosp, aes(x = t, y = H)) +
+    geom_line(colour = "blue") +
+    geom_line(data = temp) +
+    facet_wrap(~ region, scales = "free")
+## save comparison plot out
+p <- wrap_plots(p, ncol = 2)
+ggsave(paste0(newoutputdir, "/simsComparison.pdf"), width = 10, height = 10)
 
 ## extract deaths data in the correct format
 DI <- mutate(disSims, name = paste0("DI_", age, "_", lad)) %>%
