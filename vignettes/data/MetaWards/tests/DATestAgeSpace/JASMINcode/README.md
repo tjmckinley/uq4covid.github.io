@@ -157,7 +157,7 @@ to the longest point present in the simulations).
 
 **Note**: the final `plotEnsembleTrajectories.R` call must use the `job_lookup.txt` file
 from the `runPlotAgg`/`setupSLURM.R` call above. Hence you might need to re-run this
-original call if e.g. any of the orignal runs had failed and needed to be re-run (in which
+original call if e.g. any of the original runs had failed and needed to be re-run (in which
 case `job_lookup.txt` would be different).
 
 
