@@ -89,10 +89,7 @@ DI <- readRDS(paste0("../", outputs, "/cumDI_age_lad.rds")) %>%
     mutate(lad = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
     mutate(age = gsub('(.*)_[0-9]*', '\\1', age)) %>%
     mutate(across(c(age, lad), as.numeric)) %>%
-    select(!name) %>%
-    group_by(age, lad) %>%
-    mutate(n = cumsum(n)) %>%
-    ungroup()
+    select(!name)
 DH <- readRDS(paste0("../", outputs, "/cumDH_age_lad.rds")) %>%
     filter(t <= tstop) %>%
     pivot_longer(!t, values_to = "n") %>%
@@ -100,10 +97,7 @@ DH <- readRDS(paste0("../", outputs, "/cumDH_age_lad.rds")) %>%
     mutate(lad = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
     mutate(age = gsub('(.*)_[0-9]*', '\\1', age)) %>%
     mutate(across(c(age, lad), as.numeric)) %>%
-    select(!name) %>%
-    group_by(age, lad) %>%
-    mutate(n = cumsum(n)) %>%
-    ungroup()
+    select(!name)
 H <- readRDS(paste0("../", outputs, "/H_age_lad.rds")) %>%
     filter(t <= tstop) %>%
     pivot_longer(!t, values_to = "n") %>%
