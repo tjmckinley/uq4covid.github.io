@@ -150,7 +150,8 @@ if(exists("hash")) {
         cumDI_age_lad = cumDI_age_lad, cumDH_age_lad = cumDH_age_lad, H_age_lad = H_age_lad,
         lookup = lookup, u = u,
         tstart = tstart, tstop = tstop, npart = npart, niter = niter,
-        a1 = a1, a2 = a2, b1 = b1, b2 = b2, a_dis = a_dis, b_dis = b_dis, sigma2_age_lad,
+        a1 = a1, a2 = a2, b1 = b1, b2 = b2, a_dis = a_dis, b_dis = b_dis, 
+        sigma2_age_lad = sigma2_age_lad,
         saveAll = saveAll, snapshot = snapshot, writeExt = writeExt, 
         outputName = paste0("saveOut_wave", wave, "_", hash),
         ncores = 1)
@@ -162,7 +163,8 @@ if(exists("hash")) {
         cumDI_age_lad = cumDI_age_lad, cumDH_age_lad = cumDH_age_lad, H_age_lad = H_age_lad,
         lookup = lookup, u = u,
         tstart = tstart, tstop = tstop, npart = npart, niter = niter,
-        a1 = a1, a2 = a2, b1 = b1, b2 = b2, a_dis = a_dis, b_dis = b_dis, sigma2_age_lad,
+        a1 = a1, a2 = a2, b1 = b1, b2 = b2, a_dis = a_dis, b_dis = b_dis, 
+        sigma2_age_lad = sigma2_age_lad,
         saveAll = NA)
     ## save outputs
     saveRDS(runs_md, paste0("wave", wave, "/runs_md.rds"))
