@@ -198,20 +198,16 @@ lad19 <- st_read(paste0("../", outputs, "/Local_Authority_Districts_(December_20
 death_lookup <- readRDS(paste0("../", outputs, "/death_lookup.rds"))
 
 ## load in data
-data <- group_by(DH, t, lad) %>%
-    summarise(n = sum(n), .groups = "drop") %>%
-    rename(Data = n) %>%
+data <- rename(DH, Data = n) %>%
     inner_join(death_lookup, by = c("lad" = "FID"))
 
 ## load in runs
 sims_md <- readRDS(paste0("../wave", wave, "/sumEns_age_lads.rds")) %>%
     dplyr::select(t, lad, age, DH_Median) %>%
-    rename(Prediction = DH_Median) %>%
-    group_by(t, lad) %>%
-    summarise(Prediction = sum(Prediction), .groups = "drop")
+    rename(Prediction = DH_Median)
 
 ## join runs and data
-data <- inner_join(data, sims_md, by = c("lad", "t"))
+data <- inner_join(data, sims_md, by = c("lad", "t", "age"))
 
 ## join to shapefile
 lad19 <- inner_join(lad19, data, by = c("lad19cd" = "areaCode"))
@@ -227,14 +223,26 @@ lad19 <- inner_join(lad19, data, by = c("lad19cd" = "areaCode"))
 #anim_save(paste0("../wave", wave, "/simsspanimation.gif"), p)
 
 ## static plot
-p <- filter(lad19, t == max(t)) %>%
-    pivot_longer(c(Data, Prediction), names_to = "type", values_to = "Count") %>%
+temp <- filter(lad19, t == max(t))
+p <- list()
+p[[1]] <- rename(temp, DH = Data) %>%
     ggplot() +
-        geom_sf(aes(fill = Count), colour = NA) +
-        facet_wrap(~ type) +
+        geom_sf(aes(fill = DH), colour = NA) +
+        facet_wrap(~ age) +
         scale_fill_viridis_c() +
-        ggtitle(paste0("Hospital deaths at t = ", max(lad19$t)))
-ggsave(paste0("../wave", wave, "/simsspstatic.pdf"), p)
+        ggtitle("Data")
+p[[2]] <- rename(temp, DH = Prediction) %>%
+    ggplot() +
+        geom_sf(aes(fill = DH), colour = NA) +
+        facet_wrap(~ age) +
+        scale_fill_viridis_c() +
+        ggtitle("Predictions")
+p1 <- p[[1]] + p[[2]] 
+p1 <- p1 & theme(legend.position = "bottom")
+p1 <- p1 & scale_fill_viridis_c(limits = range(c(temp$Data, temp$Prediction)))
+p1 <- p1 + plot_layout(guides = "collect")
+p1 <- p1 + plot_annotation(title = paste0("Hospital deaths at t = ", max(lad19$t)))
+ggsave(paste0("../wave", wave, "/simsspstatic.pdf"), p1, height = 7, width = 10)
 
 ###############################################
 #####          LAD-level plots            #####
