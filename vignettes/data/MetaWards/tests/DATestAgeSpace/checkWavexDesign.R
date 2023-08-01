@@ -25,7 +25,7 @@ print(prevwave)
 print(file)
 
 ## copy fixed parameters over
-stopifnot(file.copy(paste0("wave", prevwave, "/fixedInputs.txt"), paste0("wave", wave, "/fixedInputs.txt")))
+stopifnot(file.copy(paste0("wave", prevwave, "/fixedInputs.txt"), paste0("wave", wave, "/fixedInputs.txt"), overwrite = TRUE))
 
 ## source dataTools
 source("inputs/dataTools.R")
