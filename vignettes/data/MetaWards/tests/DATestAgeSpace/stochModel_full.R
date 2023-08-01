@@ -15,16 +15,29 @@ newinputdir <- "wave1FullSim"
 if(!dir.exists(outputdir)) {
     stop("'outputdir' doesn't exist")
 }
+if(!dir.exists(inputdir)) {
+    stop("'inputdir' doesn't exist")
+}
 if(dir.exists(newoutputdir)) {
-    stop("Can't overwrite existing directory")
+    stop("Can't overwrite existing output directory")
+}
+if(dir.exists(newinputdir)) {
+    stop("Can't overwrite existing input directory")
 }
 dir.create(newoutputdir)
+dir.create(newinputdir)
 
 ## load in simulated data
 disSims <- readRDS(paste0(outputdir, "/disSims.rds"))
 
 ## copy initial design folder
-system(paste0("cp -r ", inputdir, " ", newinputdir))
+files <- c(
+    "inputs.rds",
+    "disease.rds",
+    "design.pdf"
+)
+files <- map(files, ~paste0("cp ", inputdir, "/", ., " ", newinputdir))
+map(files, system)
 
 ## load OE terms
 fixedInputs <- readLines(paste0(inputdir, "/fixedInputs.txt"))
@@ -88,15 +101,15 @@ disSims <- select(disSims, t, starts_with("D") | starts_with("H") | starts_with(
     group_by(age, lad) %>%
     mutate(H = lag(H, default = 0) + Hinc - DH - RH) %>%
     ungroup() %>%
-    mutate(across(c(DI, DH, RH, H), ~rtruncnorm(
+    mutate(across(c(DI, DH, H, Hinc), ~rtruncnorm(
         n(),
         a = 0,
         b = Inf,
         mean = .,
         sd = sqrt(sigma2_age_lad)
     ))) %>%
-    mutate(across(c(DI, DH, H), ~round(.))) %>%
-    select(t, age, lad, DI, DH, H) %>%
+    mutate(across(c(DI, DH, H, Hinc), ~round(.))) %>%
+    select(t, age, lad, DI, DH, H, Hinc) %>%
     arrange(t, age, lad)
     
 ## plot data at aggregated levels
@@ -153,6 +166,28 @@ p[[3]] <- ggplot(hosp, aes(x = t, y = H)) +
     geom_line(colour = "blue") +
     geom_line(data = temp) +
     facet_wrap(~ region, scales = "free")
+    
+age_lookup <- readRDS(paste0(outputdir, "/age_lookup.rds"))
+    
+Hinc <- readRDS(paste0(outputdir, "/cumHospAd_age_nhsregion.rds")) %>%
+    pivot_longer(!t) %>%
+    separate(name, c("name", "age", "region"), sep = "_") %>%
+    select(!name) %>%
+    mutate(across(c(age, region), ~as.numeric(.))) %>%
+    rename(Hinc = value)
+temp <- inner_join(disSims, select(lookup, !c(FID, FID_region)) %>% distinct(), by = c("lad" = "FID_death")) %>%
+    inner_join(rename(age_lookup, age = FID_death, nhsage = FID_nhsregion), by = "age") %>% 
+    group_by(t, nhsage, FID_nhsregion) %>%
+    summarise(Hinc = sum(Hinc), .groups = "drop") %>%
+    rename(region = FID_nhsregion, age = nhsage) %>%
+    group_by(age, region) %>%
+    mutate(Hinc = cumsum(Hinc)) %>%
+    ungroup()
+p[[4]] <- ggplot(Hinc, aes(x = t, y = Hinc)) +
+    geom_line(colour = "blue") +
+    geom_line(data = temp) +
+    facet_grid(region ~ age, scales = "free")  
+    
 ## save comparison plot out
 p <- wrap_plots(p, ncol = 2)
 ggsave(paste0(newoutputdir, "/simsComparison.pdf"), width = 10, height = 10)
@@ -177,8 +212,16 @@ H <- mutate(disSims, name = paste0("H_", age, "_", lad)) %>%
     pivot_wider(names_from = name, values_from = H)
 saveRDS(H, paste0(newoutputdir, "/H_age_lad.rds"))
 
+## extract hospital incidence in the correct format
+cumH <- mutate(disSims, name = paste0("cumH_", age, "_", lad)) %>%
+    select(t, Hinc, name) %>%
+    pivot_wider(names_from = name, values_from = Hinc) %>%
+    mutate(across(starts_with("cumH"), ~cumsum(.)))
+saveRDS(cumH, paste0(newoutputdir, "/cumH_age_lad.rds"))
+
 ## copy over other necessary files
 files <- c(
+    "age_lookup.rds",
     "death_lookup.rds",
     "disSims.rds",
     "Local_Authority_Districts_\\(December_2019\\)_Boundaries_UK_BUC.zip",

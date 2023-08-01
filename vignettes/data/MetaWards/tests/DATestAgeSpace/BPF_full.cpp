@@ -1107,7 +1107,7 @@ void redistribution (int ipart, int nages, int nlads, arma::icube &inc, arma::iv
 
 // [[Rcpp::export]]
 List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
-    arma::icube DIinc_age_lad, arma::icube DHinc_age_lad, arma::icube H_age_lad,
+    arma::icube DIinc_age_lad, arma::icube DHinc_age_lad, arma::icube Hinc_age_lad, arma::icube H_age_lad,
     arma::imat lookup, 
     arma::uword nclasses, arma::uword nages, arma::uword nlads, arma::uword ndeathlads, 
     arma::imat u1_moves, arma::ivec ncohorts1, List u1_comb, 
@@ -1152,7 +1152,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
     double wnorm = 0.0;
     
     // set up auxiliary objects
-    arma::icube obsInc_age_lad (3, nages, ndeathlads); obsInc_age_lad.zeros();
+    arma::icube obsInc_age_lad (4, nages, ndeathlads); obsInc_age_lad.zeros();
     
     // sample seeds to set up thread-safe PRNGs
 #ifdef _OPENMP
@@ -1268,6 +1268,13 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                             INFINITY,
                             engSerial
                         );
+                        u_night_age_lad(3, j, l) = rdtnorm_cpp(
+                            mu_night_age_lad[i](2, j, l), 
+                            sqrt(sigma2_age_lad),
+                            0,
+                            INFINITY,
+                            engSerial
+                        );
                     }
                 }
                 if(saveAll == 2) {
@@ -1321,11 +1328,12 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                 for(j = 0; j < nages; j++) file << "DI_age" << j + 1 << ", ";
                 for(j = 0; j < nages; j++) file << "DH_age" << j + 1 << ", ";
                 for(j = 0; j < nages; j++) file << "H_age" << j + 1 << ", ";
+                for(j = 0; j < nages; j++) file << "Hinc_age" << j + 1 << ", ";
                 file << "lad\n";
                 if(tstart == 0) {
                     for(l = 0; l < ndeathlads; l++) {
                         file << t << ", ";
-                        for(k = 0; k < 3; k++) {
+                        for(k = 0; k < 4; k++) {
                             for(j = 0; j < nages; j++) {
                                 file << u_night_age_lad(k, j, l) << ", ";
                             }
@@ -1373,6 +1381,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                     obsInc_age_lad(0, j, l) = DIinc_age_lad(t - tstart, j, l);
                     obsInc_age_lad(1, j, l) = DHinc_age_lad(t - tstart, j, l);
                     obsInc_age_lad(2, j, l) = H_age_lad(t - tstart, j, l);
+                    obsInc_age_lad(3, j, l) = Hinc_age_lad(t - tstart, j, l);
                 }
             }
         }         
@@ -1857,6 +1866,13 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                             0,
                             INFINITY
                         );
+                        weights(i) += ldtnorm_cpp(
+                            obsInc_age_lad(3, j, l),
+                            mu_night_age_lad[i](2, j, l), 
+                            sqrt(sigma2_age_lad),
+                            0,
+                            INFINITY
+                        );
                     }
                 }
             }
@@ -2001,6 +2017,13 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                             acccurr += ldtnorm_cpp(
                                 obsInc_age_lad(2, j, l),
                                 mu_night_age_lad[i](4, j, l), 
+                                sqrt(sigma2_age_lad),
+                                0,
+                                INFINITY
+                            );
+                            acccurr += ldtnorm_cpp(
+                                obsInc_age_lad(3, j, l),
+                                mu_night_age_lad[i](2, j, l), 
                                 sqrt(sigma2_age_lad),
                                 0,
                                 INFINITY
@@ -2163,6 +2186,13 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                                 accprop += ldtnorm_cpp(
                                     obsInc_age_lad(2, j, l),
                                     mu_night_age_lad1[i](4, j, l), 
+                                    sqrt(sigma2_age_lad),
+                                    0,
+                                    INFINITY
+                                );
+                                accprop += ldtnorm_cpp(
+                                    obsInc_age_lad(3, j, l),
+                                    mu_night_age_lad1[i](2, j, l), 
                                     sqrt(sigma2_age_lad),
                                     0,
                                     INFINITY
@@ -2527,6 +2557,13 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                             INFINITY,
                             engSerial
                         );
+                        u_night_age_lad(3, j, l) = rdtnorm_cpp(
+                            mu_night_age_lad[i](2, j, l), 
+                            sqrt(sigma2_age_lad),
+                            0,
+                            INFINITY,
+                            engSerial
+                        );
                     }
                 }
                 
@@ -2566,7 +2603,7 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                     file.open(file_name, std::ios::app);
                     for(l = 0; l < ndeathlads; l++) {
                         file << t + 1 << ", ";
-                        for(k = 0; k < 3; k++) {
+                        for(k = 0; k < 4; k++) {
                             for(j = 0; j < nages; j++) {
                                 file << u_night_age_lad(k, j, l) << ", ";
                             }

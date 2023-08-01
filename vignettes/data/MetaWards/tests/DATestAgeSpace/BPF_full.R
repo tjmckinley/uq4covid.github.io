@@ -18,6 +18,8 @@ log_sum_exp <- function(x, mn = FALSE) {
 ##               columns with cumulative deaths per age/lad
 ## cumDH_age_lad: matrix of form D_{11}, D_{21}, ..., D_{8L} along
 ##               columns with cumulative deaths per age/lad
+## cumH_age_lad: matrix of form H_{11}, H_{21}, ..., H_{8L} along
+##               columns with cumulative hospital cases per age/lad
 ## H_age_lad: matrix of form H_{11}, H_{21}, ..., H_{8L} along
 ##               columns with hospital cases per age/lad
 ## lookup: a lookup table mapping lads to different spatial hierarchies
@@ -58,7 +60,8 @@ log_sum_exp <- function(x, mn = FALSE) {
 ## ncores:  the number of cores for OpenMP parallelisation (if NA then defaults to all available cores)
 ## parEnsemble: decides whether to parallelise across or within ensemble
 
-BPF <- function(pars, C1, C2, lockdown_day, cumDI_age_lad, cumDH_age_lad, H_age_lad,
+BPF <- function(pars, C1, C2, lockdown_day, 
+        cumDI_age_lad, cumDH_age_lad, cumH_age_lad, H_age_lad,
         lookup, u, tstart, tstop, npart = 10, niter = 0, 
         a1 = 0, a2 = 0, b1 = 0.1, b2 = 0.1, a_dis = 0.05, b_dis = 0.01, 
         sigma2_age_lad = 1,
@@ -87,14 +90,17 @@ BPF <- function(pars, C1, C2, lockdown_day, cumDI_age_lad, cumDH_age_lad, H_age_
     if(!PF) {
         cumDI_age_lad <- matrix(NA, 1, 1)
         cumDH_age_lad <- matrix(NA, 1, 1)
+        cumH_age_lad <- matrix(NA, 1, 1)
         H_age_lad <- matrix(NA, 1, 1)
     } else {
         ## extract relevant time points to filter against
         cumDI_age_lad <- filter(cumDI_age_lad, t >= tstart & t <= tstop)
         cumDH_age_lad <- filter(cumDH_age_lad, t >= tstart & t <= tstop)
+        cumH_age_lad <- filter(cumH_age_lad, t >= tstart & t <= tstop)
         H_age_lad <- filter(H_age_lad, t >= tstart & t <= tstop)
         stopifnot(all((cumDI_age_lad$t - tstart:tstop) == 0))
         stopifnot(all((cumDH_age_lad$t - tstart:tstop) == 0))
+        stopifnot(all((cumH_age_lad$t - tstart:tstop) == 0))
         stopifnot(all((H_age_lad$t - tstart:tstop) == 0))
     }
     
@@ -209,7 +215,7 @@ BPF <- function(pars, C1, C2, lockdown_day, cumDI_age_lad, cumDH_age_lad, H_age_
     }
     
     ## run particle filter for each set of inputs
-    runs <- mclapply(1:nrow(pars), function(k, pars, C1, C2, lockdown_day, u1_moves, ncohorts1, u1, u2, playprobs, ncohorts2, npart, niter, tstart, tstop, cumDI_age_lad, cumDH_age_lad, H_age_lad, lookup, a1, a2, b1, b2, a_dis, b_dis, sigma2_age_lad, saveAll, writeExt, snapshot, outputName, PF, ncores) {
+    runs <- mclapply(1:nrow(pars), function(k, pars, C1, C2, lockdown_day, u1_moves, ncohorts1, u1, u2, playprobs, ncohorts2, npart, niter, tstart, tstop, cumDI_age_lad, cumDH_age_lad, cumH_age_lad, H_age_lad, lookup, a1, a2, b1, b2, a_dis, b_dis, sigma2_age_lad, saveAll, writeExt, snapshot, outputName, PF, ncores) {
     
         ## set up lookups and numbers of regions
         lookup <- as.matrix(lookup)
@@ -229,20 +235,30 @@ BPF <- function(pars, C1, C2, lockdown_day, cumDI_age_lad, cumDH_age_lad, H_age_
             DIinc_age_lad[is.na(as.matrix(select(cumDI_age_lad, !t)))] <- -1
             DIinc_age_lad <- array(DIinc_age_lad, c(nrow(DIinc_age_lad), ndeathlads, nages))
             DIinc_age_lad <- aperm(DIinc_age_lad, c(1, 3, 2))
+            
             DHinc_age_lad <- mutate(cumDH_age_lad, across(!t, ~. - lag(., default = 0))) %>%
                 select(!t) %>%
                 as.matrix()
             DHinc_age_lad <- array(DHinc_age_lad, c(nrow(DHinc_age_lad), ndeathlads, nages))
             DHinc_age_lad[is.na(as.matrix(select(cumDH_age_lad, !t)))] <- -1
             DHinc_age_lad <- aperm(DHinc_age_lad, c(1, 3, 2))
+            
+            Hinc_age_lad <- mutate(cumH_age_lad, across(!t, ~. - lag(., default = 0))) %>%
+                select(!t) %>%
+                as.matrix()
+            Hinc_age_lad <- array(Hinc_age_lad, c(nrow(Hinc_age_lad), ndeathlads, nages))
+            Hinc_age_lad[is.na(as.matrix(select(cumH_age_lad, !t)))] <- -1
+            Hinc_age_lad <- aperm(Hinc_age_lad, c(1, 3, 2))
+            
             H_age_lad <- as.matrix(select(H_age_lad, !t))
             H_age_lad[is.na(H_age_lad)] <- -1
             H_age_lad <- array(H_age_lad, c(nrow(H_age_lad), ndeathlads, nages))
             H_age_lad <- aperm(H_age_lad, c(1, 3, 2))
         } else {
             ## set dummies if required
-            DIinc_age_lad <- array(0, c(1, 1, 1))
+            DIinc_age_lad <- array(1, c(1, 1, 1))
             DHinc_age_lad <- array(1, c(1, 1, 1))
+            Hinc_age_lad <- array(1, c(1, 1, 1))
             H_age_lad <- array(1, c(1, 1, 1))
         }
 
@@ -283,7 +299,8 @@ BPF <- function(pars, C1, C2, lockdown_day, cumDI_age_lad, cumDH_age_lad, H_age_
             if(saveAll == 0) stop("Must set 'saveAll' to something if not running a PF")
             
             ## run particle filter
-            particles <- BPF_cpp(pars, C1, C2, lockdown_day, DIinc_age_lad, DHinc_age_lad, H_age_lad,
+            particles <- BPF_cpp(pars, C1, C2, lockdown_day,
+                DIinc_age_lad, DHinc_age_lad, Hinc_age_lad, H_age_lad,
                 lookup, nclasses, nages, nlads, ndeathlads, 
                 u1_moves, ncohorts1, u1, u2, playprobs, 
                 ncohorts2, tstart, tstop, npart, niter, a1, a2, b1, b2, a_dis, b_dis, sigma2_age_lad, 
@@ -292,7 +309,8 @@ BPF <- function(pars, C1, C2, lockdown_day, cumDI_age_lad, cumDH_age_lad, H_age_
         }
         
         ## run particle filter
-        particles <- BPF_cpp(pars, C1, C2, lockdown_day, DIinc_age_lad, DHinc_age_lad, H_age_lad,
+        particles <- BPF_cpp(pars, C1, C2, lockdown_day,
+            DIinc_age_lad, DHinc_age_lad, Hinc_age_lad, H_age_lad,
             lookup, nclasses, nages, nlads, ndeathlads, 
             u1_moves, ncohorts1, u1, u2, playprobs, 
             ncohorts2, tstart, tstop, npart, niter, a1, a2, b1, b2, a_dis, b_dis, sigma2_age_lad, 
@@ -303,7 +321,7 @@ BPF <- function(pars, C1, C2, lockdown_day, cumDI_age_lad, cumDH_age_lad, H_age_
         } else {
             return(list(ll = particles$ll))
         }
-    }, pars = pars, C1 = C1, C2 = C2, lockdown_day = lockdown_day, u1_moves = u1_moves, ncohorts1 = ncohorts1, u1 = u1_list, u2 = u2_list, playprobs = playprobs, ncohorts2 = ncohorts2, npart = npart, niter = niter, tstart = tstart, tstop = tstop, cumDI_age_lad = cumDI_age_lad, cumDH_age_lad = cumDH_age_lad, H_age_lad = H_age_lad, lookup = lookup, a1 = a1, a2 = a2, b1 = b1, b2 = b2, a_dis = a_dis, b_dis = b_dis, sigma2_age_lad = sigma2_age_lad, saveAll = saveAllint, writeExt = writeExtint, snapshot = snapshotint, outputName = outputName, PF = PFint, ncores = ncores, mc.cores = ncoresEns)
+    }, pars = pars, C1 = C1, C2 = C2, lockdown_day = lockdown_day, u1_moves = u1_moves, ncohorts1 = ncohorts1, u1 = u1_list, u2 = u2_list, playprobs = playprobs, ncohorts2 = ncohorts2, npart = npart, niter = niter, tstart = tstart, tstop = tstop, cumDI_age_lad = cumDI_age_lad, cumDH_age_lad = cumDH_age_lad, cumH_age_lad = cumH_age_lad, H_age_lad = H_age_lad, lookup = lookup, a1 = a1, a2 = a2, b1 = b1, b2 = b2, a_dis = a_dis, b_dis = b_dis, sigma2_age_lad = sigma2_age_lad, saveAll = saveAllint, writeExt = writeExtint, snapshot = snapshotint, outputName = outputName, PF = PFint, ncores = ncores, mc.cores = ncoresEns)
     if(!is.na(saveAll)) {
         ndays <- tstop - tstart
         if(!writeExt) {
