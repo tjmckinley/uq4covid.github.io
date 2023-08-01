@@ -106,6 +106,14 @@ H <- readRDS(paste0("../", outputs, "/H_age_lad.rds")) %>%
     mutate(age = gsub('(.*)_[0-9]*', '\\1', age)) %>%
     mutate(across(c(age, lad), as.numeric)) %>%
     select(!name)
+Hcum <- readRDS(paste0("../", outputs, "/cumH_age_lad.rds")) %>%
+    filter(t <= tstop) %>%
+    pivot_longer(!t, values_to = "n") %>%
+    mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', name)) %>%
+    mutate(lad = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
+    mutate(age = gsub('(.*)_[0-9]*', '\\1', age)) %>%
+    mutate(across(c(age, lad), as.numeric)) %>%
+    select(!name)
 
 ## load in runs
 sims_md <- readRDS(paste0("../wave", wave, "/sumEns_natAgeDeathsHosp.rds")) %>%
@@ -113,7 +121,7 @@ sims_md <- readRDS(paste0("../wave", wave, "/sumEns_natAgeDeathsHosp.rds")) %>%
     mutate(var = gsub('^([^_]*)_(.*)', '\\1', name)) %>%
     mutate(name = gsub('^(?:[^_]*_)(.*)', '\\1', name))
 
-## plot deaths
+## plot community deaths
 p1[[2]] <- filter(sims_md, var == "DI") %>%
     select(!var) %>%
     pivot_wider(names_from = name, values_from = value) %>%
@@ -134,7 +142,7 @@ p1[[2]] <- filter(sims_md, var == "DI") %>%
     
 if(cont) p1[[2]] <- p1[[2]] + geom_vline(xintercept = tstart, linetype = "dashed")
 
-## plot hospitalisations
+## plot hospital deaths
 p1[[3]] <- filter(sims_md, var == "DH") %>%
     select(!var) %>%
     pivot_wider(names_from = name, values_from = value) %>%
@@ -175,6 +183,27 @@ p1[[4]] <- filter(sims_md, var == "H") %>%
         ggtitle("Observed hospital cases (aggregated over LTLAs)")
     
 if(cont) p1[[4]] <- p1[[4]] + geom_vline(xintercept = tstart, linetype = "dashed")
+
+## plot cumulative hospital cases
+p1[[5]] <- filter(sims_md, var == "Hcum") %>%
+    select(!var) %>%
+    pivot_wider(names_from = name, values_from = value) %>%
+    ggplot(aes(x = t)) +
+        geom_ribbon(aes(ymin = LCI, ymax = UCI), alpha = 0.5) +
+        geom_ribbon(aes(ymin = LQ, ymax = UQ), alpha = 0.5) +
+        geom_line(aes(y = Median)) +
+        geom_line(
+            aes(y = n), 
+            data = group_by(Hcum, t, age) %>%
+                summarise(n = sum(n), .groups = "drop"),
+            col = "blue", linetype = "dashed"
+        ) +
+        facet_wrap(~age) +
+        xlab("Days") + 
+        ylab("Counts") +
+        ggtitle("Observed cumulative hospital cases (aggregated over LTLAs)")
+    
+if(cont) p1[[5]] <- p1[[5]] + geom_vline(xintercept = tstart, linetype = "dashed")
             
 ###############################################
 #####   combine plots and save outputs    #####
@@ -184,7 +213,7 @@ if(cont) p1[[4]] <- p1[[4]] + geom_vline(xintercept = tstart, linetype = "dashed
 saveRDS(p1, paste0("../wave", wave, "/plots.rds"))
 
 ## combine plots
-p1 <- (p1[[1]] + p1[[2]]) / (p1[[3]] + p1[[4]])
+p1 <- (p1[[1]] + p1[[2]] + p1[[3]]) / (p1[[4]] + p1[[5]] + plot_spacer())
 ggsave(paste0("../wave", wave, "/simsBPFEns.pdf"), p1, width = 15, height = 15)
 
 ###############################################
@@ -257,6 +286,7 @@ if(file.exists(paste0("../", outputs, "/lads_", outputs, ".txt"))) {
     DI <- filter(DI, lad %in% lads)
     DH <- filter(DH, lad %in% lads)
     H <- filter(H, lad %in% lads)
+    Hcum <- filter(Hcum, lad %in% lads)
 
     ## load in runs
     sims_md <- readRDS(paste0("../wave", wave, "/sumEns_age_lads.rds")) %>%
@@ -312,13 +342,29 @@ if(file.exists(paste0("../", outputs, "/lads_", outputs, ".txt"))) {
             xlab("Days") + 
             ylab("Counts") +
             ggtitle(paste0("Observed hospital cases in top ", length(lads), " LTLAs"))
+    p1[[4]] <- filter(sims_md, var == "Hcum") %>%
+        ggplot(aes(x = t)) +
+            geom_ribbon(aes(ymin = LCI, ymax = UCI), colour = NA, alpha = 0.5) +
+            geom_ribbon(aes(ymin = LQ, ymax = UQ), colour = NA, alpha = 0.5) +
+            geom_line(aes(y = Median)) +
+            geom_line(
+                aes(y = n), 
+                data = Hcum,
+                linetype = "dashed",
+                col = "blue"
+            ) +
+            facet_grid(lad ~ age, scales = "free") +
+            xlab("Days") + 
+            ylab("Counts") +
+            ggtitle(paste0("Observed cumulative hospital cases in top ", length(lads), " LTLAs"))
 
     if(cont) {
         p1[[1]] <- p1[[1]] + geom_vline(xintercept = tstart, linetype = "dashed")
         p1[[2]] <- p1[[2]] + geom_vline(xintercept = tstart, linetype = "dashed")
         p1[[3]] <- p1[[3]] + geom_vline(xintercept = tstart, linetype = "dashed")
+        p1[[4]] <- p1[[4]] + geom_vline(xintercept = tstart, linetype = "dashed")
     }
-    p1 <- (p1[[1]] + p1[[2]]) / (p1[[3]] + plot_spacer())
+    p1 <- (p1[[1]] + p1[[2]]) / (p1[[3]] + p1[[4]])
 
     ggsave(paste0("../wave", wave, "/simsTopLADsBPFEns.pdf"), p1, width = 25, height = 25)
 }
