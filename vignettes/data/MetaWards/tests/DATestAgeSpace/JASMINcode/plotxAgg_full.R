@@ -69,6 +69,7 @@ if(mint <= t) {
                 group_by(particle, age) %>%
                 mutate(DI = DI - min(DI)) %>%
                 mutate(DH = DH - min(DH)) %>%
+                mutate(Hcum = Hcum - min(Hcum)) %>%
                 ungroup() %>%
                 filter(t == time)
         }
@@ -77,7 +78,7 @@ if(mint <= t) {
     bind_rows() %>%
     group_by(t, age) %>%
     summarise(
-        across(c(DI, DH, H), list(
+        across(c(DI, DH, H, Hcum), list(
             LCI =~quantile(., probs = 0.025),
             LQ = ~quantile(., probs = 0.25),
             Median = ~quantile(., probs = 0.5),
@@ -87,8 +88,8 @@ if(mint <= t) {
         .groups = "drop"
     )
 } else {
-    runs <- matrix(NA, 1, 17)
-    colnames(runs) <- c("t", "age", paste0(rep(c("DI", "DH", "H"), each = 5), "_", c("LCI", "LQ", "Median", "UQ", "UCI")))
+    runs <- matrix(NA, 1, 22)
+    colnames(runs) <- c("t", "age", paste0(rep(c("DI", "DH", "H", "Hcum"), each = 5), "_", c("LCI", "LQ", "Median", "UQ", "UCI")))
     runs <- as_tibble(runs)
 }
         
@@ -112,6 +113,7 @@ if(file.exists(paste0(outputs, "/lads_", outputs, ".txt"))) {
                     group_by(particle, age, lad) %>%
                     mutate(DI = DI - min(DI)) %>%
                     mutate(DH = DH - min(DH)) %>%
+                    mutate(Hcum = Hcum - min(Hcum)) %>%
                     ungroup() %>%
                     filter(t == time)
             }
@@ -120,7 +122,7 @@ if(file.exists(paste0(outputs, "/lads_", outputs, ".txt"))) {
         bind_rows() %>%
         group_by(t, age, lad) %>%
         summarise(
-            across(c(DI, DH, H), list(
+            across(c(DI, DH, H, Hcum), list(
                 LCI =~quantile(., probs = 0.025),
                 LQ = ~quantile(., probs = 0.25),
                 Median = ~quantile(., probs = 0.5),
@@ -130,8 +132,8 @@ if(file.exists(paste0(outputs, "/lads_", outputs, ".txt"))) {
             .groups = "drop"
         )
     } else {
-        runs <- matrix(NA, 1, 18)
-        colnames(runs) <- c("t", "age", "lad", paste0(rep(c("DI", "DH", "H"), each = 5), "_", c("LCI", "LQ", "Median", "UQ", "UCI")))
+        runs <- matrix(NA, 1, 23)
+        colnames(runs) <- c("t", "age", "lad", paste0(rep(c("DI", "DH", "H", "Hcum"), each = 5), "_", c("LCI", "LQ", "Median", "UQ", "UCI")))
         runs <- as_tibble(runs)
     }
 
