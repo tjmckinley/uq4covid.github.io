@@ -213,8 +213,12 @@ if(cont) p1[[5]] <- p1[[5]] + geom_vline(xintercept = tstart, linetype = "dashed
 saveRDS(p1, paste0("../wave", wave, "/plots.rds"))
 
 ## combine plots
-p1 <- (p1[[1]] + p1[[2]] + p1[[3]]) / (p1[[4]] + p1[[5]] + plot_spacer())
-ggsave(paste0("../wave", wave, "/simsBPFEns.pdf"), p1, width = 15, height = 15)
+layout <- "
+AAB
+CDE
+"
+p1 <- p1[[1]] + p1[[2]] + p1[[3]] + p1[[4]] + p1[[5]] + plot_layout(design = layout)
+ggsave(paste0("../wave", wave, "/simsBPFEns.pdf"), p1, width = 20, height = 15)
 
 ###############################################
 #####           spatial plots             #####
