@@ -231,13 +231,14 @@ lad19 <- st_read(paste0("../", outputs, "/Local_Authority_Districts_(December_20
 death_lookup <- readRDS(paste0("../", outputs, "/death_lookup.rds"))
 
 ## load in data
-data <- rename(DH, Data = n) %>%
+DH <- rename(DH, DH = n)
+Hcum <- rename(Hcum, Hcum = n)
+data <- inner_join(DH, Hcum, by = c("lad", "t", "age")) %>%
     inner_join(death_lookup, by = c("lad" = "FID"))
 
 ## load in runs
 sims_md <- readRDS(paste0("../wave", wave, "/sumEns_age_lads.rds")) %>%
-    dplyr::select(t, lad, age, DH_Median) %>%
-    rename(Prediction = DH_Median)
+    dplyr::select(t, lad, age, DH_Median, Hcum_Median)
 
 ## join runs and data
 data <- inner_join(data, sims_md, by = c("lad", "t", "age"))
@@ -258,24 +259,47 @@ lad19 <- inner_join(lad19, data, by = c("lad19cd" = "areaCode"))
 ## static plot
 temp <- filter(lad19, t == max(t))
 p <- list()
-p[[1]] <- rename(temp, DH = Data) %>%
+p[[1]] <- rename(temp, Count = DH) %>%
     ggplot() +
-        geom_sf(aes(fill = DH), colour = NA) +
+        geom_sf(aes(fill = Count), colour = NA) +
         facet_wrap(~ age) +
         scale_fill_viridis_c() +
-        ggtitle("Data")
-p[[2]] <- rename(temp, DH = Prediction) %>%
+        ggtitle("Data (cumulative hospital deaths)")
+p[[2]] <- rename(temp, Count = DH_Median) %>%
     ggplot() +
-        geom_sf(aes(fill = DH), colour = NA) +
+        geom_sf(aes(fill = Count), colour = NA) +
         facet_wrap(~ age) +
         scale_fill_viridis_c() +
-        ggtitle("Predictions")
+        ggtitle("Predictions (cumulative hospital deaths)")
 p1 <- p[[1]] + p[[2]] 
-p1 <- p1 & theme(legend.position = "bottom")
-p1 <- p1 & scale_fill_viridis_c(limits = range(c(temp$Data, temp$Prediction)))
+#p1 <- p1 & theme(legend.position = "bottom")
+p1 <- p1 & scale_fill_viridis_c(limits = range(c(temp$DH, temp$DH_Median)))
+p1 <- p1 & scale_fill_continuous(trans = "log")
 p1 <- p1 + plot_layout(guides = "collect")
-p1 <- p1 + plot_annotation(title = paste0("Hospital deaths at t = ", max(lad19$t)))
-ggsave(paste0("../wave", wave, "/simsspstatic.pdf"), p1, height = 7, width = 10)
+p1 <- p1 + plot_annotation(title = paste0("Cumulative hospital deaths at t = ", max(lad19$t)))
+p2 <- list()
+p2[[1]] <- p1
+p[[1]] <- rename(temp, Count = Hcum) %>%
+    ggplot() +
+        geom_sf(aes(fill = Count), colour = NA) +
+        facet_wrap(~ age) +
+        scale_fill_viridis_c() +
+        ggtitle("Data (cumulative hospital cases)")
+p[[2]] <- rename(temp, Count = Hcum_Median) %>%
+    ggplot() +
+        geom_sf(aes(fill = Count), colour = NA) +
+        facet_wrap(~ age) +
+        scale_fill_viridis_c() +
+        ggtitle("Predictions (cumulative hospital cases)")
+p1 <- p[[1]] + p[[2]] 
+#p1 <- p1 & theme(legend.position = "bottom")
+p1 <- p1 & scale_fill_viridis_c(limits = range(c(temp$Hcum, temp$Hcum_Median)))
+p1 <- p1 & scale_fill_continuous(trans = "log")
+p1 <- p1 + plot_layout(guides = "collect")
+p1 <- p1 + plot_annotation(title = paste0("Cumulative hospital cases at t = ", max(lad19$t)))
+p2[[2]] <- p1
+p2 <- p2[[1]] / p2[[2]]
+ggsave(paste0("../wave", wave, "/simsspstatic.pdf"), p2, height = 14, width = 10)
 
 ###############################################
 #####          LAD-level plots            #####
