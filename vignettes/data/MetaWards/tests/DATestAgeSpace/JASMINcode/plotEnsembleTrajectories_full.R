@@ -235,6 +235,8 @@ DH <- rename(DH, DH = n)
 Hcum <- rename(Hcum, Hcum = n)
 data <- inner_join(DH, Hcum, by = c("lad", "t", "age")) %>%
     inner_join(death_lookup, by = c("lad" = "FID"))
+DH <- rename(DH, n = DH)
+Hcum <- rename(Hcum, n = Hcum)
 
 ## load in runs
 sims_md <- readRDS(paste0("../wave", wave, "/sumEns_age_lads.rds")) %>%
