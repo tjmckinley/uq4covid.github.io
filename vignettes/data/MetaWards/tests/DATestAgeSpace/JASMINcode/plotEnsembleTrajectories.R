@@ -225,7 +225,7 @@ saveRDS(p1, paste0("../wave", wave, "/plots.rds"))
 p1[[4]] <- p1[[4]] / p1[[2]]
 p1 <- p1[-2]
 p1 <- wrap_plots(p1, nrow = 2, heights = c(0.8, 0.5))
-ggsave(paste0("../wave", wave, "/simsBPFEns.pdf"), p1, width = 15, height = 15)
+ggsave(paste0("../wave", wave, "/simsBPFEns.pdf"), p1, width = 18, height = 18)
 
 ###############################################
 #####           spatial plots             #####
