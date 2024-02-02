@@ -157,7 +157,10 @@ convertInputToDisease <- function(input, C, N, S0, ages) {
     disease <- inner_join(disease, select(temp, nu, output), by = "output")
     
     ## checks on nu
-    stopifnot(all(disease$nu > 0 & disease$nu < 1))
+    if(!all(disease$nu > 0 & disease$nu < 1)) {
+        print("Some points removed due to nu < 0 or nu > 1")
+        disease <- filter(disease, nu > 0 & nu < 1)
+    }
     
     ## finalise data set
     disease <- mutate(disease, nuA = nuA * nu) %>%
