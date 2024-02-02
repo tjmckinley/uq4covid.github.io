@@ -135,7 +135,7 @@ p1[[2]] <- filter(sims_md, var == "DI") %>%
                 summarise(n = sum(n), .groups = "drop"),
             col = "blue", linetype = "dashed"
         ) +
-        facet_wrap(~age) +
+        facet_wrap(~age, labeller = labeller(age = age_label)) +
         xlab("Days") + 
         ylab("Counts") +
         ggtitle("Observed cumulative community deaths (aggregated over LTLAs)")
@@ -156,7 +156,7 @@ p1[[3]] <- filter(sims_md, var == "DH") %>%
                 summarise(n = sum(n), .groups = "drop"),
             col = "blue", linetype = "dashed"
         ) +
-        facet_wrap(~age) +
+        facet_wrap(~age, labeller = labeller(age = age_label)) +
         xlab("Days") + 
         ylab("Counts") +
         ggtitle("Observed cumulative hospital deaths (aggregated over LTLAs)")
@@ -177,7 +177,7 @@ p1[[4]] <- filter(sims_md, var == "H") %>%
                 summarise(n = sum(n), .groups = "drop"),
             col = "blue", linetype = "dashed"
         ) +
-        facet_wrap(~age) +
+        facet_wrap(~age, labeller = labeller(age = age_label)) +
         xlab("Days") + 
         ylab("Counts") +
         ggtitle("Observed hospital cases (aggregated over LTLAs)")
@@ -198,7 +198,7 @@ p1[[5]] <- filter(sims_md, var == "Hcum") %>%
                 summarise(n = sum(n), .groups = "drop"),
             col = "blue", linetype = "dashed"
         ) +
-        facet_wrap(~age) +
+        facet_wrap(~age, labeller = labeller(age = age_label)) +
         xlab("Days") + 
         ylab("Counts") +
         ggtitle("Observed cumulative hospital cases (aggregated over LTLAs)")
@@ -264,13 +264,13 @@ p <- list()
 p[[1]] <- rename(temp, Count = DH) %>%
     ggplot() +
         geom_sf(aes(fill = Count), colour = NA) +
-        facet_wrap(~ age) +
+        facet_wrap(~age, labeller = labeller(age = age_label)) +
         scale_fill_viridis_c() +
         ggtitle("Data (cumulative hospital deaths)")
 p[[2]] <- rename(temp, Count = DH_Median) %>%
     ggplot() +
         geom_sf(aes(fill = Count), colour = NA) +
-        facet_wrap(~ age) +
+        facet_wrap(~age, labeller = labeller(age = age_label)) +
         scale_fill_viridis_c() +
         ggtitle("Predictions (cumulative hospital deaths)")
 p1 <- p[[1]] + p[[2]] 
@@ -283,13 +283,13 @@ p2[[1]] <- p1
 p[[1]] <- rename(temp, Count = Hcum) %>%
     ggplot() +
         geom_sf(aes(fill = Count), colour = NA) +
-        facet_wrap(~ age) +
+        facet_wrap(~age, labeller = labeller(age = age_label)) +
         scale_fill_viridis_c() +
         ggtitle("Data (cumulative hospital cases)")
 p[[2]] <- rename(temp, Count = Hcum_Median) %>%
     ggplot() +
         geom_sf(aes(fill = Count), colour = NA) +
-        facet_wrap(~ age) +
+        facet_wrap(~age, labeller = labeller(age = age_label)) +
         scale_fill_viridis_c() +
         ggtitle("Predictions (cumulative hospital cases)")
 p1 <- p[[1]] + p[[2]] 
@@ -336,7 +336,7 @@ if(file.exists(paste0("../", outputs, "/lads_", outputs, ".txt"))) {
                 linetype = "dashed",
                 col = "blue"
             ) +
-            facet_grid(lad ~ age, scales = "free") +
+            facet_grid(lad ~ age, scales = "free", labeller = labeller(age = age_label)) +
             xlab("Days") + 
             ylab("Counts") +
             ggtitle(paste0("Observed community deaths in top ", length(lads), " LTLAs"))
@@ -351,7 +351,7 @@ if(file.exists(paste0("../", outputs, "/lads_", outputs, ".txt"))) {
                 linetype = "dashed",
                 col = "blue"
             ) +
-            facet_grid(lad ~ age, scales = "free") +
+            facet_grid(lad ~ age, scales = "free", labeller = labeller(age = age_label)) +
             xlab("Days") + 
             ylab("Counts") +
             ggtitle(paste0("Observed hospital deaths in top ", length(lads), " LTLAs"))
@@ -366,7 +366,7 @@ if(file.exists(paste0("../", outputs, "/lads_", outputs, ".txt"))) {
                 linetype = "dashed",
                 col = "blue"
             ) +
-            facet_grid(lad ~ age, scales = "free") +
+            facet_grid(lad ~ age, scales = "free", labeller = labeller(age = age_label)) +
             xlab("Days") + 
             ylab("Counts") +
             ggtitle(paste0("Observed hospital cases in top ", length(lads), " LTLAs"))
@@ -381,7 +381,7 @@ if(file.exists(paste0("../", outputs, "/lads_", outputs, ".txt"))) {
                 linetype = "dashed",
                 col = "blue"
             ) +
-            facet_grid(lad ~ age, scales = "free") +
+            facet_grid(lad ~ age, scales = "free", labeller = labeller(age = age_label)) +
             xlab("Days") + 
             ylab("Counts") +
             ggtitle(paste0("Observed cumulative hospital cases in top ", length(lads), " LTLAs"))
