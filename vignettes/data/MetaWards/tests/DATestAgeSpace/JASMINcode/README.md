@@ -148,12 +148,14 @@ R CMD BATCH --no-restore --no-save --slave '--args 1 outputs FALSE' concatenateE
 Then the plot can be run by e.g.
 
 ```
-R CMD BATCH --no-restore --no-save --slave '--args 1 outputs 51 NA' plotEnsembleTrajectories.R
+R CMD BATCH --no-restore --no-save --slave '--args 1 outputs NA NA FALSE' plotEnsembleTrajectories.R
 ```
 
-where the first argument is the wave, the second is the start of the forecasts (if forecasting,
-else set as `NA`), and the third is the final time point to plot (if set as `NA` then defaults
-to the longest point present in the simulations).
+where the first argument is the wave, the second is the name of the output folder, the 
+third is the start of the forecasts (if forecasting, else set as `NA`), the fourth is the
+last time point to plot (if set as `NA` then defaults to the longest point present in the
+simulations). The fifth argument is `TRUE` if the hidden states are to be plotted, or
+`FALSE` otherwise (note that this is only valid for simulated data).
 
 **Note**: the final `plotEnsembleTrajectories.R` call must use the `job_lookup.txt` file
 from the `runPlotAgg`/`setupSLURM.R` call above. Hence you might need to re-run this
