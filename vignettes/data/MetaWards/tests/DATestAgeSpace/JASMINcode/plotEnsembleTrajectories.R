@@ -13,11 +13,12 @@ if(length(args) != 0) {
     ## extract command line arguments
     args <- commandArgs(TRUE)
     if(length(args) > 0) {
-        stopifnot(length(args) == 4)
+        stopifnot(length(args) == 5)
         wave <- args[1]
-	    outputs <- args[2]
+        outputs <- args[2]
         tstart <- as.numeric(args[3])
         tstop <- as.numeric(args[4])
+        simData <- as.logical(args[5])
     } else {
         stop("No arguments")
     }
@@ -27,6 +28,7 @@ if(length(args) != 0) {
     outputs <- "outputs"
     tstart <- NA
     tstop <- NA
+    simData <- FALSE
 }
 cont <- ifelse(is.na(tstart), FALSE, TRUE)
 
@@ -49,31 +51,37 @@ sims_md <- readRDS(paste0("../wave", wave, "/sumEns_natFull.rds"))
 if(is.na(tstop)) tstop <- max(sims_md$t)
 
 ## load in data
-#data <- readRDS(paste0("../", outputs, "/disSims.rds")) %>%
-#    filter(t <= tstop) %>%
-#    pivot_longer(!t, names_to = "var", values_to = "n") %>%
-#    mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
-#    mutate(LAD = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
-#    mutate(age = gsub('(.*)_[0-9]*', '\\1', age)) %>%
-#    mutate(var = gsub('^(.*)_[0-9]*_.*', '\\1', var)) %>%
-#    mutate(var = gsub("one", "1", var)) %>%
-#    mutate(var = gsub("two", "2", var))
+if(simData) {
+    data <- readRDS(paste0("../", outputs, "/disSims.rds")) %>%
+        filter(t <= tstop) %>%
+        pivot_longer(!t, names_to = "var", values_to = "n") %>%
+        mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', var)) %>%
+        mutate(LAD = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
+        mutate(age = gsub('(.*)_[0-9]*', '\\1', age)) %>%
+        mutate(var = gsub('^(.*)_[0-9]*_.*', '\\1', var)) %>%
+        mutate(var = gsub("one", "1", var)) %>%
+        mutate(var = gsub("two", "2", var))
+}
     
 p1 <- list()
 p1[[1]] <- ggplot(sims_md, aes(x = t)) +
     geom_ribbon(aes(ymin = LCI, ymax = UCI), alpha = 0.5) +
     geom_ribbon(aes(ymin = LQ, ymax = UQ), alpha = 0.5) +
     geom_line(aes(y = Median)) +
-#    geom_line(
-#        aes(y = n), 
-#        data = group_by(data, t, var, age) %>%
-#            summarise(n = sum(n), .groups = "drop"),
-#        col = "red", linetype = "dashed"
-#    ) +
     facet_grid(var ~ age, scales = "free", labeller = labeller(age = age_label)) +
     xlab("Days") + 
     ylab("Counts") +
     ggtitle("Hidden states")
+
+if(simData) {
+    p1[[1]] <- p1[[1]] +
+    geom_line(
+        aes(y = n), 
+        data = group_by(data, t, var, age) %>%
+            summarise(n = sum(n), .groups = "drop"),
+        col = "red", linetype = "dashed"
+    )
+}
     
 if(cont) p1[[1]] <- p1[[1]] + geom_vline(xintercept = tstart, linetype = "dashed")
         
