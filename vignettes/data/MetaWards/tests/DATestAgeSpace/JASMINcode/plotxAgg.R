@@ -7,10 +7,16 @@ if(length(args) != 0) {
     ## extract command line arguments
     args <- commandArgs(TRUE)
     if(length(args) > 0) {
-        stopifnot(length(args) == 3)
+        stopifnot(length(args) >= 3)
         wave <- args[1]
 	    outputs <- args[2]
         t <- as.numeric(args[3])
+        if(length(args) > 3) {
+            stopifnot(length(args) == 4)
+            ind <- args[4]
+        } else {
+            ind <- NA
+        }
     } else {
         stop("No arguments")
     }
@@ -19,6 +25,7 @@ if(length(args) != 0) {
     wave <- "1"
     outputs <- "outputs"
     t <- 1
+    ind <- NA
 }
 
 ###############################################
@@ -26,10 +33,15 @@ if(length(args) != 0) {
 ###############################################
 
 ## read in input file
-pars <- readRDS(paste0("wave", wave, "/disease.rds"))
+if(is.na(ind)) {
+    pars <- readRDS(paste0("wave", wave, "/disease.rds"))
+    pars <- 1:nrow(pars)
+} else {
+    pars <- as.numeric(readLines(ind))
+}
 
 ## concatenate runs over ensemble
-runs <- map(1:nrow(pars), function(i, time, wave) {
+runs <- map(pars, function(i, time, wave) {
         readRDS(paste0("wave", wave, "/plotSum_", i, "_natFull.rds")) %>%
             filter(t == time) %>%
             select(n, age, t, var)
@@ -59,7 +71,7 @@ mint <- min(data$t)
 
 ## concatenate runs over ensemble
 if(mint <= t) {
-    runs <- map(1:nrow(pars), function(i, time, wave, mint) {
+    runs <- map(pars, function(i, time, wave, mint) {
         if(mint == 0) {
             runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_natDeaths.rds")) %>%
                 filter(t == time) %>%
@@ -103,7 +115,7 @@ mint <- min(data$t)
 
 if(mint <= t) {
     ## concatenate runs over ensemble
-    runs <- map(1:nrow(pars), function(i, time, wave, mint) {
+    runs <- map(pars, function(i, time, wave, mint) {
         if(mint == 0) {
             runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_ageRegionDeaths.rds")) %>%
                 filter(t == time) %>%
@@ -154,7 +166,7 @@ mint <- min(data$t)
  
 if(mint <= t) {
     ## concatenate runs over ensemble
-    runs <- map(1:nrow(pars), function(i, time, wave) {
+    runs <- map(pars, function(i, time, wave) {
         readRDS(paste0("wave", wave, "/plotSum_", i, "_nhsregionHosp.rds")) %>%
             filter(t == time) %>%
             select(!particle)
@@ -194,7 +206,7 @@ mint <- min(data$t)
  
 if(mint <= t) {
     ## concatenate runs over ensemble
-    runs <- map(1:nrow(pars), function(i, time, wave, mint) {
+    runs <- map(pars, function(i, time, wave, mint) {
             if(mint == 0) {
                 runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_ageNhsregionHosp.rds")) %>%
                     filter(t == time) %>%
@@ -241,7 +253,7 @@ if(file.exists(paste0(outputs, "/lads_", outputs, ".txt"))) {
 
     ## concatenate runs over ensemble
     if(mint <= t) {
-        runs <- map(1:nrow(pars), function(i, time, wave, mint) {
+        runs <- map(pars, function(i, time, wave, mint) {
             if(mint == 0) {
                 runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_lads.rds")) %>%
                     filter(t == time) %>%
