@@ -7,11 +7,16 @@ if(length(args) != 0) {
     ## extract command line arguments
     args <- commandArgs(TRUE)
     if(length(args) > 0) {
-        stopifnot(length(args) == 4)
+        stopifnot(length(args) >= 3)
         wave <- args[1]
 	    outputs <- args[2]
         t <- as.numeric(args[3])
-        ind <- args[4]
+        if(length(args) > 3) {
+            stopifnot(length(args) == 4)
+            ind <- args[4]
+        } else {
+            ind <- NA
+        }
     } else {
         stop("No arguments")
     }
@@ -33,10 +38,11 @@ if(is.na(ind)) {
     pars <- 1:nrow(pars)
     pars <- paste0("wave", wave, "/plotSum_", pars)
 } else {
-    pars <- read_csv(ind)
+    pars <- read_csv(paste0("wave", wave, "/", ind))
     stopifnot(identical(colnames(pars), c("wave", "ind")))
     pars <- paste0("wave", pars$wave, "/plotSum_", pars$ind)
 }
+print(pars)
 
 ## concatenate runs over ensemble
 runs <- map(pars, function(par, time) {
