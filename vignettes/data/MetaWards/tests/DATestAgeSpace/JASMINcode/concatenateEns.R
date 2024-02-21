@@ -9,7 +9,7 @@ if(length(args) != 0) {
     if(length(args) > 0) {
         stopifnot(length(args) >= 3)
         wave <- args[1]
-	outputs <- args[2]
+	    outputs <- args[2]
         updateJobLookup <- as.logical(args[3])
         if(length(args) > 3) {
             time <- args[4]

@@ -7,10 +7,11 @@ if(length(args) != 0) {
     ## extract command line arguments
     args <- commandArgs(TRUE)
     if(length(args) > 0) {
-        stopifnot(length(args) == 3)
+        stopifnot(length(args) == 4)
         wave <- args[1]
 	    outputs <- args[2]
         t <- as.numeric(args[3])
+        ind <- args[4]
     } else {
         stop("No arguments")
     }
@@ -19,6 +20,7 @@ if(length(args) != 0) {
     wave <- "1"
     outputs <- "outputs"
     t <- 1
+    ind <- NA
 }
 
 ###############################################
@@ -26,14 +28,22 @@ if(length(args) != 0) {
 ###############################################
 
 ## read in input file
-pars <- readRDS(paste0("wave", wave, "/disease.rds"))
+if(is.na(ind)) {
+    pars <- readRDS(paste0("wave", wave, "/disease.rds"))
+    pars <- 1:nrow(pars)
+    pars <- paste0("wave", wave, "/plotSum_", pars)
+} else {
+    pars <- read_csv(ind)
+    stopifnot(identical(colnames(pars), c("wave", "ind")))
+    pars <- paste0("wave", pars$wave, "/plotSum_", pars$ind)
+}
 
 ## concatenate runs over ensemble
-runs <- map(1:nrow(pars), function(i, time, wave) {
-        readRDS(paste0("wave", wave, "/plotSum_", i, "_natFull.rds")) %>%
+runs <- map(pars, function(par, time) {
+        readRDS(paste0(par, "_natFull.rds")) %>%
             filter(t == time) %>%
             select(n, age, t, var)
-    }, time = t, wave = wave) %>%
+    }, time = t) %>%
     bind_rows() %>%
     group_by(age, t, var) %>%
     summarise(
@@ -59,13 +69,13 @@ mint <- min(data$t)
 
 ## concatenate runs over ensemble
 if(mint <= t) {
-    runs <- map(1:nrow(pars), function(i, time, wave, mint) {
+    runs <- map(pars, function(par, time, mint) {
         if(mint == 0) {
-            runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_natDeaths.rds")) %>%
+            runs <- readRDS(paste0(par, "_natDeaths.rds")) %>%
                 filter(t == time) %>%
                 select(t, n)
         } else {
-            runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_natDeaths.rds")) %>%
+            runs <- readRDS(paste0(par, "_natDeaths.rds")) %>%
                 filter(t <= time & t >= mint) %>%
                 group_by(particle) %>%
                 mutate(n = n - min(n)) %>%
@@ -74,7 +84,7 @@ if(mint <= t) {
                 select(t, n)
         }
         runs
-    }, time = t, wave = wave, mint = mint) %>%
+    }, time = t, mint = mint) %>%
     bind_rows() %>%
     group_by(t) %>%
     summarise(
@@ -103,13 +113,13 @@ mint <- min(data$t)
 
 if(mint <= t) {
     ## concatenate runs over ensemble
-    runs <- map(1:nrow(pars), function(i, time, wave, mint) {
+    runs <- map(pars, function(par, time, mint) {
         if(mint == 0) {
-            runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_ageRegionDeaths.rds")) %>%
+            runs <- readRDS(paste0(par, "_ageRegionDeaths.rds")) %>%
                 filter(t == time) %>%
                 select(!particle)
         } else {
-            runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_ageRegionDeaths.rds")) %>%
+            runs <- readRDS(paste0(par, "_ageRegionDeaths.rds")) %>%
                 filter(t <= time & t >= mint) %>%
                 group_by(particle, age, RGN19NM) %>%
                 mutate(n = n - min(n)) %>%
@@ -118,7 +128,7 @@ if(mint <= t) {
                 select(!particle)
         }
         runs
-    }, time = t, wave = wave, mint = mint) %>%
+    }, time = t, mint = mint) %>%
     bind_rows() %>%
     group_by(t, age, RGN19NM) %>%
     summarise(
@@ -154,11 +164,11 @@ mint <- min(data$t)
  
 if(mint <= t) {
     ## concatenate runs over ensemble
-    runs <- map(1:nrow(pars), function(i, time, wave) {
-        readRDS(paste0("wave", wave, "/plotSum_", i, "_nhsregionHosp.rds")) %>%
+    runs <- map(pars, function(par, time) {
+        readRDS(paste0(par, "_nhsregionHosp.rds")) %>%
             filter(t == time) %>%
             select(!particle)
-    }, time = t, wave = wave) %>%
+    }, time = t) %>%
     bind_rows() %>%
     group_by(t, areaName) %>%
     summarise(
@@ -194,13 +204,13 @@ mint <- min(data$t)
  
 if(mint <= t) {
     ## concatenate runs over ensemble
-    runs <- map(1:nrow(pars), function(i, time, wave, mint) {
+    runs <- map(pars, function(par, time, mint) {
             if(mint == 0) {
-                runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_ageNhsregionHosp.rds")) %>%
+                runs <- readRDS(paste0(par, "_ageNhsregionHosp.rds")) %>%
                     filter(t == time) %>%
                     select(!particle)
             } else  {
-                runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_ageNhsregionHosp.rds")) %>%
+                runs <- readRDS(paste0(par, "_ageNhsregionHosp.rds")) %>%
                     filter(t <= time & t >= mint) %>%
                     group_by(particle, age, areaName) %>%
                     mutate(n = n - min(n)) %>%
@@ -208,7 +218,7 @@ if(mint <= t) {
                     filter(t == time) %>%
                     select(!particle)
             } 
-        }, time = t, wave = wave, mint = mint) %>%
+        }, time = t, mint = mint) %>%
         bind_rows() %>%
         group_by(t, age, areaName) %>%
         summarise(
@@ -241,13 +251,13 @@ if(file.exists(paste0(outputs, "/lads_", outputs, ".txt"))) {
 
     ## concatenate runs over ensemble
     if(mint <= t) {
-        runs <- map(1:nrow(pars), function(i, time, wave, mint) {
+        runs <- map(pars, function(par, time, mint) {
             if(mint == 0) {
-                runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_lads.rds")) %>%
+                runs <- readRDS(paste0(par, "_lads.rds")) %>%
                     filter(t == time) %>%
                     select(t, n, lad)
             } else {
-                runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_lads.rds")) %>%
+                runs <- readRDS(paste0(par, "_lads.rds")) %>%
                     filter(t <= time & t >= mint) %>%
                     group_by(particle, lad) %>%
                     mutate(n = n - min(n)) %>%
@@ -256,7 +266,7 @@ if(file.exists(paste0(outputs, "/lads_", outputs, ".txt"))) {
                     select(t, n, lad)
             }
 	    runs
-        }, time = t, wave = wave, mint = mint) %>%
+        }, time = t, mint = mint) %>%
         bind_rows() %>%
         group_by(t, lad) %>%
         summarise(
