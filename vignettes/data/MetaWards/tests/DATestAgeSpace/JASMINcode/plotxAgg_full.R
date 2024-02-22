@@ -7,10 +7,16 @@ if(length(args) != 0) {
     ## extract command line arguments
     args <- commandArgs(TRUE)
     if(length(args) > 0) {
-        stopifnot(length(args) == 3)
+        stopifnot(length(args) >= 3)
         wave <- args[1]
 	    outputs <- args[2]
         t <- as.numeric(args[3])
+        if(length(args) > 3) {
+            stopifnot(length(args) == 4)
+            ind <- args[4]
+        } else {
+            ind <- NA
+        }
     } else {
         stop("No arguments")
     }
@@ -19,6 +25,7 @@ if(length(args) != 0) {
     wave <- "1"
     outputs <- "outputs"
     t <- 1
+    ind <- NA
 }
 
 ###############################################
@@ -26,14 +33,23 @@ if(length(args) != 0) {
 ###############################################
 
 ## read in input file
-pars <- readRDS(paste0("wave", wave, "/disease.rds"))
+if(is.na(ind)) {
+    pars <- readRDS(paste0("wave", wave, "/disease.rds"))
+    pars <- 1:nrow(pars)
+    pars <- paste0("wave", wave, "/plotSum_", pars)
+} else {
+    pars <- read_csv(paste0("wave", wave, "/", ind))
+    stopifnot(identical(colnames(pars), c("wave", "ind")))
+    pars <- paste0("wave", pars$wave, "/plotSum_", pars$ind)
+}
+print(pars)
 
 ## concatenate runs over ensemble
-runs <- map(1:nrow(pars), function(i, time, wave) {
-        readRDS(paste0("wave", wave, "/plotSum_", i, "_natFull.rds")) %>%
+runs <- map(pars, function(par, time) {
+        readRDS(paste0(par, "_natFull.rds")) %>%
             filter(t == time) %>%
             select(n, age, t, var)
-    }, time = t, wave = wave) %>%
+    }, time = t) %>%
     bind_rows() %>%
     group_by(age, t, var) %>%
     summarise(
@@ -59,12 +75,12 @@ mint <- min(data$t)
 
 ## concatenate runs over ensemble
 if(mint <= t) {
-    runs <- map(1:nrow(pars), function(i, time, wave, mint) {
+    runs <- map(pars, function(par, time, mint) {
         if(mint == 0) {
-            runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_natAgeDeathsHosp.rds")) %>%
+            runs <- readRDS(paste0(par, "_natAgeDeathsHosp.rds")) %>%
                 filter(t == time)
         } else {
-            runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_natAgeDeathsHosp.rds")) %>%
+            runs <- readRDS(paste0(par, "_natAgeDeathsHosp.rds")) %>%
                 filter(t <= time & t >= mint) %>%
                 group_by(particle, age) %>%
                 mutate(DI = DI - min(DI)) %>%
@@ -74,7 +90,7 @@ if(mint <= t) {
                 filter(t == time)
         }
         runs
-    }, time = t, wave = wave, mint = mint) %>%
+    }, time = t, mint = mint) %>%
     bind_rows() %>%
     group_by(t, age) %>%
     summarise(
@@ -103,12 +119,12 @@ if(file.exists(paste0(outputs, "/lads_", outputs, ".txt"))) {
     mint <- min(data$t)
 
     if(mint <= t) {
-        runs <- map(1:nrow(pars), function(i, time, wave, mint) {
+        runs <- map(pars, function(par, time, mint) {
             if(mint == 0) {
-                runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_age_lads.rds")) %>%
+                runs <- readRDS(paste0(par, "_age_lads.rds")) %>%
                     filter(t == time)
             } else {
-                runs <- readRDS(paste0("wave", wave, "/plotSum_", i, "_age_lads.rds")) %>%
+                runs <- readRDS(paste0(par, "_age_lads.rds")) %>%
                     filter(t <= time & t >= mint) %>%
                     group_by(particle, age, lad) %>%
                     mutate(DI = DI - min(DI)) %>%
@@ -118,7 +134,7 @@ if(file.exists(paste0(outputs, "/lads_", outputs, ".txt"))) {
                     filter(t == time)
             }
             runs
-        }, time = t, wave = wave, mint = mint) %>%
+        }, time = t, mint = mint) %>%
         bind_rows() %>%
         group_by(t, age, lad) %>%
         summarise(

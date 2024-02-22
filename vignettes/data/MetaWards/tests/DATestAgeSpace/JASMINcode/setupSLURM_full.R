@@ -8,10 +8,14 @@ if(length(args) != 0) {
         wave <- args[1]
         runCode <- args[2]
         outputs <- args[3]
-        if(length(args) > 3) {
+        if(length(args) == 4) {
             time <- args[4]
         } else {
             time <- "00:35:00"
+        }if(length(args) == 5) {
+            inds <- args[5]
+        } else {
+            inds <- NA
         }
     } else {
         stop("No arguments")
@@ -22,6 +26,7 @@ if(length(args) != 0) {
     runCode <- "runDesign_full"
     outputs <- "outputs"
     time <- "00:35:00"
+    inds <- NA
     #runCode <- "runPlotSum_full"
     #runCode <- "runPlotAgg_full"
 }
@@ -29,6 +34,11 @@ if(!runCode %in% c("runDesign_full", "runForecasts_full", "runPlotSum_full", "ru
 
 ## read in input file
 pars <- readRDS(paste0("../wave", wave, "/disease.rds"))
+
+## add additional inds argument if specified
+if(!is.na(inds)) {
+    outputs <- paste(outputs, inds)
+}
 
 ## read run code
 code <- readLines("submit_job_template.sbatch")
