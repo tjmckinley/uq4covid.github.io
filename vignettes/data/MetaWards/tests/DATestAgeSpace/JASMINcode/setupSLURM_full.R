@@ -12,7 +12,8 @@ if(length(args) != 0) {
             time <- args[4]
         } else {
             time <- "00:35:00"
-        }if(length(args) == 5) {
+        }
+        if(length(args) == 5) {
             inds <- args[5]
         } else {
             inds <- NA
