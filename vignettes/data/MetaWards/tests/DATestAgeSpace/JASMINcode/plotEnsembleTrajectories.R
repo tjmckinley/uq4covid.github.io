@@ -285,6 +285,45 @@ p <- filter(lad19, t == max(t)) %>%
 ggsave(paste0("../wave", wave, "/simsspstatic.pdf"), p)
 
 ###############################################
+#####             LTLA plots              #####
+###############################################
+
+## load in data
+data <- readRDS(paste0("../", outputs, "/cumDeath_lad.rds")) %>%
+    filter(t <= tstop) %>%
+    pivot_longer(!t, names_to = "lad", values_to = "n") %>%
+    mutate(lad = as.numeric(gsub("deaths_", "", lad))) %>%
+    inner_join(death_lookup, by = c("lad" = "FID")) %>%
+    rename(Data = n) %>%
+    select(t, lad, Data)
+
+## load in runs
+sims_md <- readRDS(paste0("../wave", wave, "/sumEns_lads.rds")) %>%
+    dplyr::select(t, lad, Median, LCI, UCI) %>%
+    rename(Prediction = Median)
+
+## join runs and data
+data <- inner_join(data, sims_md, by = c("lad", "t"))
+
+## produce plot
+p <- filter(data, t == max(t)) %>%
+    arrange(desc(Prediction)) %>%
+    mutate(lad = 1:n()) %>%
+    mutate(inside = ifelse(Data >= LCI & Data <= UCI, "Inside 95% CI", "Outside 95% CI")) %>%
+    pivot_longer(c(Data, Prediction), names_to = "type", values_to = "Count") %>%
+    mutate(inside = ifelse(type == "Prediction", "Prediction", inside)) %>%
+    arrange(desc(inside)) %>%
+    ggplot() +
+        geom_errorbar(aes(x = lad, ymin = LCI, ymax = UCI), colour = "#52854C") +
+        geom_point(aes(x = lad, y = Count, colour = inside)) +
+        ggtitle(paste0("Cumulative deaths at t = ", max(data$t))) +
+        xlab("LTLA (in decreasing order of deaths)") +
+        ylab("Cumulative Deaths") +
+        scale_colour_manual(name = "", values = c("#E69F00", "#D55E00", "#52854C")) +
+        theme(axis.text.x = element_blank(), legend.position = "bottom")
+ggsave(paste0("../wave", wave, "/simsLTLA.pdf"), p, width = 15, height = 5)
+
+###############################################
 #####          LAD-level plots            #####
 ###############################################
 
