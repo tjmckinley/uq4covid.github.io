@@ -302,6 +302,67 @@ p2 <- p2[[1]] / p2[[2]]
 ggsave(paste0("../wave", wave, "/simsspstatic.pdf"), p2, height = 14, width = 10)
 
 ###############################################
+#####             LTLA plots              #####
+###############################################
+
+## load in runs
+sims_md <- readRDS(paste0("../wave", wave, "/sumEns_age_lads.rds"))
+
+## join runs and data
+data <- inner_join(
+    select(data, !c(areaCode, areaName, DH_Median, Hcum_Median)), 
+    sims_md, 
+    by = c("lad", "t", "age")
+)
+
+## produce plots
+p <- filter(data, t == max(t)) %>%
+    select(age, lad, Data = DH, Prediction = DH_Median, LCI = DH_LCI, UCI = DH_UCI) %>%
+    group_by(age) %>%
+    arrange(desc(Prediction)) %>%
+    mutate(lad = 1:n()) %>%
+    ungroup() %>%
+    mutate(inside = ifelse(Data >= LCI & Data <= UCI, "Inside 95% CI", "Outside 95% CI")) %>%
+    pivot_longer(c(Data, Prediction), names_to = "type", values_to = "Count") %>%
+    mutate(inside = ifelse(type == "Prediction", "Prediction", inside)) %>%
+    group_by(age) %>%
+    arrange(desc(inside)) %>%
+    ungroup() %>%
+    ggplot() +
+        geom_errorbar(aes(x = lad, ymin = LCI, ymax = UCI), colour = "#52854C") +
+        geom_point(aes(x = lad, y = Count, colour = inside)) +
+        facet_wrap(~ age, ncol = 1, labeller = labeller(age = age_label), scales = "free_x") +
+        ggtitle(paste0("Cumulative deaths at t = ", max(data$t))) +
+        xlab("LTLA (in decreasing order of deaths)") +
+        ylab("Cumulative deaths") +
+        scale_colour_manual(name = "", values = c("#E69F00", "#D55E00", "#52854C")) +
+        theme(axis.text.x = element_blank(), legend.position = "bottom")
+ggsave(paste0("../wave", wave, "/simsLTLA_cDeaths.pdf"), p, width = 15, height = 15)
+
+p <- filter(data, t == max(t)) %>%
+    select(age, lad, Data = Hcum, Prediction = Hcum_Median, LCI = Hcum_LCI, UCI = Hcum_UCI) %>%
+    group_by(age) %>%
+    arrange(desc(Prediction)) %>%
+    mutate(lad = 1:n()) %>%
+    ungroup() %>%
+    mutate(inside = ifelse(Data >= LCI & Data <= UCI, "Inside 95% CI", "Outside 95% CI")) %>%
+    pivot_longer(c(Data, Prediction), names_to = "type", values_to = "Count") %>%
+    mutate(inside = ifelse(type == "Prediction", "Prediction", inside)) %>%
+    group_by(age) %>%
+    arrange(desc(inside)) %>%
+    ungroup() %>%
+    ggplot() +
+        geom_errorbar(aes(x = lad, ymin = LCI, ymax = UCI), colour = "#52854C") +
+        geom_point(aes(x = lad, y = Count, colour = inside)) +
+        facet_wrap(~ age, ncol = 1, labeller = labeller(age = age_label), scales = "free_x") +
+        ggtitle(paste0("Cumulative hospital cases at t = ", max(data$t))) +
+        xlab("LTLA (in decreasing order of deaths)") +
+        ylab("Cumulative hospital cases") +
+        scale_colour_manual(name = "", values = c("#E69F00", "#D55E00", "#52854C")) +
+        theme(axis.text.x = element_blank(), legend.position = "bottom")
+ggsave(paste0("../wave", wave, "/simsLTLA_cHosp.pdf"), p, width = 15, height = 15)
+
+###############################################
 #####          LAD-level plots            #####
 ###############################################
 
