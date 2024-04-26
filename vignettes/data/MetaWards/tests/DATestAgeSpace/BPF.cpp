@@ -1551,10 +1551,11 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
             // and scaling parameters
             arma::mat C = C1;
             arma::vec pars1 = pars;
-            if(t >= lockdown_day) {
+            if(t > lockdown_day) {
                 C = C2;
             } else {
                 pars1(pars1.n_elem - 2) = 1.0;
+                pars1(pars1.n_elem - 1) = 1.0;
             }
             
             // run model and return u1
@@ -2112,10 +2113,11 @@ List BPF_cpp (arma::vec pars, arma::mat C1, arma::mat C2, int lockdown_day,
                     // and scaling parameters
                     arma::mat C = C1;
                     arma::vec condpars1 = condpars;
-                    if(t >= lockdown_day) {
+                    if(t > lockdown_day) {
                         C = C2;
                     } else {
                         condpars1(condpars1.n_elem - 2) = 1.0;
+                        condpars1(condpars1.n_elem - 1) = 1.0;
                     }
                 
                     // cols: c("S", "E", "A", "RA", "P", "I1", "DI", "I2", "RI", "H", "RH", "DH")
