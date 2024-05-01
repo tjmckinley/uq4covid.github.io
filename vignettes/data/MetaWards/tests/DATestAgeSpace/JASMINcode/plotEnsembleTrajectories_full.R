@@ -362,6 +362,10 @@ p <- filter(data, t == max(t)) %>%
         theme(axis.text.x = element_blank(), legend.position = "bottom")
 ggsave(paste0("../wave", wave, "/simsLTLA_cHosp.pdf"), p, width = 15, height = 15)
 
+## save outputs
+p2 <- list(p2, p)
+saveRDS(p2, paste0("../wave", wave, "/plots_sp.rds"))
+
 ###############################################
 #####          LAD-level plots            #####
 ###############################################
@@ -454,7 +458,11 @@ if(file.exists(paste0("../", outputs, "/lads_", outputs, ".txt"))) {
         p1[[4]] <- p1[[4]] + geom_vline(xintercept = tstart, linetype = "dashed")
     }
     p1 <- (p1[[1]] + p1[[2]]) / (p1[[3]] + p1[[4]])
-
+    
+    ## save plot
     ggsave(paste0("../wave", wave, "/simsTopLADsBPFEns.pdf"), p1, width = 25, height = 25)
+    
+    ## save outputs
+    saveRDS(p1, paste0("../wave", wave, "/plots_lad.rds"))
 }
 

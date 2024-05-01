@@ -284,6 +284,9 @@ p <- filter(lad19, t == max(t)) %>%
         ggtitle(paste0("Deaths at t = ", max(lad19$t)))
 ggsave(paste0("../wave", wave, "/simsspstatic.pdf"), p)
 
+## save output
+p1 <- p
+
 ###############################################
 #####             LTLA plots              #####
 ###############################################
@@ -323,6 +326,10 @@ p <- filter(data, t == max(t)) %>%
         theme(axis.text.x = element_blank(), legend.position = "bottom")
 ggsave(paste0("../wave", wave, "/simsLTLA.pdf"), p, width = 15, height = 5)
 
+## save outputs
+p1 <- list(p1, p)
+saveRDS(p1, paste0("../wave", wave, "/plots_sp.rds"))
+
 ###############################################
 #####          LAD-level plots            #####
 ###############################################
@@ -360,6 +367,10 @@ if(file.exists(paste0("../", outputs, "/lads_", outputs, ".txt"))) {
 
     if(cont) p1 <- p1 + geom_vline(xintercept = tstart, linetype = "dashed")
 
+    ## save plot
     ggsave(paste0("../wave", wave, "/simsTopLADsBPFEns.pdf"), p1, width = 10, height = 10)
+    
+    ## save outputs
+    saveRDS(p1, paste0("../wave", wave, "/plots_lad.rds"))
 }
 
