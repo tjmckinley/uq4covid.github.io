@@ -231,16 +231,18 @@ lad19 <- st_read(paste0("../", outputs, "/Local_Authority_Districts_(December_20
 death_lookup <- readRDS(paste0("../", outputs, "/death_lookup.rds"))
 
 ## load in data
+DI <- rename(DI, DI = n)
 DH <- rename(DH, DH = n)
 Hcum <- rename(Hcum, Hcum = n)
-data <- inner_join(DH, Hcum, by = c("lad", "t", "age")) %>%
+data <- inner_join(DI, DH, Hcum, by = c("lad", "t", "age")) %>%
     inner_join(death_lookup, by = c("lad" = "FID"))
+DI <- rename(DI, n = DI)
 DH <- rename(DH, n = DH)
 Hcum <- rename(Hcum, n = Hcum)
 
 ## load in runs
 sims_md <- readRDS(paste0("../wave", wave, "/sumEns_age_lads.rds")) %>%
-    dplyr::select(t, lad, age, DH_Median, Hcum_Median)
+    dplyr::select(t, lad, age, DH_Median, Hcum_Median, DI_Median)
 
 ## join runs and data
 data <- inner_join(data, sims_md, by = c("lad", "t", "age"))
@@ -280,6 +282,7 @@ p1 <- p1 + plot_layout(guides = "collect")
 p1 <- p1 + plot_annotation(title = paste0("Cumulative hospital deaths at t = ", max(lad19$t)))
 p2 <- list()
 p2[[1]] <- p1
+
 p[[1]] <- rename(temp, Count = Hcum) %>%
     ggplot() +
         geom_sf(aes(fill = Count), colour = NA) +
@@ -298,6 +301,7 @@ p1 <- p1 & scale_fill_viridis_c(limits = range(c(temp$Hcum, temp$Hcum_Median)))
 p1 <- p1 + plot_layout(guides = "collect")
 p1 <- p1 + plot_annotation(title = paste0("Cumulative hospital cases at t = ", max(lad19$t)))
 p2[[2]] <- p1
+
 p[[1]] <- rename(temp, Count = DI) %>%
     ggplot() +
         geom_sf(aes(fill = Count), colour = NA) +
