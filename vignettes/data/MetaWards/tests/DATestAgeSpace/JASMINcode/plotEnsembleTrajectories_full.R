@@ -298,8 +298,27 @@ p1 <- p1 & scale_fill_viridis_c(limits = range(c(temp$Hcum, temp$Hcum_Median)))
 p1 <- p1 + plot_layout(guides = "collect")
 p1 <- p1 + plot_annotation(title = paste0("Cumulative hospital cases at t = ", max(lad19$t)))
 p2[[2]] <- p1
-p2 <- p2[[1]] / p2[[2]]
-ggsave(paste0("../wave", wave, "/simsspstatic.pdf"), p2, height = 14, width = 10)
+p[[1]] <- rename(temp, Count = DI) %>%
+    ggplot() +
+        geom_sf(aes(fill = Count), colour = NA) +
+        facet_wrap(~age, labeller = labeller(age = age_label)) +
+        scale_fill_viridis_c() +
+        ggtitle("Data (cumulative community deaths)")
+p[[2]] <- rename(temp, Count = DI_Median) %>%
+    ggplot() +
+        geom_sf(aes(fill = Count), colour = NA) +
+        facet_wrap(~age, labeller = labeller(age = age_label)) +
+        scale_fill_viridis_c() +
+        ggtitle("Predictions (cumulative community deaths)")
+p1 <- p[[1]] + p[[2]] 
+#p1 <- p1 & theme(legend.position = "bottom")
+p1 <- p1 & scale_fill_viridis_c(limits = range(c(temp$Hcum, temp$Hcum_Median)))
+p1 <- p1 + plot_layout(guides = "collect")
+p1 <- p1 + plot_annotation(title = paste0("Cumulative community deaths at t = ", max(lad19$t)))
+p2[[3]] <- p1
+
+p2 <- p2[[1]] / p2[[2]] / p2[[3]]
+ggsave(paste0("../wave", wave, "/simsspstatic.pdf"), p2, height = 21, width = 10)
 
 ###############################################
 #####             LTLA plots              #####
@@ -315,8 +334,10 @@ data <- inner_join(
     by = c("lad", "t", "age")
 )
 
+p <- list()
+
 ## produce plots
-p <- filter(data, t == max(t)) %>%
+p[[1]] <- filter(data, t == max(t)) %>%
     select(age, lad, Data = DH, Prediction = DH_Median, LCI = DH_LCI, UCI = DH_UCI) %>%
     group_by(age) %>%
     arrange(desc(Prediction)) %>%
@@ -332,14 +353,37 @@ p <- filter(data, t == max(t)) %>%
         geom_errorbar(aes(x = lad, ymin = LCI, ymax = UCI), colour = "#52854C") +
         geom_point(aes(x = lad, y = Count, colour = inside)) +
         facet_wrap(~ age, ncol = 1, labeller = labeller(age = age_label), scales = "free_x") +
-        ggtitle(paste0("Cumulative deaths at t = ", max(data$t))) +
+        ggtitle(paste0("Cumulative hospital deaths at t = ", max(data$t))) +
+        xlab("LTLA (in decreasing order of deaths)") +
+        ylab("Cumulative deaths") +
+        scale_colour_manual(name = "", values = c("#E69F00", "#D55E00", "#52854C")) +
+        theme(axis.text.x = element_blank(), legend.position = "bottom")
+ggsave(paste0("../wave", wave, "/simsLTLA_cHospDeaths.pdf"), p, width = 15, height = 15)
+
+p[[2]] <- filter(data, t == max(t)) %>%
+    select(age, lad, Data = DI, Prediction = DI_Median, LCI = DI_LCI, UCI = DI_UCI) %>%
+    group_by(age) %>%
+    arrange(desc(Prediction)) %>%
+    mutate(lad = 1:n()) %>%
+    ungroup() %>%
+    mutate(inside = ifelse(Data >= LCI & Data <= UCI, "Inside 95% CI", "Outside 95% CI")) %>%
+    pivot_longer(c(Data, Prediction), names_to = "type", values_to = "Count") %>%
+    mutate(inside = ifelse(type == "Prediction", "Prediction", inside)) %>%
+    group_by(age) %>%
+    arrange(desc(inside)) %>%
+    ungroup() %>%
+    ggplot() +
+        geom_errorbar(aes(x = lad, ymin = LCI, ymax = UCI), colour = "#52854C") +
+        geom_point(aes(x = lad, y = Count, colour = inside)) +
+        facet_wrap(~ age, ncol = 1, labeller = labeller(age = age_label), scales = "free_x") +
+        ggtitle(paste0("Cumulative community deaths at t = ", max(data$t))) +
         xlab("LTLA (in decreasing order of deaths)") +
         ylab("Cumulative deaths") +
         scale_colour_manual(name = "", values = c("#E69F00", "#D55E00", "#52854C")) +
         theme(axis.text.x = element_blank(), legend.position = "bottom")
 ggsave(paste0("../wave", wave, "/simsLTLA_cDeaths.pdf"), p, width = 15, height = 15)
 
-p <- filter(data, t == max(t)) %>%
+p[[3]] <- filter(data, t == max(t)) %>%
     select(age, lad, Data = Hcum, Prediction = Hcum_Median, LCI = Hcum_LCI, UCI = Hcum_UCI) %>%
     group_by(age) %>%
     arrange(desc(Prediction)) %>%
