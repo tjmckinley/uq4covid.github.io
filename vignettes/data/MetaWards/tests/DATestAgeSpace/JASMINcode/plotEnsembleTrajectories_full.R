@@ -234,7 +234,8 @@ death_lookup <- readRDS(paste0("../", outputs, "/death_lookup.rds"))
 DI <- rename(DI, DI = n)
 DH <- rename(DH, DH = n)
 Hcum <- rename(Hcum, Hcum = n)
-data <- inner_join(DI, DH, Hcum, by = c("lad", "t", "age")) %>%
+data <- inner_join(DI, DH, by = c("lad", "t", "age")) %>%
+    inner_join(Hcum, by = c("lad", "t", "age")) %>%
     inner_join(death_lookup, by = c("lad" = "FID"))
 DI <- rename(DI, n = DI)
 DH <- rename(DH, n = DH)
