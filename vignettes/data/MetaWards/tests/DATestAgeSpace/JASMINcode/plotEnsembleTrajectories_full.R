@@ -363,7 +363,7 @@ p[[1]] <- filter(data, t == max(t)) %>%
         ylab("Cumulative deaths") +
         scale_colour_manual(name = "", values = c("#E69F00", "#D55E00", "#52854C")) +
         theme(axis.text.x = element_blank(), legend.position = "bottom")
-ggsave(paste0("../wave", wave, "/simsLTLA_cHospDeaths.pdf"), p, width = 15, height = 15)
+ggsave(paste0("../wave", wave, "/simsLTLA_cHospDeaths.pdf"), p[[1]], width = 15, height = 15)
 
 p[[2]] <- filter(data, t == max(t)) %>%
     select(age, lad, Data = DI, Prediction = DI_Median, LCI = DI_LCI, UCI = DI_UCI) %>%
@@ -386,7 +386,7 @@ p[[2]] <- filter(data, t == max(t)) %>%
         ylab("Cumulative deaths") +
         scale_colour_manual(name = "", values = c("#E69F00", "#D55E00", "#52854C")) +
         theme(axis.text.x = element_blank(), legend.position = "bottom")
-ggsave(paste0("../wave", wave, "/simsLTLA_cDeaths.pdf"), p, width = 15, height = 15)
+ggsave(paste0("../wave", wave, "/simsLTLA_cDeaths.pdf"), p[[2]], width = 15, height = 15)
 
 p[[3]] <- filter(data, t == max(t)) %>%
     select(age, lad, Data = Hcum, Prediction = Hcum_Median, LCI = Hcum_LCI, UCI = Hcum_UCI) %>%
@@ -409,7 +409,7 @@ p[[3]] <- filter(data, t == max(t)) %>%
         ylab("Cumulative hospital cases") +
         scale_colour_manual(name = "", values = c("#E69F00", "#D55E00", "#52854C")) +
         theme(axis.text.x = element_blank(), legend.position = "bottom")
-ggsave(paste0("../wave", wave, "/simsLTLA_cHosp.pdf"), p, width = 15, height = 15)
+ggsave(paste0("../wave", wave, "/simsLTLA_cHosp.pdf"), p[[3]], width = 15, height = 15)
 
 ## save outputs
 p2 <- list(p2, p)
