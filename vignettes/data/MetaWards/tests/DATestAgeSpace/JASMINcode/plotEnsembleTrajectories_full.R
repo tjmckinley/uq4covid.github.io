@@ -334,7 +334,7 @@ sims_md <- readRDS(paste0("../wave", wave, "/sumEns_age_lads.rds"))
 
 ## join runs and data
 data <- inner_join(
-    select(data, !c(areaCode, areaName, DH_Median, Hcum_Median)), 
+    select(data, !c(areaCode, areaName, DH_Median, Hcum_Median, DI_Median)), 
     sims_md, 
     by = c("lad", "t", "age")
 )
