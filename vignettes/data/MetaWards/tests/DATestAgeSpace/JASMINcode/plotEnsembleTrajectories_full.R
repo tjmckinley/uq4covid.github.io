@@ -317,7 +317,7 @@ p[[2]] <- rename(temp, Count = DI_Median) %>%
         ggtitle("Predictions (cumulative community deaths)")
 p1 <- p[[1]] + p[[2]] 
 #p1 <- p1 & theme(legend.position = "bottom")
-p1 <- p1 & scale_fill_viridis_c(limits = range(c(temp$Hcum, temp$Hcum_Median)))
+p1 <- p1 & scale_fill_viridis_c(limits = range(c(temp$DI, temp$DI_Median)))
 p1 <- p1 + plot_layout(guides = "collect")
 p1 <- p1 + plot_annotation(title = paste0("Cumulative community deaths at t = ", max(lad19$t)))
 p2[[3]] <- p1
