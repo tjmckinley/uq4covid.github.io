@@ -319,11 +319,11 @@ p <- filter(data, t == max(t)) %>%
     arrange(desc(inside)) %>%
     ggplot() +
         geom_errorbar(aes(x = lad, ymin = LCI, ymax = UCI), colour = "#52854C") +
-        geom_point(aes(x = lad, y = Count, colour = inside)) +
+        geom_point(aes(x = lad, y = Count, colour = inside), show.legend = TRUE) +
         ggtitle(paste0("Cumulative deaths at t = ", max(data$t))) +
         xlab("LTLA (in decreasing order of deaths)") +
         ylab("Cumulative Deaths") +
-        scale_colour_manual(name = "", values = c("#E69F00", "#D55E00", "#52854C")) +
+        scale_colour_manual(name = "", values = c("#E69F00", "#D55E00", "#52854C"), drop = FALSE) +
         theme(axis.text.x = element_blank(), legend.position = "bottom")
 ggsave(paste0("../wave", wave, "/simsLTLA.pdf"), p, width = 15, height = 5)
 

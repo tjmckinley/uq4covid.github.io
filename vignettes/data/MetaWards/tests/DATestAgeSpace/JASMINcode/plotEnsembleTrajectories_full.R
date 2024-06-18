@@ -356,12 +356,12 @@ p[[1]] <- filter(data, t == max(t)) %>%
     ungroup() %>%
     ggplot() +
         geom_errorbar(aes(x = lad, ymin = LCI, ymax = UCI), colour = "#52854C") +
-        geom_point(aes(x = lad, y = Count, colour = inside)) +
+        geom_point(aes(x = lad, y = Count, colour = inside), show.legend = TRUE) +
         facet_wrap(~ age, ncol = 1, labeller = labeller(age = age_label), scales = "free_x") +
         ggtitle(paste0("Cumulative hospital deaths at t = ", max(data$t))) +
         xlab("LTLA (in decreasing order of deaths)") +
         ylab("Cumulative deaths") +
-        scale_colour_manual(name = "", values = c("#E69F00", "#D55E00", "#52854C")) +
+        scale_colour_manual(name = "", values = c("#E69F00", "#D55E00", "#52854C"), drop = FALSE) +
         theme(axis.text.x = element_blank(), legend.position = "bottom")
 ggsave(paste0("../wave", wave, "/simsLTLA_cHospDeaths.pdf"), p[[1]], width = 15, height = 15)
 
@@ -379,12 +379,12 @@ p[[2]] <- filter(data, t == max(t)) %>%
     ungroup() %>%
     ggplot() +
         geom_errorbar(aes(x = lad, ymin = LCI, ymax = UCI), colour = "#52854C") +
-        geom_point(aes(x = lad, y = Count, colour = inside)) +
+        geom_point(aes(x = lad, y = Count, colour = inside), show.legend = TRUE) +
         facet_wrap(~ age, ncol = 1, labeller = labeller(age = age_label), scales = "free_x") +
         ggtitle(paste0("Cumulative community deaths at t = ", max(data$t))) +
         xlab("LTLA (in decreasing order of deaths)") +
         ylab("Cumulative deaths") +
-        scale_colour_manual(name = "", values = c("#E69F00", "#D55E00", "#52854C")) +
+        scale_colour_manual(name = "", values = c("#E69F00", "#D55E00", "#52854C"), drop = FALSE) +
         theme(axis.text.x = element_blank(), legend.position = "bottom")
 ggsave(paste0("../wave", wave, "/simsLTLA_cDeaths.pdf"), p[[2]], width = 15, height = 15)
 
@@ -402,12 +402,12 @@ p[[3]] <- filter(data, t == max(t)) %>%
     ungroup() %>%
     ggplot() +
         geom_errorbar(aes(x = lad, ymin = LCI, ymax = UCI), colour = "#52854C") +
-        geom_point(aes(x = lad, y = Count, colour = inside)) +
+        geom_point(aes(x = lad, y = Count, colour = inside), show.legend = TRUE) +
         facet_wrap(~ age, ncol = 1, labeller = labeller(age = age_label), scales = "free_x") +
         ggtitle(paste0("Cumulative hospital cases at t = ", max(data$t))) +
         xlab("LTLA (in decreasing order of deaths)") +
         ylab("Cumulative hospital cases") +
-        scale_colour_manual(name = "", values = c("#E69F00", "#D55E00", "#52854C")) +
+        scale_colour_manual(name = "", values = c("#E69F00", "#D55E00", "#52854C"), drop = FALSE) +
         theme(axis.text.x = element_blank(), legend.position = "bottom")
 ggsave(paste0("../wave", wave, "/simsLTLA_cHosp.pdf"), p[[3]], width = 15, height = 15)
 
