@@ -315,6 +315,7 @@ p <- filter(data, t == max(t)) %>%
     mutate(inside = ifelse(Data >= LCI & Data <= UCI, "Inside 95% CI", "Outside 95% CI")) %>%
     pivot_longer(c(Data, Prediction), names_to = "type", values_to = "Count") %>%
     mutate(inside = ifelse(type == "Prediction", "Prediction", inside)) %>%
+    mutate(inside = factor(inside, levels = c("Inside 95% CI", "Outside 95% CI", "Prediction"))) %>%
     arrange(desc(inside)) %>%
     ggplot() +
         geom_errorbar(aes(x = lad, ymin = LCI, ymax = UCI), colour = "#52854C") +
