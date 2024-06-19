@@ -351,6 +351,7 @@ p[[1]] <- filter(data, t == max(t)) %>%
     mutate(inside = ifelse(Data >= LCI & Data <= UCI, "Inside 95% CI", "Outside 95% CI")) %>%
     pivot_longer(c(Data, Prediction), names_to = "type", values_to = "Count") %>%
     mutate(inside = ifelse(type == "Prediction", "Prediction", inside)) %>%
+    mutate(inside = factor(inside, levels = c("Inside 95% CI", "Outside 95% CI", "Prediction"))) %>%
     group_by(age) %>%
     arrange(desc(inside)) %>%
     ungroup() %>%
@@ -374,6 +375,7 @@ p[[2]] <- filter(data, t == max(t)) %>%
     mutate(inside = ifelse(Data >= LCI & Data <= UCI, "Inside 95% CI", "Outside 95% CI")) %>%
     pivot_longer(c(Data, Prediction), names_to = "type", values_to = "Count") %>%
     mutate(inside = ifelse(type == "Prediction", "Prediction", inside)) %>%
+    mutate(inside = factor(inside, levels = c("Inside 95% CI", "Outside 95% CI", "Prediction"))) %>%
     group_by(age) %>%
     arrange(desc(inside)) %>%
     ungroup() %>%
@@ -397,6 +399,7 @@ p[[3]] <- filter(data, t == max(t)) %>%
     mutate(inside = ifelse(Data >= LCI & Data <= UCI, "Inside 95% CI", "Outside 95% CI")) %>%
     pivot_longer(c(Data, Prediction), names_to = "type", values_to = "Count") %>%
     mutate(inside = ifelse(type == "Prediction", "Prediction", inside)) %>%
+    mutate(inside = factor(inside, levels = c("Inside 95% CI", "Outside 95% CI", "Prediction"))) %>%
     group_by(age) %>%
     arrange(desc(inside)) %>%
     ungroup() %>%
