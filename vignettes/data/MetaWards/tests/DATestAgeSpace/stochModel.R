@@ -14,8 +14,18 @@ library(patchwork)
 seed <- 456
 set.seed(seed)
 
+args <- commandArgs(trailingOnly = TRUE)
+if(length(args) > 0) {
+    if(length(args) != 1) {
+        stop("Must be one arguments")
+    }
+    id <- as.numeric(args[1])
+} else {
+    id <- 1
+}
+
 ## create output directory
-outputdir <- paste0("outputs", seed)
+outputdir <- paste0("outputs", seed, "_", id)
 if(dir.exists(outputdir)) {
     stop("Can't overwrite existing directory")
 }
@@ -59,9 +69,9 @@ contact2 <- read_csv("inputs/coMix_matrix.csv", col_names = FALSE) %>%
     as.matrix()
 
 ## extract parameters for simulation   
-pars <- select(slice(pars, 100), !output)
+pars <- select(slice(pars, id), !output)
 pars_save <- readRDS("wave1/inputs.rds") %>%
-    slice(100)
+    slice(id)
 saveRDS(pars_save, paste0(outputdir, "/pars.rds"))
 
 ## solution to round numbers preserving sum
