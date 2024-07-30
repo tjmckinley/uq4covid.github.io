@@ -157,9 +157,6 @@ if(exists("hash")) {
         saveAll = saveAll, snapshot = snapshot, writeExt = writeExt, PF = FALSE, 
         outputName = paste0("wave", wave, "/saveOut_wave", wave, "_", hash),
         ncores = 1)
-    ## save outputs
-    saveRDS(runs_md, paste0("wave", wave, "/runs_md_cont", hash, ".rds"))
-    if(writeExt) system(paste0("mv saveOut_wave", wave, "_", hash, " wave", wave))
 } else {
     runs_md <- BPF(pars, C1 = contact1, C2 = contact2, lockdown_day = lockdown_day,
         cumDeath_lad = cumDeath_lad, cumDeath_age_region = cumDeath_age_region, 
@@ -174,5 +171,4 @@ if(exists("hash")) {
     saveRDS(runs_md, paste0("wave", wave, "/runs_md_cont.rds"))
 }
 
-## save outputs
-saveRDS(runs_md, paste0("wave", wave, "/runs_md_cont_", hash, ".rds"))
+print("Finished")
