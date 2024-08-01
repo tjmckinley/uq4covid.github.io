@@ -98,7 +98,7 @@ data <- readRDS(paste0("../", outputs, "/cumDeath_lad.rds")) %>%
     summarise(n = sum(n), .groups = "drop")
 
 if(cont) {
-    data_forecast <- filter(data, t > tendfit)
+    data_forecast <- filter(data, t >= tendfit)
     data <- filter(data, t <= tendfit)
 }
 
@@ -138,7 +138,7 @@ data <- readRDS(paste0("../", outputs, "/cumDeath_age_region.rds")) %>%
     select(t, n, age, RGN19NM)
 
 if(cont) {
-    data_forecast <- filter(data, t > tendfit)
+    data_forecast <- filter(data, t >= tendfit)
     data <- filter(data, t <= tendfit)
 }
     
@@ -177,7 +177,7 @@ data <- readRDS(paste0("../", outputs, "/hosp_nhsregion.rds")) %>%
     select(t, n, areaName)
 
 if(cont) {
-    data_forecast <- filter(data, t > tendfit)
+    data_forecast <- filter(data, t >= tendfit)
     data <- filter(data, t <= tendfit)
 }
     
@@ -215,7 +215,7 @@ data <- readRDS(paste0("../", outputs, "/cumHospAd_age_nhsregion.rds")) %>%
     select(t, n, age, areaName)
 
 if(cont) {
-    data_forecast <- filter(data, t > tendfit)
+    data_forecast <- filter(data, t >= tendfit)
     data <- filter(data, t <= tendfit)
 }
 
@@ -364,7 +364,7 @@ if(file.exists(paste0("../", outputs, "/lads_", outputs, ".txt"))) {
         filter(lad %in% lads)
 
     if(cont) {
-        data_forecast <- filter(data, t > tendfit)
+        data_forecast <- filter(data, t >= tendfit)
         data <- filter(data, t <= tendfit)
     }
 
