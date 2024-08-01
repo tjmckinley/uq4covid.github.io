@@ -16,7 +16,7 @@ if(length(args) != 0) {
         stopifnot(length(args) == 5)
         wave <- args[1]
         outputs <- args[2]
-        tstart <- as.numeric(args[3])
+        tendfit <- as.numeric(args[3])
         tstop <- as.numeric(args[4])
         simData <- as.logical(args[5])
     } else {
@@ -26,11 +26,11 @@ if(length(args) != 0) {
     ## set wave number and hash
     wave <- "1"
     outputs <- "outputs"
-    tstart <- NA
+    tendfit <- NA
     tstop <- NA
     simData <- FALSE
 }
-cont <- ifelse(is.na(tstart), FALSE, TRUE)
+cont <- ifelse(is.na(tendfit), FALSE, TRUE)
 
 ## set up facet labeller vector
 age_label <- as.character(1:8)
@@ -83,7 +83,7 @@ if(simData) {
     )
 }
     
-if(cont) p1[[1]] <- p1[[1]] + geom_vline(xintercept = tstart, linetype = "dashed")
+if(cont) p1[[1]] <- p1[[1]] + geom_vline(xintercept = tendfit, linetype = "dashed")
         
 ###############################################
 #######     LAD-level observations      #######
@@ -97,6 +97,11 @@ data <- readRDS(paste0("../", outputs, "/cumDeath_lad.rds")) %>%
     group_by(t) %>%
     summarise(n = sum(n), .groups = "drop")
 
+if(cont) {
+    data_forecast <- filter(data, t > tendfit)
+    data <- filter(data, t <= tendfit)
+}
+
 ## load in runs
 sims_md <- readRDS(paste0("../wave", wave, "/sumEns_natDeaths.rds"))
      
@@ -104,16 +109,15 @@ p1[[2]] <- ggplot(sims_md, aes(x = t)) +
     geom_ribbon(aes(ymin = LCI, ymax = UCI), alpha = 0.5) +
     geom_ribbon(aes(ymin = LQ, ymax = UQ), alpha = 0.5) +
     geom_line(aes(y = Median)) +
-    geom_line(
-        aes(y = n), 
-        data = data,
-        col = "blue", linetype = "dashed"
-    ) +
+    geom_line(aes(y = n), data = data, col = "blue") +
     xlab("Days") + 
     ylab("Counts") +
     ggtitle("Observed cumulative deaths (aggregated over LTLAs)")
     
-if(cont) p1[[2]] <- p1[[2]] + geom_vline(xintercept = tstart, linetype = "dashed")
+if(cont) {
+    p1[[2]] <- p1[[2]] + geom_vline(xintercept = tendfit, linetype = "dashed") +
+        geom_line(aes(y = n), data = data_forecast, col = "blue", linetype = "dashed")
+}
               
 ###############################################
 #######  age/region-level observations  #######
@@ -132,6 +136,11 @@ data <- readRDS(paste0("../", outputs, "/cumDeath_age_region.rds")) %>%
     mutate(across(c(age, region), as.numeric)) %>%
     inner_join(region_lookup, by = c("region" = "FID")) %>%
     select(t, n, age, RGN19NM)
+
+if(cont) {
+    data_forecast <- filter(data, t > tendfit)
+    data <- filter(data, t <= tendfit)
+}
     
 ## load in runs
 sims_md <- readRDS(paste0("../wave", wave, "/sumEns_ageRegionDeaths.rds"))
@@ -140,18 +149,17 @@ p1[[3]] <- ggplot(sims_md, aes(x = t)) +
     geom_ribbon(aes(ymin = LCI, ymax = UCI), alpha = 0.5) +
     geom_ribbon(aes(ymin = LQ, ymax = UQ), alpha = 0.5) +
     geom_line(aes(y = Median)) +
-    geom_line(
-        aes(y = n), 
-        data = data,
-        col = "blue", linetype = "dashed"
-    ) +
+    geom_line(aes(y = n), data = data, col = "blue") +
     facet_grid(RGN19NM ~ age,
         labeller = labeller(RGN19NM = label_wrap_gen(width = 10), age = age_label)) +
     xlab("Days") + 
     ylab("Counts") +
     ggtitle("Observed cumulative deaths (age / region)")
     
-if(cont) p1[[3]] <- p1[[3]] + geom_vline(xintercept = tstart, linetype = "dashed")
+if(cont) {
+    p1[[3]] <- p1[[3]] + geom_vline(xintercept = tendfit, linetype = "dashed") +
+        geom_line(aes(y = n), data = data_forecast, col = "blue", linetype = "dashed")
+}
         
 ###############################################
 #######     NHS region observations     #######
@@ -167,6 +175,11 @@ data <- readRDS(paste0("../", outputs, "/hosp_nhsregion.rds")) %>%
     mutate(region = as.numeric(gsub("hosp_", "", region))) %>%
     inner_join(nhsregion_lookup, by = c("region" = "FID")) %>%
     select(t, n, areaName)
+
+if(cont) {
+    data_forecast <- filter(data, t > tendfit)
+    data <- filter(data, t <= tendfit)
+}
     
 ## load in runs
 sims_md <- readRDS(paste0("../wave", wave, "/sumEns_nhsregionHosp.rds"))
@@ -175,17 +188,16 @@ p1[[4]] <- ggplot(sims_md, aes(x = t)) +
     geom_ribbon(aes(ymin = LCI, ymax = UCI), alpha = 0.5) +
     geom_ribbon(aes(ymin = LQ, ymax = UQ), alpha = 0.5) +
     geom_line(aes(y = Median)) +
-    geom_line(
-        aes(y = n), 
-        data = data,
-        col = "blue", linetype = "dashed"
-    ) +
+    geom_line(aes(y = n), data = data, col = "blue") +
     facet_wrap(~ areaName, nrow = 1, labeller = label_wrap_gen(width = 10)) +
     xlab("Days") + 
     ylab("Counts") +
     ggtitle("Observed hospital cases (NHS region)")
     
-if(cont) p1[[4]] <- p1[[4]] + geom_vline(xintercept = tstart, linetype = "dashed")
+if(cont) {
+    p1[[4]] <- p1[[4]] + geom_vline(xintercept = tendfit, linetype = "dashed") +
+        geom_line(aes(y = n), data = data_forecast, col = "blue", linetype = "dashed")
+}
         
 ###############################################
 #####  NHS age/region-level observations  #####
@@ -202,6 +214,11 @@ data <- readRDS(paste0("../", outputs, "/cumHospAd_age_nhsregion.rds")) %>%
     inner_join(nhsregion_lookup, by = c("region" = "FID")) %>%
     select(t, n, age, areaName)
 
+if(cont) {
+    data_forecast <- filter(data, t > tendfit)
+    data <- filter(data, t <= tendfit)
+}
+
 ## load in runs
 sims_md <- readRDS(paste0("../wave", wave, "/sumEns_ageNhsregionHosp.rds"))
      
@@ -209,18 +226,17 @@ p1[[5]] <- ggplot(sims_md, aes(x = t)) +
     geom_ribbon(aes(ymin = LCI, ymax = UCI), alpha = 0.5) +
     geom_ribbon(aes(ymin = LQ, ymax = UQ), alpha = 0.5) +
     geom_line(aes(y = Median)) +
-    geom_line(
-        aes(y = n), 
-        data = data,
-        col = "blue", linetype = "dashed"
-    ) +
+    geom_line(aes(y = n), data = data, col = "blue") +
     facet_grid(areaName ~ age, 
         labeller = labeller(areaName = label_wrap_gen(width = 10), age = age_nhs_label)) +
     xlab("Days") + 
     ylab("Counts") +
     ggtitle("Observed cumulative hospital incidence (NHS age / region)")
     
-if(cont) p1[[5]] <- p1[[5]] + geom_vline(xintercept = tstart, linetype = "dashed")
+if(cont) {
+    p1[[5]] <- p1[[5]] + geom_vline(xintercept = tendfit, linetype = "dashed") +
+        geom_line(aes(y = n), data = data_forecast, col = "blue", linetype = "dashed")
+}
         
 ###############################################
 #####   combine plots and save outputs    #####
@@ -247,7 +263,7 @@ death_lookup <- readRDS(paste0("../", outputs, "/death_lookup.rds"))
 
 ## load in data
 data <- readRDS(paste0("../", outputs, "/cumDeath_lad.rds")) %>%
-    filter(t <= tstop) %>%
+    filter(t <= ifelse(cont, tendfit, tstop)) %>%
     pivot_longer(!t, names_to = "lad", values_to = "n") %>%
     mutate(lad = as.numeric(gsub("deaths_", "", lad))) %>%
     inner_join(death_lookup, by = c("lad" = "FID")) %>%
@@ -293,7 +309,7 @@ p1 <- p
 
 ## load in data
 data <- readRDS(paste0("../", outputs, "/cumDeath_lad.rds")) %>%
-    filter(t <= tstop) %>%
+    filter(t <= ifelse(cont, tendfit, tstop)) %>%
     pivot_longer(!t, names_to = "lad", values_to = "n") %>%
     mutate(lad = as.numeric(gsub("deaths_", "", lad))) %>%
     inner_join(death_lookup, by = c("lad" = "FID")) %>%
@@ -347,6 +363,11 @@ if(file.exists(paste0("../", outputs, "/lads_", outputs, ".txt"))) {
         mutate(lad = gsub("deaths_", "", lad)) %>%
         filter(lad %in% lads)
 
+    if(cont) {
+        data_forecast <- filter(data, t > tendfit)
+        data <- filter(data, t <= tendfit)
+    }
+
     ## load in runs
     sims_md <- readRDS(paste0("../wave", wave, "/sumEns_lads.rds")) %>%
         filter(lad %in% lads)
@@ -355,18 +376,16 @@ if(file.exists(paste0("../", outputs, "/lads_", outputs, ".txt"))) {
         geom_ribbon(aes(ymin = LCI, ymax = UCI), colour = NA, alpha = 0.5) +
         geom_ribbon(aes(ymin = LQ, ymax = UQ), colour = NA, alpha = 0.5) +
         geom_line(aes(y = Median)) +
-        geom_line(
-            aes(y = n), 
-            data = data,
-            linetype = "dashed",
-            col = "blue"
-        ) +
+        geom_line(aes(y = n), data = data, col = "blue") +
         facet_wrap(~ lad, scales = "free") +
         xlab("Days") + 
         ylab("Counts") +
         ggtitle(paste0("Observed deaths in top ", length(lads), " LTLAs"))
 
-    if(cont) p1 <- p1 + geom_vline(xintercept = tstart, linetype = "dashed")
+    if(cont) {
+        p1 <- p1 + geom_vline(xintercept = tendfit, linetype = "dashed") +
+            geom_line(aes(y = n), data = data_forecast, linetype = "dashed", col = "blue")
+    }
 
     ## save plot
     ggsave(paste0("../wave", wave, "/simsTopLADsBPFEns.pdf"), p1, width = 10, height = 10)
