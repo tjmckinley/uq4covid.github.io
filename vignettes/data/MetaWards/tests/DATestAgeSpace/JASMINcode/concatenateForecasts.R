@@ -54,7 +54,7 @@ if(any(is.na(runs))) {
         code <- readLines("submit_job_template.sbatch")
         code <- gsub("RANGES", paste0("1-", sum(is.na(runs))), code)
         code <- gsub("FILEDIR", wave, code)
-        code <- gsub("RUNCODE", "runDesign", code)
+        code <- gsub("RUNCODE", "runForecasts", code)
         code <- gsub("OUTPUTS", outputs, code)
         code <- gsub("TIME", time, code)
         writeLines(code, paste0("submit_job_wave", wave, ".sbatch"))
