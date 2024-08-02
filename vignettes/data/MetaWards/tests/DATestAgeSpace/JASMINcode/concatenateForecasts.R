@@ -7,51 +7,63 @@ if(length(args) != 0) {
     ## extract command line arguments
     args <- commandArgs(TRUE)
     if(length(args) > 0) {
-        stopifnot(length(args) >= 2)
-        wave <- as.numeric(args[1])
-        updateJobLookup <- as.logical(args[2])
-        if(length(args) > 2) {
-            time <- args[3]
+        stopifnot(length(args) >= 3)
+        wave <- args[1]
+        outputs <- args[2]
+        updateJobLookup <- as.logical(args[3])
+        if(length(args) > 3) {
+            time <- args[4]
         } else {
             time <- "00:35:00"
         }
     } else {
         stop("No arguments")
-        time <- "00:35:00"
     }
 } else {
     ## set name of directory to search for outcomes
     wave <- 1
+    outputs <- "outputs"
     updateJobLookup <- TRUE
+    time <- "00:35:00"
 }
 
 ## read in input file
 pars <- readRDS(paste0("../wave", wave, "/disease.rds"))
 
-## extract log-likelihoods
-ll <- map_dbl(1:nrow(pars), function(i, wave) {
+## check runs
+runs <- map_dbl(1:nrow(pars), function(i, wave) {
     print(i)
-    ifelse(file.exists(paste0("../wave", wave, "/runs_md_cont_", i, ".rds")), 1, 0)
+    file <- paste0("../wave", wave, "/wave", wave, "Forecasts_", i, ".Rout")
+    out <- NA
+    if(file.exists(file)) {
+        file <- readLines(file)
+        if(length(grep("Finished", file)) == 1) {
+            out <- 1
+        }
+    }
+    out
 }, wave = wave)
 
 ## check all runs have completed
-if(any(ll == 0)) {
+if(any(is.na(runs))) {
     cat("Missing runs:\n")
-    print(which(ll == 0))
+    print(which(is.na(runs)))
     if(updateJobLookup) {
-        system("rm job_lookup.txt")
-        writeLines(as.character(which(ll == 0)), "job_lookup.txt")
+        system(paste0("rm job_lookup_wave", wave, ".txt"))
+        writeLines(as.character(which(is.na(runs))), paste0("job_lookup_wave", wave, ".txt"))
         code <- readLines("submit_job_template.sbatch")
-        code <- gsub("RANGES", paste0("1-", sum(ll == 0)), code)
+        code <- gsub("RANGES", paste0("1-", sum(is.na(runs))), code)
         code <- gsub("FILEDIR", wave, code)
-        code <- gsub("RUNCODE", "runForecasts", code)
+        code <- gsub("RUNCODE", "runDesign", code)
+        code <- gsub("OUTPUTS", outputs, code)
         code <- gsub("TIME", time, code)
-        writeLines(code, "submit_job.sbatch")
+        writeLines(code, paste0("submit_job_wave", wave, ".sbatch"))
     }
     stop("Stopped")
 }
 
 ## cleanup
-map(1:nrow(pars), function(i, wave) {
-    system(paste0("rm ../wave", wave, "/wave", wave, "Forecasts_", i, ".Rout"))
-}, wave = wave)
+#map(1:nrow(pars), function(i, wave) {
+#    system(paste0("rm ../wave", wave, "/wave", wave, "Forecasts_", i, ".Rout"))
+#}, wave = wave)
+
