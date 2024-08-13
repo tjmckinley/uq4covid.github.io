@@ -1,0 +1,248 @@
+## load libraries
+library(tidyverse)
+library(truncnorm)
+library(patchwork)
+
+## check if being run in batch mode
+args <- commandArgs(TRUE)
+if(length(args) != 0) {
+    ## extract command line arguments
+    args <- commandArgs(TRUE)
+    if(length(args) > 0) {
+        stopifnot(length(args) == 3)
+        seed <- args[1]
+        inputdir <- paste0("wave1", args[2])
+        newinputdir <- paste0("wave1", args[3])
+    } else {
+        stop("No arguments")
+    }
+} else {
+    seed <- "456"
+    inputdir <- "wave1Sim"
+    newinputdir <- "wave1FullSim"
+}
+
+## create output directory
+outputdir <- paste0("outputs", seed)
+newoutputdir <- paste0("outputsFull", seed)
+if(!dir.exists(outputdir)) {
+    stop("'outputdir' doesn't exist")
+}
+if(!dir.exists(inputdir)) {
+    stop("'inputdir' doesn't exist")
+}
+if(dir.exists(newoutputdir)) {
+    stop(newoutputdir, " directory already exists. Please delete if you wish to overwrite.")
+}
+if(dir.exists(newinputdir)) {
+    stop(newinputdir, " directory already exists. Please delete if you wish to overwrite.")
+}
+dir.create(newoutputdir)
+dir.create(newinputdir)
+
+## load in simulated data
+disSims <- readRDS(paste0(outputdir, "/disSims.rds"))
+
+## copy initial design folder
+files <- c(
+    "inputs.rds",
+    "disease.rds",
+    "design.pdf"
+)
+files <- map(files, ~paste0("cp ", inputdir, "/", ., " ", newinputdir))
+map(files, system)
+
+## load OE terms
+fixedInputs <- readLines(paste0(inputdir, "/fixedInputs.txt"))
+tstart <- as.numeric(fixedInputs[1])
+tstop <- as.numeric(fixedInputs[2])
+lockdown_day <- as.numeric(fixedInputs[3])
+npart <- as.numeric(fixedInputs[4])
+niter <- as.numeric(fixedInputs[5])
+a1 <- as.numeric(fixedInputs[6])
+a2 <- as.numeric(fixedInputs[7])
+b1 <- as.numeric(fixedInputs[8])
+b2 <- as.numeric(fixedInputs[9])
+a_dis <- as.numeric(fixedInputs[10])
+b_dis <- as.numeric(fixedInputs[11])
+b_dis_8 <- as.numeric(fixedInputs[12])
+sigma2_lad <- as.numeric(fixedInputs[13])
+sigma2_age_region <- as.numeric(fixedInputs[14])
+sigma2_nhsregion <- as.numeric(fixedInputs[15])
+sigma2_age_nhsregion <- as.numeric(fixedInputs[16])
+saveAll <- as.numeric(fixedInputs[17])
+snapshot <- as.numeric(fixedInputs[18])
+writeExt <- as.numeric(fixedInputs[19])
+
+## extract lookup
+lookup <- readRDS(paste0(outputdir, "/lookup.rds")) %>%
+    filter(!is.na(FID_death))
+
+## set new aggregation variance
+sigma2_age_lad <- 1 / (length(unique(lookup$FID_death)) * 8)
+
+## write to file
+writeLines(as.character(c(tstart, tstop, lockdown_day, npart, niter, a1, a2,
+    b1, b2, a_dis, b_dis, b_dis_8, sigma2_age_lad, saveAll, snapshot, writeExt)), 
+    paste0(newinputdir, "/fixedInputs.txt"))
+    
+## extract relevant counts and sample observation error
+disSims <- select(disSims, t, starts_with("D") | starts_with("H") | starts_with("RH")) %>%
+    pivot_longer(!t) %>%
+    mutate(age = gsub('^(?:[^_]*_)(.*)', '\\1', name)) %>%
+    mutate(lad = gsub('^(?:[^_]*_)(.*)', '\\1', age)) %>%
+    mutate(age = gsub('(.*)_[0-9]*', '\\1', age)) %>%
+    mutate(name = gsub('_.*', '', name)) %>%
+    mutate(across(c(age, lad), ~as.numeric(.))) %>%
+    pivot_wider(names_from = name, values_from = value) %>%
+    inner_join(select(lookup, FID, FID_death), by = c("lad" = "FID")) %>%
+    select(!lad) %>%
+    rename(lad = FID_death) %>%
+    group_by(t, age, lad) %>%
+    summarise(across(everything(), ~sum(.)), .groups = "drop") %>%
+    group_by(age, lad) %>%
+    mutate(DH = DH - lag(DH, default = 0)) %>%
+    mutate(DI = DI - lag(DI, default = 0)) %>%
+    mutate(RH = RH - lag(RH, default = 0)) %>%
+    mutate(Hinc = H - lag(H, default = 0) + DH + RH) %>%
+    ungroup() %>%
+    mutate(across(c(DI, DH, RH, Hinc), ~rnorm(
+        n(),
+        mean = (a1 - a2) + (b1 - b2 + 1) * .,
+        sd = sqrt((a1 + a2) + (b1 + b2) * .)
+    ))) %>%
+    group_by(age, lad) %>%
+    mutate(H = lag(H, default = 0) + Hinc - DH - RH) %>%
+    ungroup() %>%
+    mutate(across(c(DI, DH, H, Hinc), ~rtruncnorm(
+        n(),
+        a = 0,
+        b = Inf,
+        mean = .,
+        sd = sqrt(sigma2_age_lad)
+    ))) %>%
+    mutate(across(c(DI, DH, H, Hinc), ~round(.))) %>%
+    select(t, age, lad, DI, DH, H, Hinc) %>%
+    arrange(t, age, lad)
+    
+## plot data at aggregated levels
+p <- list()
+deaths <- readRDS(paste0(outputdir, "/cumDeath_lad.rds")) %>%
+    pivot_longer(!t) %>%
+    separate(name, c("name", "lad"), sep = "_") %>%
+    select(!name) %>%
+    mutate(lad = as.numeric(lad)) %>%
+    group_by(t) %>%
+    summarise(deaths = sum(value), .groups = "drop")
+temp <- mutate(disSims, deaths = DI + DH) %>%
+    group_by(t, lad) %>%
+    summarise(deaths = sum(deaths), .groups = "drop") %>%
+    group_by(lad) %>%
+    mutate(deaths = cumsum(deaths)) %>%
+    group_by(t) %>%
+    summarise(deaths = sum(deaths), .groups = "drop")
+p[[1]] <- ggplot(deaths, aes(x = t, y = deaths)) +
+    geom_line(colour = "blue") +
+    geom_line(data = temp)
+    
+deaths <- readRDS(paste0(outputdir, "/cumDeath_age_region.rds")) %>%
+    pivot_longer(!t) %>%
+    separate(name, c("name", "age", "region"), sep = "_") %>%
+    select(!name) %>%
+    mutate(across(c(age, region), as.numeric)) %>%
+    rename(deaths = value)
+temp <- mutate(disSims, deaths = DI + DH) %>%
+    group_by(t, age, lad) %>%
+    summarise(deaths = sum(deaths), .groups = "drop") %>%
+    group_by(age, lad) %>%
+    mutate(deaths = cumsum(deaths)) %>%
+    inner_join(select(lookup, !c(FID, FID_nhsregion)) %>% distinct(), by = c("lad" = "FID_death")) %>%
+    group_by(t, FID_region, age) %>%
+    summarise(deaths = sum(deaths), .groups = "drop") %>%
+    rename(region = FID_region)
+p[[2]] <- ggplot(deaths, aes(x = t, y = deaths)) +
+    geom_line(colour = "blue") +
+    geom_line(data = temp) +
+    facet_grid(region ~ age, scales = "free")
+    
+hosp <- readRDS(paste0(outputdir, "/hosp_nhsregion.rds")) %>%
+    pivot_longer(!t) %>%
+    separate(name, c("name", "region"), sep = "_") %>%
+    select(!name) %>%
+    mutate(region = as.numeric(region)) %>%
+    rename(H = value)
+temp <- inner_join(disSims, select(lookup, !c(FID, FID_region)) %>% distinct(), by = c("lad" = "FID_death")) %>%
+    group_by(t, FID_nhsregion) %>%
+    summarise(H = sum(H), .groups = "drop") %>%
+    rename(region = FID_nhsregion)
+p[[3]] <- ggplot(hosp, aes(x = t, y = H)) +
+    geom_line(colour = "blue") +
+    geom_line(data = temp) +
+    facet_wrap(~ region, scales = "free")
+    
+age_lookup <- readRDS(paste0(outputdir, "/age_lookup.rds"))
+    
+Hinc <- readRDS(paste0(outputdir, "/cumHospAd_age_nhsregion.rds")) %>%
+    pivot_longer(!t) %>%
+    separate(name, c("name", "age", "region"), sep = "_") %>%
+    select(!name) %>%
+    mutate(across(c(age, region), ~as.numeric(.))) %>%
+    rename(Hinc = value)
+temp <- inner_join(disSims, select(lookup, !c(FID, FID_region)) %>% distinct(), by = c("lad" = "FID_death")) %>%
+    inner_join(rename(age_lookup, age = FID_death, nhsage = FID_nhsregion), by = "age") %>% 
+    group_by(t, nhsage, FID_nhsregion) %>%
+    summarise(Hinc = sum(Hinc), .groups = "drop") %>%
+    rename(region = FID_nhsregion, age = nhsage) %>%
+    group_by(age, region) %>%
+    mutate(Hinc = cumsum(Hinc)) %>%
+    ungroup()
+p[[4]] <- ggplot(Hinc, aes(x = t, y = Hinc)) +
+    geom_line(colour = "blue") +
+    geom_line(data = temp) +
+    facet_grid(region ~ age, scales = "free")  
+    
+## save comparison plot out
+p <- wrap_plots(p, ncol = 2)
+ggsave(paste0(newoutputdir, "/simsComparison.pdf"), width = 10, height = 10)
+
+## extract deaths data in the correct format
+DI <- mutate(disSims, name = paste0("DI_", age, "_", lad)) %>%
+    select(t, DI, name) %>%
+    pivot_wider(names_from = name, values_from = DI) %>%
+    mutate(across(starts_with("DI"), ~cumsum(.)))
+saveRDS(DI, paste0(newoutputdir, "/cumDI_age_lad.rds"))
+
+## extract deaths data in the correct format
+DH <- mutate(disSims, name = paste0("DH_", age, "_", lad)) %>%
+    select(t, DH, name) %>%
+    pivot_wider(names_from = name, values_from = DH) %>%
+    mutate(across(starts_with("DH"), ~cumsum(.)))
+saveRDS(DH, paste0(newoutputdir, "/cumDH_age_lad.rds"))
+
+## extract hospitalisation data in the correct format
+H <- mutate(disSims, name = paste0("H_", age, "_", lad)) %>%
+    select(t, H, name) %>%
+    pivot_wider(names_from = name, values_from = H)
+saveRDS(H, paste0(newoutputdir, "/H_age_lad.rds"))
+
+## extract hospital incidence in the correct format
+cumH <- mutate(disSims, name = paste0("cumH_", age, "_", lad)) %>%
+    select(t, Hinc, name) %>%
+    pivot_wider(names_from = name, values_from = Hinc) %>%
+    mutate(across(starts_with("cumH"), ~cumsum(.)))
+saveRDS(cumH, paste0(newoutputdir, "/cumH_age_lad.rds"))
+
+## copy over other necessary files
+files <- c(
+    "age_lookup.rds",
+    "death_lookup.rds",
+    "disSims.rds",
+    "Local_Authority_Districts_\\(December_2019\\)_Boundaries_UK_BUC.zip",
+    "lookup.rds",
+    "pars.rds",
+    "u1*", "u2*",
+    "*.pdf"
+)
+map(files, ~system(paste0("cp ", outputdir, "/", ., " ", newoutputdir, "/")))
+system(paste0("cp ", outputdir, "/lads_", outputdir, ".txt ", newoutputdir, "/lads_", newoutputdir, ".txt"))
+
