@@ -66,6 +66,9 @@ The `data/` and `inputs/` folders contain the raw data files, and some scripts f
 up and extracting relevant time periods over which to fit the models. We have put
 the original links where the data were downloaded below, but note that some of these are not accessible anymore. Nevertheless, the resulting downloaded data are included.
 
+Shapefiles and lookup tables are sourced from the Office for National Statistics licensed under the Open Government Licence v.3.0.
+Contains OS data © Crown copyright and database right 2022.
+
 The raw data consist of:
 
 * Deaths within 28 days of a positive test by LTLA: `data/ltla_2022-07-06.csv`, downloaded from
