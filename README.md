@@ -64,10 +64,13 @@ for details on each of these steps.
 
 The `data/` and `inputs/` folders contain the raw data files, and some scripts for tidying them
 up and extracting relevant time periods over which to fit the models. We have put
-the original links where the data were downloaded below, but note that some of these are not accessible anymore. Nevertheless, the resulting downloaded data are included.
+the original links where the data were downloaded below, but note that some of these
+are not accessible anymore. Nevertheless, the resulting downloaded data were available
+through the Open Government Licence v3.0 and are included here.
 
-Shapefiles and lookup tables are sourced from the Office for National Statistics licensed under the Open Government Licence v.3.0.
-Contains OS data © Crown copyright and database right 2022.
+Shapefiles and lookup tables are sourced from the Office for National Statistics, also
+licensed under the Open Government Licence v.3.0. Contains OS data © Crown copyright
+and database right 2022.
 
 The raw data consist of:
 
@@ -94,7 +97,7 @@ and are stored as follows:
   to the LTLA codes used in the raw data.
   
 These data require some further processing to be usable in the model. As described in [McKinley *et al.* (2024)]()
-the movement data are available for all LTLAs in England and Wales (339 areas), but the hospitalisation
+the movement data are available for all LTLAs in England and Wales (338 areas), but the hospitalisation
 and death data are only available in England (315 areas). Furthermore, there are a couple of mis-matched 
 area names between the different data sources, which were merged manually (and documented in the code
 below). As such, the `data/dataProcess.R` file extracts and cleans up the raw data, and creates lookup
@@ -177,7 +180,7 @@ contains the following files:
 
 The `inputs/` folder also contains additional files required to run the model. These are:
 
-* `inputs/age_seeds.csv`: this contains the proportion of the UK population in each of the age-classes of the model, derived from the Office for National Statistics. (2020). 2011 Census: Aggregate Data. [data collection]. UK Data Service. SN: 7427, DOI: [http://doi.org/10.5257/census/aggregate-2011-2](http://doi.org/10.5257/census/aggregate-2011-2).
+* `inputs/age_seeds.csv`: this contains the proportion of the UK population in each of the age-classes of the model, derived from the Office for National Statistics. (2020). 2011 Census: Aggregate Data. [data collection]. UK Data Service. SN: 7427, DOI: [http://doi.org/10.5257/census/aggregate-2011-2](http://doi.org/10.5257/census/aggregate-2011-2). Available under the Open Government Licence v3.0.
 * `inputs/coMix_matrix.csv`: this is a contact matrix between different age-classes used *after* the first lockdown.
   The original data (`20200327_comix_social_contacts.xlsx`) are from [Jarvis *et al.* (2020)](https://bmcmedicine.biomedcentral.com/articles/10.1186/s12916-020-01597-8#availability-of-data-and-materials) and
   were downloaded from here 
